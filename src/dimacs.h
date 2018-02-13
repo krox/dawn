@@ -2,8 +2,8 @@
 #define DIMACS_H
 
 #include <string>
-#include "clause.h"
+#include "sat.h"
 
-void parseDimacs(std::string filename, ClauseStorage& clauses);
+void parseDimacs(std::string filename, ClauseSet& cs);
 
 #endif

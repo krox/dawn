@@ -108,7 +108,7 @@ public:
 	}
 };
 
-void parseDimacs(std::string filename, ClauseStorage& clauses)
+void parseDimacs(std::string filename, ClauseSet& cs)
 {
 	auto parser = Parser(filename);
 
@@ -141,11 +141,16 @@ void parseDimacs(std::string filename, ClauseStorage& clauses)
 			auto x = parser.parseInt();
 			if(x == 0)
 			{
-				clauses.addClause(clause);
+				cs.addClause(clause);
 				clause.resize(0);
 			}
 			else
-				clause.push_back(Lit::fromDimacs(x));
+			{
+				auto lit = Lit::fromDimacs(x);
+				while(cs.varCount() <= lit.var())
+					cs.addVar();
+				clause.push_back(lit);
+			}
 			continue;
 		}
 

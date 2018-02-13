@@ -1,6 +1,6 @@
 #include <iostream>
 #include <dimacs.h>
-#include "clause.h"
+#include "sat.h"
 
 int main(int argc, char *argv[])
 {
@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	ClauseStorage store;
-	parseDimacs(argv[1], store);
-	std::cout << store;
+	ClauseSet cs;
+	parseDimacs(argv[1], cs);
+	std::cout << cs;
 }
