@@ -7,6 +7,8 @@
 #include <cstdint>
 #include <vector>
 #include <iostream>
+#include <tuple>
+#include <functional>
 
 /**
  * A literal is a variable number + sign. Also there are some special lits:
@@ -18,24 +20,24 @@ class Lit
 
 public:
 	/** constructors */
-	inline Lit() : _val(-3) {}
-	inline constexpr Lit(uint32_t val) : _val(val) {}
-	inline Lit(uint32_t var, bool s) : _val(2*var+(s?1:0)) {}
+	Lit() : _val(-3) {}
+	explicit constexpr Lit(uint32_t val) : _val(val) {}
+	Lit(uint32_t var, bool s) : _val(2*var+(s?1:0)) {}
 
 	/** basic accesors and properties */
-	inline uint32_t toInt() const { return _val; }
-	inline uint32_t var() const { return toInt() >> 1; }
-	inline bool sign() const { return (toInt()&1) != 0; }
-	inline bool proper() const { return (int32_t)toInt() >= 0; }
-	inline bool fixed() const { return (toInt()&~1) == (uint32_t)-2; }
+	operator uint32_t() const { return _val; }
+	uint32_t var() const { return _val >> 1; }
+	bool sign() const { return (_val&1) != 0; }
+	bool proper() const { return (int32_t)_val >= 0; }
+	bool fixed() const { return (_val&~1) == (uint32_t)-2; }
 
 	/** IO in dimacs convention */
-	inline static Lit fromDimacs(int x)
+	static Lit fromDimacs(int x)
 	{
 		return Lit(x>0?2*x-2:-2*x-1);
 	}
 
-	inline int toDimacs() const
+	int toDimacs() const
 	{
 		return sign()?-var()-1:var()+1;
 	}
@@ -43,22 +45,22 @@ public:
 	friend std::ostream& operator<<(std::ostream& stream, Lit l);
 
 	/** misc */
-	inline bool operator==(Lit b) const
+	bool operator==(Lit b) const
 	{
 		return _val == b._val;
 	}
 
-	inline Lit neg() const
+	Lit neg() const
 	{
-		return Lit(toInt()^1);
+		return Lit(_val^1);
 	}
 };
 
 /** special values of Lit */
-inline constexpr Lit zero = {(uint32_t)-1};
-inline constexpr Lit one = {(uint32_t)-2};
-inline constexpr Lit undef = {(uint32_t)-3};
-inline constexpr Lit elim = {(uint32_t)-4};
+#define LIT_ZERO Lit((uint32_t)-1)
+#define LIT_ONE Lit((uint32_t)-2)
+#define LIT_UNDEF Lit((uint32_t)-3)
+#define LIT_ELIM Lit((uint32_t)-4)
 
 class Clause
 {
@@ -69,7 +71,7 @@ public:
 	uint8_t _reserved;
 
 	// array of Lits
-	Lit lits[0];
+	Lit _lits[0];
 
 	Clause() {}
 	Clause(const Clause&) = delete;
@@ -78,31 +80,54 @@ public:
 	{
 		return _size;
 	}
+
+	Lit& operator[](size_t i)
+	{
+		return _lits[i];
+	}
+
+	const Lit& operator[](size_t i) const
+	{
+		return _lits[i];
+	}
+
+	typedef Lit* iterator;
+	typedef const Lit* const_iterator;
+	iterator begin() { return &_lits[0]; }
+	iterator end() { return &_lits[_size]; }
+	const_iterator begin() const { return &_lits[0]; }
+	const_iterator end() const { return &_lits[_size]; }
 };
 
 /** Reference to a clause inside a ClauseStorage object. */
 class CRef
 {
-public:
 	// NOTE: highest bit is used for bit-packing in 'Watch' and 'Reason'
 	uint32_t _val;
-	CRef(uint32_t val)
+public:
+	constexpr explicit CRef(uint32_t val)
 		:_val(val)
 	{}
+
+	operator uint32_t() const
+	{
+		return _val;
+	}
 };
 
-
 #define CREF_MAX (UINT32_MAX>>1)
+#define CREF_UNDEF CRef(UINT32_MAX)
 
 class ClauseStorage
 {
+private:
 	std::vector<uint32_t> store;
-
-public:
 	std::vector<CRef> clauses;
 
+public:
+
 	/** add a new clause, no checking of lits done */
-	inline CRef addClause(const std::vector<Lit>& lits)
+	CRef addClause(const std::vector<Lit>& lits)
 	{
 		if(lits.size() > UINT16_MAX)
 		{
@@ -122,27 +147,97 @@ public:
 		store.reserve(store.size()+1+lits.size());
 		store.push_back(*(uint32_t*)&header);
 		for(auto l : lits)
-			store.push_back(l.toInt());
+			store.push_back(l);
 
 		auto r = CRef((uint32_t)index);
 		clauses.push_back(r);
 		return r;
 	}
 
-	inline Clause& operator[](CRef i)
+	Clause& operator[](CRef i)
 	{
-		return *(Clause*)&store[i._val];
+		return *(Clause*)&store[i];
 	}
 
-	inline const Clause& operator[](CRef i) const
+	const Clause& operator[](CRef i) const
 	{
-		return *(Clause*)&store[i._val];
+		return *(Clause*)&store[i];
 	}
 
-	friend std::ostream& operator<<(std::ostream& stream, const ClauseStorage& clauses);
+	struct iterator
+	{
+		ClauseStorage& cs;
+		std::vector<CRef>::iterator it;
+	public:
+		iterator(ClauseStorage& cs, std::vector<CRef>::iterator it)
+			: cs(cs), it(it)
+		{}
+
+		std::tuple<CRef, Clause&> operator*()
+		{
+			return std::make_tuple(*it, std::ref(cs[*it]));
+		}
+
+		void operator++()
+		{
+			++it;
+		}
+
+		bool operator!=(const iterator& r) const
+		{
+			return it != r.it;
+		}
+	};
+
+	iterator begin()
+	{
+		return iterator(*this, clauses.begin());
+	}
+
+	iterator end()
+	{
+		return iterator(*this, clauses.end());
+	}
+
+	struct const_iterator
+	{
+		const ClauseStorage& cs;
+		std::vector<CRef>::const_iterator it;
+	public:
+		const_iterator(const ClauseStorage& cs, std::vector<CRef>::const_iterator it)
+			: cs(cs), it(it)
+		{}
+
+		std::tuple<CRef,const Clause&> operator*()
+		{
+			return std::make_tuple(*it, std::ref(cs[*it]));
+		}
+
+		void operator++()
+		{
+			++it;
+		}
+
+		bool operator!=(const const_iterator& r) const
+		{
+			return it != r.it;
+		}
+	};
+
+	const_iterator begin() const
+	{
+		return const_iterator(*this, clauses.begin());
+	}
+
+	const_iterator end() const
+	{
+		return const_iterator(*this, clauses.end());
+	}
 };
 
 static_assert(sizeof(Lit) == 4);
 static_assert(sizeof(Clause) == 4);
+
+std::ostream& operator<<(std::ostream& stream, const ClauseStorage& clauses);
 
 #endif

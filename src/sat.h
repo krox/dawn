@@ -22,7 +22,7 @@ public:
 
 	/** add a new variable */
 	uint32_t addVar();
-	inline uint32_t varCount() const;
+	uint32_t varCount() const;
 
 	/** add clause ('inner' numbering, no checking of tautologies and such) */
 	CRef addEmpty();
@@ -49,20 +49,20 @@ inline uint32_t ClauseSet::varCount() const
 inline CRef ClauseSet::addEmpty()
 {
 	contradiction = true;
-	return CRef(-1);
+	return CREF_UNDEF;
 }
 
 inline CRef ClauseSet::addUnary(Lit a)
 {
 	units.push_back(a);
-	return CRef(-1);
+	return CREF_UNDEF;
 }
 
 inline CRef ClauseSet::addBinary(Lit a, Lit b)
 {
-	bins[a.toInt()].push_back(b);
-	bins[b.toInt()].push_back(a);
-	return CRef(-1);
+	bins[a].push_back(b);
+	bins[b].push_back(a);
+	return CREF_UNDEF;
 }
 
 inline CRef ClauseSet::addClause(const std::vector<Lit>& lits)
