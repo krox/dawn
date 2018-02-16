@@ -17,6 +17,7 @@ class Parser
 {
 	static constexpr size_t CHUNK = 256*1024;
 	FILE* file;
+	bool needClose;
 	size_t pos = 0; // current position in buf
 	std::unique_ptr<char[]> buf;
 
@@ -90,7 +91,16 @@ public:
 
 	Parser(std::string filename)
 	{
-		file = fopen(filename.c_str(), "rb");
+		if(filename.empty())
+		{
+			file = stdin;
+			needClose = false;
+		}
+		else
+		{
+			file = fopen(filename.c_str(), "rb");
+			needClose = true;
+		}
 		if(file == nullptr)
 		{
 			std::cerr << "PARSE ERROR: unable to open file" << std::endl;
@@ -103,12 +113,12 @@ public:
 
 	~Parser()
 	{
-		if(file != NULL)
+		if(needClose && file != NULL)
 			fclose(file);
 	}
 };
 
-void parseDimacs(std::string filename, ClauseSet& cs)
+void parseCnf(std::string filename, ClauseSet& cs)
 {
 	auto parser = Parser(filename);
 
@@ -164,6 +174,66 @@ void parseDimacs(std::string filename, ClauseSet& cs)
 	if(!clause.empty())
 	{
 		std::cerr << "PARSE ERROR: incomplete clause at end of file" << std::endl;
+		exit(-1);
+	}
+}
+
+void parseSolution(std::string filename, Solution& sol)
+{
+	auto parser = Parser(filename);
+
+	while(true)
+	{
+		parser.skipWhite();
+
+		// end of file
+		if(*parser == 0)
+			break;
+
+		// comment lines
+		else if(*parser == 'c')
+		{
+			parser.skipLine();
+			continue;
+		}
+
+		// ignore the line 's SATISFIABLE'
+		else if(*parser == 's')
+		{
+			parser.skipLine();
+			continue;
+		}
+
+		// 'v' line
+		else if(*parser == 'v')
+		{
+			++parser;
+			while(true)
+			{
+				parser.skipWhite();
+				int x = parser.parseInt();
+				if(x == 0)
+					break;
+				auto lit = Lit::fromDimacs(x);
+				if(lit.var() >= (unsigned)sol.varCount())
+				{
+					std::cerr << "PARSE ERROR: invalid literal in solution: " << lit << " (varCount = " << sol.varCount() << ")" << std::endl;
+					exit(-1);
+				}
+				sol.set(lit);
+			}
+		}
+
+		else
+		{
+			std::cerr << "PARSE ERROR: unexpected character: '" << (int)*parser << "'" << std::endl;
+			exit(-1);
+		}
+	}
+
+	if(!sol.valid())
+	{
+		std::cerr << "PARSE ERROR: invalid/incomplete solution" << std::endl;
 		exit(-1);
 	}
 }

@@ -1,6 +1,9 @@
 #ifndef SOLUTION_H
 #define SOLUTION_H
 
+#include <vector>
+#include "clause.h"
+
 class Solution
 {
 	std::vector<bool> assign;
@@ -30,6 +33,7 @@ public:
 	bool satisfied(Lit a, Lit b) const;
 	bool satisfied(Lit a, Lit b, Lit c) const;
 	bool satisfied(const std::vector<Lit>& cl) const;
+	bool satisfied(const Clause& cl) const;
 
 	/** output in dimacs format */
 	friend std::ostream& operator<<(std::ostream& stream, const Solution& sol);
@@ -79,6 +83,14 @@ inline bool Solution::satisfied(Lit a, Lit b, Lit c) const
 }
 
 inline bool Solution::satisfied(const std::vector<Lit>& cl) const
+{
+	for(Lit lit : cl)
+		if(assign[lit])
+			return true;
+	return false;
+}
+
+inline bool Solution::satisfied(const Clause& cl) const
 {
 	for(Lit lit : cl)
 		if(assign[lit])

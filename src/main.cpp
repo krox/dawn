@@ -12,7 +12,7 @@ int main(int argc, char *argv[])
 	}
 
 	ClauseSet cs;
-	parseDimacs(argv[1], cs);
+	parseCnf(argv[1], cs);
 
 	Solution sol;
 	if(solve(cs, sol))
