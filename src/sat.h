@@ -20,6 +20,10 @@ public:
 	std::vector<std::vector<Lit>> bins;
 	ClauseStorage clauses;
 
+	/** constructor */
+	ClauseSet();
+	explicit ClauseSet(int n);
+
 	/** add a new variable */
 	uint32_t addVar();
 	uint32_t varCount() const;
@@ -32,6 +36,13 @@ public:
 
 	friend std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs);
 };
+
+inline ClauseSet::ClauseSet()
+{}
+
+inline ClauseSet::ClauseSet(int n)
+	: bins(2*n)
+{}
 
 inline uint32_t ClauseSet::addVar()
 {

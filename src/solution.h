@@ -9,8 +9,13 @@ class Solution
 	std::vector<bool> assign;
 
 public:
+
 	Solution()
 		: assign(0)
+	{}
+
+	explicit Solution(int n)
+		: assign(2*n)
 	{}
 
 	Solution(std::vector<bool> assign)
