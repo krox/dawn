@@ -1,14 +1,14 @@
 #include "solver.h"
 
-std::vector<bool> solve(ClauseSet& cs)
+/** return true if solved, false if unsat */
+bool solve(ClauseSet& cs, Solution& sol)
 {
 	PropEngine p(cs);
-	std::vector<bool> sol;
 
 	std::vector<Lit> branches;
 
 	if(cs.contradiction) // NOTE: do this after PropEngine constructor
-		return sol;
+		return false;
 
 	while(true)
 	{
@@ -17,7 +17,7 @@ std::vector<bool> solve(ClauseSet& cs)
 		if(branch == -1) // no unassigned left -> solution is found
 		{
 			sol = p.assign;
-			return sol;
+			return true;
 		}
 
 		// propagate branch
@@ -33,7 +33,7 @@ std::vector<bool> solve(ClauseSet& cs)
 
 			// level 0 conflict -> UNSAT
 			if(p.level() == 0)
-				return sol;
+				return false;
 
 			// unroll last descision and propagate opposite literal
 			p.unrollLevel(p.level()-1);

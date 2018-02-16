@@ -4,8 +4,9 @@
 #include <vector>
 #include <cassert>
 #include "propengine.h"
+#include "solution.h"
 
 /** returns empty if contradiction is found */
-std::vector<bool> solve(ClauseSet& cs);
+bool solve(ClauseSet& cs, Solution& sol);
 
 #endif
