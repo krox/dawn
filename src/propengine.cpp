@@ -61,15 +61,15 @@ bool PropEngine::propagateFull(Lit x)
 	while(pos != trail.size())
 	{
 		Lit y = trail[pos++];
-		std::vector<CRef>& ws = watches[y];
+		std::vector<CRef>& ws = watches[y.neg()];
 		for(size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			Clause& c = cs.clauses[ws[wi]];
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
-			if(c[0] == y)
+			if(c[0] == y.neg())
 				std::swap(c[0], c[1]);
-			assert(c[1] == y);
+			assert(c[1] == y.neg());
 
 			// other watched lit is satisfied -> do nothing
 			if(assign[c[0]])
