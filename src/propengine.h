@@ -26,11 +26,22 @@ public:
 	bool propagateBinary(Lit x); // binary unit propagation
 	bool propagateFull(Lit x); // full unit propagation
 
+	/** propagate x and unrolls immediately. Returns number of propagations or -1 on conflict */
+	int probe(Lit x);
+
+	/**
+	 * Probe all unassigned literals and propagate inverse of all failings.
+	 * Reuturns most active variable or -2 on conflict or -1 if everything is set already.
+	 */
+	int probeFull();
+
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
 	int level() const; /** current level */
 	void newLevel(); /** start a new level */
 	void unrollLevel(int l); /** unroll all assignments in levels > l, and set level to l */
+
+
 };
 
 #endif

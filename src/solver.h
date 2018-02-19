@@ -7,6 +7,6 @@
 #include "solution.h"
 
 /** returns empty if contradiction is found */
-bool solve(ClauseSet& cs, Solution& sol);
+bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing);
 
 #endif

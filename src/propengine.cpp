@@ -98,6 +98,50 @@ bool PropEngine::propagateFull(Lit x)
 	return true;
 }
 
+int PropEngine::probe(Lit x)
+{
+	size_t pos = trail.size();
+	newLevel();
+	bool s = propagateFull(x);
+	int r = (int)(trail.size()-pos);
+	unrollLevel(level()-1);
+	if(s)
+		return r;
+	else
+		return -1;
+}
+
+int PropEngine::probeFull()
+{
+	int best = -1;
+	int bestScore = -1;
+	for(int i = 0; i < (int)cs.varCount(); ++i)
+	{
+		Lit a = Lit(i,false);
+		Lit b = Lit(i,true);
+		if(assign[a] || assign[b])
+			continue;
+
+		int scoreA = probe(a);
+		int scoreB = probe(b);
+
+		bool s = true;
+		if(scoreA == -1 && scoreB == -1)
+			return -2;
+		else if(scoreA == -1)
+			s = propagateFull(b);
+		else if(scoreB == -1)
+			s = propagateFull(a);
+		else if(scoreA + scoreB > bestScore)
+		{
+			best = i;
+			bestScore = scoreA + scoreB;
+		}
+		assert(s);
+	}
+	return best;
+}
+
 int PropEngine::unassignedVariable() const
 {
 	for(int i = 0; i < (int)cs.varCount(); ++i)

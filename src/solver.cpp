@@ -1,8 +1,10 @@
 #include "solver.h"
+#include <iostream>
 
 /** return true if solved, false if unsat */
-bool solve(ClauseSet& cs, Solution& sol)
+bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 {
+	uint64_t nConfl = 0;
 	PropEngine p(cs);
 
 	std::vector<Lit> branches;
@@ -13,10 +15,15 @@ bool solve(ClauseSet& cs, Solution& sol)
 	while(true)
 	{
 		// choose a branching variable
-		int branch = p.unassignedVariable();
+		int branch = doProbing ? p.probeFull() : p.unassignedVariable();
+
+		if(branch == -2)
+			goto handle_conflict;
+
 		if(branch == -1) // no unassigned left -> solution is found
 		{
 			sol = p.assign;
+			std::cout << "c solution found after " << nConfl << " conflicts" << std::endl;
 			return true;
 		}
 
@@ -27,6 +34,7 @@ bool solve(ClauseSet& cs, Solution& sol)
 			continue;
 
 		// handle conflicts
+		handle_conflict:
 		while(true)
 		{
 			assert(p.level() == (int)branches.size());
@@ -37,6 +45,7 @@ bool solve(ClauseSet& cs, Solution& sol)
 
 			// unroll last descision and propagate opposite literal
 			p.unrollLevel(p.level()-1);
+			nConfl += 1;
 			auto l = branches.back().neg();
 			branches.pop_back();
 			if(p.propagateFull(l))
