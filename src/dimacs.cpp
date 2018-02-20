@@ -10,6 +10,14 @@
 #include <vector>
 #include <iostream>
 
+static void panic(std::string msg)
+{
+	std::cout << "PARSE ERROR: " << msg << std::endl;
+	exit(-1);
+}
+
+#define enforce(x,msg) if(!(x)) panic(msg);
+
 /**
  * Custom file buffer + parsing utilities.
  */
@@ -53,24 +61,28 @@ public:
 			++*this;
 		}
 
-		if(!isdigit(**this))
-		{
-			std::cerr << "PARSE ERROR: unexpected character" << std::endl;
-			exit(-1);
-		}
+		enforce(isdigit(**this), "unexpected character");
 
 		while(isdigit(**this))
 		{
 			int d = **this - '0';
 			++*this;
-			if(r > (INT_MAX-d)/10)
-			{
-				std::cerr << "PARSE ERROR: integer overflow" << std::endl;
-				exit(-1);
-			}
+			enforce(r <= (INT_MAX-d)/10, "integer overflow");
 			r = 10*r + d;
 		}
 		return r*s;
+	}
+
+	std::string parseString()
+	{
+		std::string r;
+		enforce(isalpha(**this), "unexpected character");
+		while(isalpha(**this))
+		{
+			r += **this;
+			++*this;
+		}
+		return r;
 	}
 
 	/** skip whitespace (including newlines) */
@@ -99,12 +111,8 @@ public:
 		else
 		{
 			file = fopen(filename.c_str(), "rb");
+			enforce(file != nullptr, "unable to open file");
 			needClose = true;
-		}
-		if(file == nullptr)
-		{
-			std::cerr << "PARSE ERROR: unable to open file" << std::endl;
-			exit(-1);
 		}
 		buf = std::make_unique<char[]>(CHUNK);
 		pos = CHUNK;
@@ -120,8 +128,14 @@ public:
 
 void parseCnf(std::string filename, ClauseSet& cs)
 {
+	if(filename != "")
+		std::cout << "c reading " << filename << std::endl;
+	else
+		std::cout << "c reading from stdin" << std::endl;
 	auto parser = Parser(filename);
 
+	int varCount = -1;
+	int clauseCount = -1;
 	std::vector<Lit> clause;
 	while(true)
 	{
@@ -138,10 +152,17 @@ void parseCnf(std::string filename, ClauseSet& cs)
 			continue;
 		}
 
-		// ignore the line 'p cnf <varCount> <clauseCount>'
+		// header in format 'p cnf <varCount> <clauseCount>'
 		else if(*parser == 'p')
 		{
-			parser.skipLine();
+			++parser;
+			parser.skipWhite();
+			enforce(parser.parseString() == "cnf", "invalid 'p' line");
+			enforce(varCount == -1 && clauseCount == -1, "duplicate 'p' line");
+			parser.skipWhite();
+			varCount = parser.parseInt();
+			parser.skipWhite();
+			clauseCount = parser.parseInt();
 			continue;
 		}
 
@@ -164,18 +185,14 @@ void parseCnf(std::string filename, ClauseSet& cs)
 			continue;
 		}
 
-		else
-		{
-			std::cerr << "PARSE ERROR: unexpected character: '" << (int)*parser << "'" << std::endl;
-			exit(-1);
-		}
+		else panic(std::string("unexpected character '") + *parser + "'");
 	}
 
-	if(!clause.empty())
-	{
-		std::cerr << "PARSE ERROR: incomplete clause at end of file" << std::endl;
-		exit(-1);
-	}
+	enforce(clause.empty(), "incomplete clause at end of file");
+	enforce(varCount == -1 || varCount == (int)cs.varCount(), "wrong number of vars in header");
+	enforce(clauseCount == -1 || clauseCount == (int)cs.clauseCount(), "wrong number of clauses in header");
+
+	std::cout << "c " << cs.varCount() << " vars and " << cs.clauseCount() << " clauses" << std::endl;
 }
 
 void parseSolution(std::string filename, Solution& sol)
@@ -215,25 +232,13 @@ void parseSolution(std::string filename, Solution& sol)
 				if(x == 0)
 					break;
 				auto lit = Lit::fromDimacs(x);
-				if(lit.var() >= (unsigned)sol.varCount())
-				{
-					std::cerr << "PARSE ERROR: invalid literal in solution: " << lit << " (varCount = " << sol.varCount() << ")" << std::endl;
-					exit(-1);
-				}
+				enforce(lit.var() < (unsigned)sol.varCount(), "invalid literal in solution");
 				sol.set(lit);
 			}
 		}
 
-		else
-		{
-			std::cerr << "PARSE ERROR: unexpected character: '" << (int)*parser << "'" << std::endl;
-			exit(-1);
-		}
+		else panic(std::string("unexpected character: '") + *parser + "'");
 	}
 
-	if(!sol.valid())
-	{
-		std::cerr << "PARSE ERROR: invalid/incomplete solution" << std::endl;
-		exit(-1);
-	}
+	enforce(sol.valid(), "invalid/incomplete solution");
 }

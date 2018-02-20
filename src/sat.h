@@ -33,6 +33,7 @@ public:
 	CRef addUnary(Lit a);
 	CRef addBinary(Lit a, Lit b);
 	CRef addClause(const std::vector<Lit>& lits);
+	size_t clauseCount() const;
 
 	friend std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs);
 };
@@ -85,6 +86,18 @@ inline CRef ClauseSet::addClause(const std::vector<Lit>& lits)
 	if(lits.size() == 2)
 		return addBinary(lits[0], lits[1]);
 	return clauses.addClause(lits);
+}
+
+inline size_t ClauseSet::clauseCount() const
+{
+	size_t r = 0;
+	for(auto& b : bins)
+		r += b.size();
+	r /= 2;
+	r += units.size();
+	for(auto _ : clauses)
+		++r;
+	return r;
 }
 
 #endif

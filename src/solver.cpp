@@ -37,6 +37,7 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 		handle_conflict:
 		while(true)
 		{
+			nConfl += 1;
 			assert(p.level() == (int)branches.size());
 
 			// level 0 conflict -> UNSAT
@@ -45,7 +46,6 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 
 			// unroll last descision and propagate opposite literal
 			p.unrollLevel(p.level()-1);
-			nConfl += 1;
 			auto l = branches.back().neg();
 			branches.pop_back();
 			if(p.propagateFull(l))
