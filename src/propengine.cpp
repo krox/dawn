@@ -6,7 +6,10 @@ PropEngine::PropEngine(ClauseSet& cs)
 {
 	// empty clause -> don't bother doing anything
 	if(cs.contradiction)
+	{
+		conflict = true;
 		return;
+	}
 
 	// attach long clauses
 	for(auto [i,c] : cs.clauses)
@@ -18,45 +21,51 @@ PropEngine::PropEngine(ClauseSet& cs)
 
 	// propagate unary clauses
 	for(auto l : cs.units)
-		if(!propagateFull(l))
-		{
-			cs.addEmpty();
+	{
+		propagateFull(l);
+		if(conflict)
 			return;
-		}
+	}
 }
 
-bool PropEngine::set(Lit x)
+void PropEngine::set(Lit x)
 {
-	if(assign[x])
-		return true;
-	if(assign[x.neg()])
-		return false;
+	assert(!conflict);
+	assert(!assign[x] && !assign[x.neg()]);
 	assign[x] = true;
 	trail.push_back(x);
-	return true;
 }
 
-bool PropEngine::propagateBinary(Lit x)
+void PropEngine::propagateBinary(Lit x)
 {
 	size_t pos = trail.size();
-	if(!set(x))
-		return false;
+	set(x);
 
 	while(pos != trail.size())
 	{
 		Lit y = trail[pos++];
 		for(Lit z : cs.bins[y.neg()])
-			if(!set(z))
-				return false;
+		{
+			if(assign[z]) // already assigned true -> do nothing
+				continue;
+
+			if(assign[z.neg()]) // already assigned false -> conflict
+			{
+				conflict = true;
+				return;
+			}
+
+			set(z); // else -> propagate
+		}
 	}
-	return true;
 }
 
-bool PropEngine::propagateFull(Lit x)
+void PropEngine::propagateFull(Lit x)
 {
 	size_t pos = trail.size();
-	if(!propagateBinary(x))
-		return false;
+	propagateBinary(x);
+	if(conflict)
+		return;
 
 	while(pos != trail.size())
 	{
@@ -89,26 +98,40 @@ bool PropEngine::propagateFull(Lit x)
 				}
 
 			// tail is all assigned false -> propagate or conflict
-			if(!propagateBinary(c[0]))
-				return false;
+			if(assign[c[0].neg()])
+			{
+				conflict = true;
+				return;
+			}
+			else
+			{
+				propagateBinary(c[0]);
+				if(conflict)
+					return;
+			}
 
 			next_watch:;
 		}
 	}
-	return true;
 }
 
 int PropEngine::probe(Lit x)
 {
 	size_t pos = trail.size();
-	newLevel();
-	bool s = propagateFull(x);
-	int r = (int)(trail.size()-pos);
-	unrollLevel(level()-1);
-	if(s)
-		return r;
-	else
+	mark.push_back(trail.size());
+	propagateFull(x);
+
+	if(conflict)
+	{
+		unroll(level()-1);
 		return -1;
+	}
+	else
+	{
+		int r = (int)(trail.size()-pos);
+		unroll(level()-1);
+		return r;
+	}
 }
 
 int PropEngine::probeFull()
@@ -125,21 +148,28 @@ int PropEngine::probeFull()
 		int scoreA = probe(a);
 		int scoreB = probe(b);
 
-		bool s = true;
 		if(scoreA == -1 && scoreB == -1)
 			return -2;
 		else if(scoreA == -1)
-			s = propagateFull(b);
+			propagateFull(b);
 		else if(scoreB == -1)
-			s = propagateFull(a);
+			propagateFull(a);
 		else if(scoreA + scoreB > bestScore)
 		{
 			best = i;
 			bestScore = scoreA + scoreB;
 		}
-		assert(s);
+		assert(!conflict);
 	}
 	return best;
+}
+
+void PropEngine::branch(Lit x)
+{
+	assert(!conflict);
+	assert(!assign[x] && !assign[x.neg()]);
+	mark.push_back(trail.size());
+	propagateFull(x);
 }
 
 int PropEngine::unassignedVariable() const
@@ -155,16 +185,11 @@ int PropEngine::level() const
 	return (int)mark.size();
 }
 
-void PropEngine::newLevel()
-{
-	mark.push_back(trail.size());
-}
 
-void PropEngine::unrollLevel(int l)
+void PropEngine::unroll(int l)
 {
-	if(l == level())
-		return;
 	assert(l < level());
+	conflict = false;
 	while(trail.size() > mark[l])
 	{
 		Lit lit = trail.back();

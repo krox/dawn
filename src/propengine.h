@@ -15,16 +15,19 @@ class PropEngine
 	std::vector<Lit> trail;
 	std::vector<size_t> mark;
 
+	void set(Lit x);	// no unit propagation
+	void propagateBinary(Lit x); // binary unit propagation
+
 public:
 	std::vector<bool> assign;
+	bool conflict = false;
 
 	/** constructor */
 	PropEngine(ClauseSet& cs);
 
-	/** Set literal x. Does nothing if already set and return false on conflict. */
-	bool set(Lit x);	// no unit propagation
-	bool propagateBinary(Lit x); // binary unit propagation
-	bool propagateFull(Lit x); // full unit propagation
+	/** assign a literal and do unit propagation */
+	void branch(Lit x); // starts a new level
+	void propagateFull(Lit x); // stays on current level
 
 	/** propagate x and unrolls immediately. Returns number of propagations or -1 on conflict */
 	int probe(Lit x);
@@ -38,10 +41,7 @@ public:
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
 	int level() const; /** current level */
-	void newLevel(); /** start a new level */
-	void unrollLevel(int l); /** unroll all assignments in levels > l, and set level to l */
-
-
+	void unroll(int l); /** unroll all assignments in levels > l, and set level to l */
 };
 
 #endif

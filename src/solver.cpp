@@ -28,14 +28,12 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 		}
 
 		// propagate branch
-		p.newLevel();
 		branches.push_back(Lit(branch, false));
-		if(p.propagateFull(Lit(branch, false)))
-			continue;
+		p.branch(Lit(branch, false));
 
 		// handle conflicts
 		handle_conflict:
-		while(true)
+		while(p.conflict)
 		{
 			nConfl += 1;
 			assert(p.level() == (int)branches.size());
@@ -45,11 +43,10 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 				return false;
 
 			// unroll last descision and propagate opposite literal
-			p.unrollLevel(p.level()-1);
+			p.unroll(p.level()-1);
 			auto l = branches.back().neg();
 			branches.pop_back();
-			if(p.propagateFull(l))
-				break;
+			p.propagateFull(l);
 		}
 	}
 }
