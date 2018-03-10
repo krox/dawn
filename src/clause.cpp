@@ -19,14 +19,21 @@ std::ostream& operator<<(std::ostream& stream, Lit l)
 	return stream;
 }
 
+std::ostream& operator<<(std::ostream& stream, const Clause& cl)
+{
+	for(int j = 0; j < cl.size(); ++j)
+	{
+		if(j > 0)
+			stream << " ";
+		stream << cl[j];
+	}
+	return stream;
+}
+
 std::ostream& operator<<(std::ostream& stream, const ClauseStorage& clauses)
 {
 	for(auto [_ ,c] : clauses)
-	{
-		for(int j = 0; j < c.size(); ++j)
-			stream << c[j].toDimacs() << " ";
-		stream << "0\n";
-	};
+		stream << c << " 0\n";
 	stream << std::flush;
 	return stream;
 }

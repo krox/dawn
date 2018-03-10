@@ -8,5 +8,6 @@
 
 /** returns empty if contradiction is found */
 bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing);
+bool solve(ClauseSet& cs, Solution& sol);
 
 #endif

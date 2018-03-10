@@ -9,7 +9,7 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 
 	std::vector<Lit> branches;
 
-	if(cs.contradiction) // NOTE: do this after PropEngine constructor
+	if(p.conflict)
 		return false;
 
 	while(true)
@@ -46,7 +46,51 @@ bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
 			p.unroll(p.level()-1);
 			auto l = branches.back().neg();
 			branches.pop_back();
-			p.propagateFull(l);
+			p.propagateFull(l, REASON_UNDEF);
 		}
+	}
+}
+
+bool solve(ClauseSet& cs, Solution& sol)
+{
+	uint64_t nConfl = 0;
+	PropEngine p(cs);
+	std::vector<Lit> buf;
+
+	while(true)
+	{
+		// handle conflicts
+		while(p.conflict)
+		{
+			nConfl += 1;
+
+			// level 0 conflict -> UNSAT
+			if(p.level() == 0)
+				return false;
+
+			// otherwise anaylze,unroll,learn
+			int backLevel = p.analyzeConflict(buf);
+			p.unroll(backLevel);
+			Reason r = p.addClause(buf);
+			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
+			for(int i = 1; i < (int)buf.size(); ++i)
+				assert(p.assign[buf[i].neg()]);
+			p.propagateFull(buf[0], r);
+			buf.resize(0);
+		}
+
+		// choose a branching variable
+		int branch = p.unassignedVariable();
+
+		// no unassigned left -> solution is found
+		if(branch == -1)
+		{
+			sol = p.assign;
+			std::cout << "c solution found after " << nConfl << " conflicts" << std::endl;
+			return true;
+		}
+
+		// propagate branch
+		p.branch(Lit(branch, false));
 	}
 }

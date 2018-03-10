@@ -39,7 +39,8 @@ int main(int argc, char *argv[])
 	parseCnf(conf.cnfFile, cs);
 
 	Solution sol;
-	if(solveSimple(cs, sol, conf.doProbing))
+	//if(solveSimple(cs, sol, conf.doProbing))
+	if(solve(cs, sol))
 	{
 		std::cout << "s SATISFIABLE" << std::endl;
 		std::cout << sol;

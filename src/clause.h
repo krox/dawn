@@ -25,8 +25,8 @@ public:
 	Lit(uint32_t var, bool s) : _val(2*var+(s?1:0)) {}
 
 	/** basic accesors and properties */
-	operator uint32_t() const { return _val; }
-	uint32_t var() const { return _val >> 1; }
+	constexpr operator uint32_t() const { return _val; }
+	constexpr uint32_t var() const { return _val >> 1; }
 	bool sign() const { return (_val&1) != 0; }
 	bool proper() const { return (int32_t)_val >= 0; }
 	bool fixed() const { return (_val&~1) == (uint32_t)-2; }
@@ -109,9 +109,14 @@ public:
 		:_val(val)
 	{}
 
-	operator uint32_t() const
+	constexpr operator uint32_t() const
 	{
 		return _val;
+	}
+
+	constexpr bool proper() const
+	{
+		return _val <= (UINT32_MAX>>1);
 	}
 };
 
@@ -238,6 +243,7 @@ public:
 static_assert(sizeof(Lit) == 4);
 static_assert(sizeof(Clause) == 4);
 
+std::ostream& operator<<(std::ostream& stream, const Clause& clause);
 std::ostream& operator<<(std::ostream& stream, const ClauseStorage& clauses);
 
 #endif
