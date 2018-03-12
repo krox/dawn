@@ -76,27 +76,20 @@ public:
 	Clause() {}
 	Clause(const Clause&) = delete;
 
-	uint16_t size() const
-	{
-		return _size;
-	}
-
-	Lit& operator[](size_t i)
-	{
-		return _lits[i];
-	}
-
-	const Lit& operator[](size_t i) const
-	{
-		return _lits[i];
-	}
-
+	/** array-like access to literals */
+	uint16_t size() const { return _size; }
+	Lit& operator[](size_t i) { return _lits[i]; }
+	const Lit& operator[](size_t i) const { return _lits[i]; }
 	typedef Lit* iterator;
 	typedef const Lit* const_iterator;
 	iterator begin() { return &_lits[0]; }
 	iterator end() { return &_lits[_size]; }
 	const_iterator begin() const { return &_lits[0]; }
 	const_iterator end() const { return &_lits[_size]; }
+
+	/** flags */
+	bool isRemoved() const { return (_flags&1) != 0; }
+	void remove() { _flags |= 1; }
 };
 
 /** Reference to a clause inside a ClauseStorage object. */
@@ -196,7 +189,10 @@ public:
 
 	iterator begin()
 	{
-		return iterator(*this, clauses.begin());
+		iterator it (*this, clauses.begin());
+		while(it != end() && std::get<1>(*it).isRemoved())
+			++it;
+		return it;
 	}
 
 	iterator end()

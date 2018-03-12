@@ -102,9 +102,9 @@ bool search(PropEngine& p, Solution& sol, uint64_t maxConfl)
 /** return true if solved, false if unsat */
 bool solve(ClauseSet& cs, Solution& sol)
 {
-	PropEngine p(cs);
+	auto p = std::make_unique<PropEngine>(cs);
 
-	probe(p);
+	probe(*p);
 
 	std::cout << "c " << std::setw(8) << "vars"
 				<< " " << std::setw(8) << "bins"
@@ -113,17 +113,20 @@ bool solve(ClauseSet& cs, Solution& sol)
 
 	while(true)
 	{
+		assert(p->level() == 0);
+		if(p->trail.size() > cs.units.size())
+		{
+			cs.units = p->trail;
+			cs.cleanup();
+			p = std::make_unique<PropEngine>(cs);
+		}
 
-		assert(p.level() == 0);
-		if(p.trail.size() > p.cs.units.size())
-			p.cs.units = p.trail;
-
-		std::cout << "c " << std::setw(8) << p.cs.varCount() - p.cs.unaryCount()
-		          << " " << std::setw(8) << p.cs.binaryCount()
-				  << " " << std::setw(8) << p.cs.longCount()
+		std::cout << "c " << std::setw(8) << cs.varCount() - cs.unaryCount()
+		          << " " << std::setw(8) << cs.binaryCount()
+				  << " " << std::setw(8) << cs.longCount()
 				  << std::endl;
-		if(search(p, sol, 1000))
+		if(search(*p, sol, 1000))
 			break;
 	}
-	return !p.conflict;
+	return !p->conflict;
 }

@@ -24,6 +24,9 @@ public:
 	ClauseSet();
 	explicit ClauseSet(int n);
 
+	ClauseSet(const ClauseSet&) = delete;
+	ClauseSet(const ClauseSet&&) = delete;
+
 	/** add a new variable */
 	uint32_t addVar();
 	uint32_t varCount() const;
@@ -39,6 +42,13 @@ public:
 	size_t binaryCount() const;
 	size_t longCount() const;
 	size_t clauseCount() const;
+
+	/**
+	 * - Remove fixed variables from clauses (keeps unit clauses itself)
+	 * - Remove (some) duplicate clauses
+	 * - invalidates all CRefs
+	 */
+	void cleanup();
 
 	friend std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs);
 };

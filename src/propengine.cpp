@@ -28,6 +28,13 @@ PropEngine::PropEngine(ClauseSet& cs)
 	// propagate unary clauses
 	for(auto l : cs.units)
 	{
+		if(assign[l])
+			continue;
+		if(assign[l.neg()])
+		{
+			conflict = true;
+			return;
+		}
 		propagateFull(l, REASON_UNDEF);
 		if(conflict)
 			return;
