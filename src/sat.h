@@ -33,6 +33,11 @@ public:
 	CRef addUnary(Lit a);
 	CRef addBinary(Lit a, Lit b);
 	CRef addClause(const std::vector<Lit>& lits);
+
+	/** number of clauses */
+	size_t unaryCount() const;
+	size_t binaryCount() const;
+	size_t longCount() const;
 	size_t clauseCount() const;
 
 	friend std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs);
@@ -88,16 +93,30 @@ inline CRef ClauseSet::addClause(const std::vector<Lit>& lits)
 	return clauses.addClause(lits);
 }
 
-inline size_t ClauseSet::clauseCount() const
+inline size_t ClauseSet::unaryCount() const
+{
+	return units.size();
+}
+
+inline size_t ClauseSet::binaryCount() const
 {
 	size_t r = 0;
 	for(auto& b : bins)
 		r += b.size();
-	r /= 2;
-	r += units.size();
+	return r/2;
+}
+
+inline size_t ClauseSet::longCount() const
+{
+	size_t r = 0;
 	for(auto _ : clauses)
 		++r;
 	return r;
+}
+
+inline size_t ClauseSet::clauseCount() const
+{
+	return unaryCount() + binaryCount() + longCount();
 }
 
 #endif

@@ -59,6 +59,7 @@ constexpr Reason REASON_UNDEF = Reason();
  */
 class PropEngine
 {
+public:
 	ClauseSet& cs;
 	std::vector<std::vector<CRef>> watches;
 	std::vector<Lit> trail;

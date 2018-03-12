@@ -1,60 +1,57 @@
 #include "solver.h"
+#include "propengine.h"
 #include <iostream>
+#include <iomanip>
 
-/** return true if solved, false if unsat */
-bool solveSimple(ClauseSet& cs, Solution& sol, bool doProbing)
+/** do one full sweep of failed literal probing */
+void probe(PropEngine& p)
 {
-	uint64_t nConfl = 0;
-	PropEngine p(cs);
-
-	std::vector<Lit> branches;
-
+	assert(p.level() == 0);
 	if(p.conflict)
-		return false;
+		return;
 
-	while(true)
+	std::vector<Lit> buf;
+	for(uint32_t i = 0; i < 2*p.cs.varCount(); ++i)
 	{
-		// choose a branching variable
-		int branch = doProbing ? p.probeFull() : p.unassignedVariable();
+		Lit branch = Lit(i);
 
-		if(branch == -2)
-			goto handle_conflict;
+		// skip fixed literals
+		if(p.assign[branch] || p.assign[branch.neg()])
+			continue;
 
-		if(branch == -1) // no unassigned left -> solution is found
+		// only do roots of the binary implication graph
+		if(p.cs.bins[branch.neg()].empty())
+			continue;
+		if(!p.cs.bins[branch].empty())
+			continue;
+
+		p.branch(branch);
+
+		if(p.conflict) // literal failed -> analyze and learn unit
 		{
-			sol = p.assign;
-			std::cout << "c solution found after " << nConfl << " conflicts" << std::endl;
-			return true;
+			int backLevel = p.analyzeConflict(buf);
+			assert(backLevel == 0);
+			assert(buf.size() == 1);
+			p.unroll(0);
+			p.addClause(buf);
+			p.propagateFull(buf[0], REASON_UNDEF);
+			buf.resize(0);
+
+			// UNSAT encountered
+			if(p.conflict)
+				return;
 		}
-
-		// propagate branch
-		branches.push_back(Lit(branch, false));
-		p.branch(Lit(branch, false));
-
-		// handle conflicts
-		handle_conflict:
-		while(p.conflict)
+		else // no fail -> do nothing
 		{
-			nConfl += 1;
-			assert(p.level() == (int)branches.size());
-
-			// level 0 conflict -> UNSAT
-			if(p.level() == 0)
-				return false;
-
-			// unroll last descision and propagate opposite literal
-			p.unroll(p.level()-1);
-			auto l = branches.back().neg();
-			branches.pop_back();
-			p.propagateFull(l, REASON_UNDEF);
+			p.unroll(0);
 		}
 	}
 }
 
-bool solve(ClauseSet& cs, Solution& sol)
+/** return true if solved (contradiction or solution found), false if maxConfl reached */
+bool search(PropEngine& p, Solution& sol, uint64_t maxConfl)
 {
 	uint64_t nConfl = 0;
-	PropEngine p(cs);
 	std::vector<Lit> buf;
 
 	while(true)
@@ -66,7 +63,7 @@ bool solve(ClauseSet& cs, Solution& sol)
 
 			// level 0 conflict -> UNSAT
 			if(p.level() == 0)
-				return false;
+				return true;
 
 			// otherwise anaylze,unroll,learn
 			int backLevel = p.analyzeConflict(buf);
@@ -77,6 +74,13 @@ bool solve(ClauseSet& cs, Solution& sol)
 				assert(p.assign[buf[i].neg()]);
 			p.propagateFull(buf[0], r);
 			buf.resize(0);
+		}
+
+		/** maxConfl reached -> unroll and exit */
+		if(nConfl > maxConfl)
+		{
+			p.unroll(0);
+			return false;
 		}
 
 		// choose a branching variable
@@ -93,4 +97,33 @@ bool solve(ClauseSet& cs, Solution& sol)
 		// propagate branch
 		p.branch(Lit(branch, false));
 	}
+}
+
+/** return true if solved, false if unsat */
+bool solve(ClauseSet& cs, Solution& sol)
+{
+	PropEngine p(cs);
+
+	probe(p);
+
+	std::cout << "c " << std::setw(8) << "vars"
+				<< " " << std::setw(8) << "bins"
+				<< " " << std::setw(8) << "longs"
+				<< std::endl;
+
+	while(true)
+	{
+
+		assert(p.level() == 0);
+		if(p.trail.size() > p.cs.units.size())
+			p.cs.units = p.trail;
+
+		std::cout << "c " << std::setw(8) << p.cs.varCount() - p.cs.unaryCount()
+		          << " " << std::setw(8) << p.cs.binaryCount()
+				  << " " << std::setw(8) << p.cs.longCount()
+				  << std::endl;
+		if(search(p, sol, 1000))
+			break;
+	}
+	return !p.conflict;
 }
