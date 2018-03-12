@@ -149,7 +149,7 @@ public:
 			std::cerr << "ERROR: clause storage full" << std::endl;
 			exit(-1);
 		}
-		store.reserve(store.size()+1+lits.size());
+
 		store.push_back(*(uint32_t*)&header);
 		for(auto l : lits)
 			store.push_back(l);
