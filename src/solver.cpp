@@ -11,7 +11,7 @@ void probe(PropEngine& p)
 		return;
 
 	std::vector<Lit> buf;
-	for(uint32_t i = 0; i < 2*p.cs.varCount(); ++i)
+	for(uint32_t i = 0; i < 2*p.sat.varCount(); ++i)
 	{
 		Lit branch = Lit(i);
 
@@ -20,9 +20,9 @@ void probe(PropEngine& p)
 			continue;
 
 		// only do roots of the binary implication graph
-		if(p.cs.bins[branch.neg()].empty())
+		if(p.sat.bins[branch.neg()].empty())
 			continue;
-		if(!p.cs.bins[branch].empty())
+		if(!p.sat.bins[branch].empty())
 			continue;
 
 		p.branch(branch);
@@ -100,9 +100,9 @@ bool search(PropEngine& p, Solution& sol, uint64_t maxConfl)
 }
 
 /** return true if solved, false if unsat */
-bool solve(ClauseSet& cs, Solution& sol)
+bool solve(Sat& sat, Solution& sol)
 {
-	auto p = std::make_unique<PropEngine>(cs);
+	auto p = std::make_unique<PropEngine>(sat);
 
 	probe(*p);
 
@@ -114,16 +114,16 @@ bool solve(ClauseSet& cs, Solution& sol)
 	while(true)
 	{
 		assert(p->level() == 0);
-		if(p->trail.size() > cs.units.size())
+		if(p->trail.size() > sat.units.size())
 		{
-			cs.units = p->trail;
-			cs.cleanup();
-			p = std::make_unique<PropEngine>(cs);
+			sat.units = p->trail;
+			sat.cleanup();
+			p = std::make_unique<PropEngine>(sat);
 		}
 
-		std::cout << "c " << std::setw(8) << cs.varCount() - cs.unaryCount()
-		          << " " << std::setw(8) << cs.binaryCount()
-				  << " " << std::setw(8) << cs.longCount()
+		std::cout << "c " << std::setw(8) << sat.varCount() - sat.unaryCount()
+		          << " " << std::setw(8) << sat.binaryCount()
+				  << " " << std::setw(8) << sat.longCount()
 				  << std::endl;
 		if(search(*p, sol, 1000))
 			break;

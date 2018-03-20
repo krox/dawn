@@ -126,7 +126,7 @@ public:
 	}
 };
 
-void parseCnf(std::string filename, ClauseSet& cs)
+void parseCnf(std::string filename, Sat& sat)
 {
 	if(filename != "")
 		std::cout << "c reading " << filename << std::endl;
@@ -172,14 +172,14 @@ void parseCnf(std::string filename, ClauseSet& cs)
 			auto x = parser.parseInt();
 			if(x == 0)
 			{
-				cs.addClause(clause);
+				sat.addClause(clause);
 				clause.resize(0);
 			}
 			else
 			{
 				auto lit = Lit::fromDimacs(x);
-				while(cs.varCount() <= lit.var())
-					cs.addVar();
+				while(sat.varCount() <= lit.var())
+					sat.addVar();
 				clause.push_back(lit);
 			}
 			continue;
@@ -189,10 +189,10 @@ void parseCnf(std::string filename, ClauseSet& cs)
 	}
 
 	enforce(clause.empty(), "incomplete clause at end of file");
-	enforce(varCount == -1 || varCount == (int)cs.varCount(), "wrong number of vars in header");
-	enforce(clauseCount == -1 || clauseCount == (int)cs.clauseCount(), "wrong number of clauses in header");
+	enforce(varCount == -1 || varCount == (int)sat.varCount(), "wrong number of vars in header");
+	enforce(clauseCount == -1 || clauseCount == (int)sat.clauseCount(), "wrong number of clauses in header");
 
-	std::cout << "c " << cs.varCount() << " vars and " << cs.clauseCount() << " clauses" << std::endl;
+	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount() << " clauses" << std::endl;
 }
 
 void parseSolution(std::string filename, Solution& sol)

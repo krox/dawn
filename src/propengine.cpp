@@ -3,22 +3,22 @@
 #include <queue>
 #include <iostream>
 
-PropEngine::PropEngine(ClauseSet& cs)
-	: cs(cs),
-	watches(cs.varCount()*2),
-	reason(cs.varCount()),
-	trailPos(cs.varCount()),
-	assign(cs.varCount()*2)
+PropEngine::PropEngine(Sat& sat)
+	: sat(sat),
+	watches(sat.varCount()*2),
+	reason(sat.varCount()),
+	trailPos(sat.varCount()),
+	assign(sat.varCount()*2)
 {
 	// empty clause -> don't bother doing anything
-	if(cs.contradiction)
+	if(sat.contradiction)
 	{
 		conflict = true;
 		return;
 	}
 
 	// attach long clauses
-	for(auto [i,c] : cs.clauses)
+	for(auto [i,c] : sat.clauses)
 	{
 		assert(c.size() >= 2);
 		watches[c[0]].push_back(i);
@@ -26,7 +26,7 @@ PropEngine::PropEngine(ClauseSet& cs)
 	}
 
 	// propagate unary clauses
-	for(auto l : cs.units)
+	for(auto l : sat.units)
 	{
 		if(assign[l])
 			continue;
@@ -59,7 +59,7 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	while(pos != trail.size())
 	{
 		Lit y = trail[pos++];
-		for(Lit z : cs.bins[y.neg()])
+		for(Lit z : sat.bins[y.neg()])
 		{
 			if(assign[z]) // already assigned true -> do nothing
 				continue;
@@ -92,7 +92,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 		for(size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
-			Clause& c = cs.clauses[ci];
+			Clause& c = sat.clauses[ci];
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if(c[0] == y.neg())
@@ -160,7 +160,7 @@ int PropEngine::probeFull()
 {
 	int best = -1;
 	int bestScore = -1;
-	for(int i = 0; i < (int)cs.varCount(); ++i)
+	for(int i = 0; i < (int)sat.varCount(); ++i)
 	{
 		Lit a = Lit(i,false);
 		Lit b = Lit(i,true);
@@ -199,17 +199,17 @@ Reason PropEngine::addClause(const std::vector<Lit>& cl)
 	switch(cl.size())
 	{
 		case 0:
-			cs.addEmpty();
+			sat.addEmpty();
 			conflict = true;
 			return REASON_UNDEF;
 		case 1:
-			cs.addUnary(cl[0]);
+			sat.addUnary(cl[0]);
 			return REASON_UNDEF;
 		case 2:
-			cs.addBinary(cl[0], cl[1]);
+			sat.addBinary(cl[0], cl[1]);
 			return Reason(cl[1]);
 		default:
-			CRef cref = cs.addClause(cl);
+			CRef cref = sat.addClause(cl);
 			watches[cl[0]].push_back(cref);
 			watches[cl[1]].push_back(cref);
 			return Reason(cref);
@@ -218,7 +218,7 @@ Reason PropEngine::addClause(const std::vector<Lit>& cl)
 
 int PropEngine::unassignedVariable() const
 {
-	for(int i = 0; i < (int)cs.varCount(); ++i)
+	for(int i = 0; i < (int)sat.varCount(); ++i)
 		if(!assign[Lit(i,false)] && !assign[Lit(i,true)])
 			return i;
 	return -1;
@@ -291,7 +291,7 @@ int PropEngine::analyzeConflict(std::vector<Lit>& learnt) const
 			}
 			else if(r.isLong())
 			{
-				const Clause& cl = cs.clauses[r.cref()];
+				const Clause& cl = sat.clauses[r.cref()];
 				//assert(cl[0] == l.neg());
 				for(int i = 1; i < cl.size(); ++i)
 					todo.emplace(trailPos[cl[i].var()], cl[i]);
@@ -326,7 +326,7 @@ void PropEngine::printTrail() const
 			else if(r.isBinary())
 				std::cout << "bin (" << r.lit() << ")" << std::endl;
 			else if(r.isLong())
-				std::cout << "long (" << cs.clauses[r.cref()] << ")" << std::endl;
+				std::cout << "long (" << sat.clauses[r.cref()] << ")" << std::endl;
 			else
 				assert(false);
 		}

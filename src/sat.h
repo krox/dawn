@@ -7,11 +7,11 @@
 
 
 /**
- * Sat problem as a basic set of clauses.
+ * Sat problem in conjunctive normal form, i.e. a set of clauses.
  *   - Empty/Unary/Binary clauses are stored seprately from long clauses.
  *   - No watch-lists/occ-lists.
  */
-class ClauseSet
+class Sat
 {
 public:
 	/** storage of clauses */
@@ -21,11 +21,11 @@ public:
 	ClauseStorage clauses;
 
 	/** constructor */
-	ClauseSet();
-	explicit ClauseSet(int n);
+	Sat();
+	explicit Sat(int n);
 
-	ClauseSet(const ClauseSet&) = delete;
-	ClauseSet(const ClauseSet&&) = delete;
+	Sat(const Sat&) = delete;
+	Sat(const Sat&&) = delete;
 
 	/** add a new variable */
 	uint32_t addVar();
@@ -50,17 +50,17 @@ public:
 	 */
 	void cleanup();
 
-	friend std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs);
+	friend std::ostream& operator<<(std::ostream& stream, const Sat& cs);
 };
 
-inline ClauseSet::ClauseSet()
+inline Sat::Sat()
 {}
 
-inline ClauseSet::ClauseSet(int n)
+inline Sat::Sat(int n)
 	: bins(2*n)
 {}
 
-inline uint32_t ClauseSet::addVar()
+inline uint32_t Sat::addVar()
 {
 	auto i = varCount();
 	bins.emplace_back();
@@ -68,31 +68,31 @@ inline uint32_t ClauseSet::addVar()
 	return i;
 }
 
-inline uint32_t ClauseSet::varCount() const
+inline uint32_t Sat::varCount() const
 {
 	return (uint32_t)bins.size()/2;
 }
 
-inline CRef ClauseSet::addEmpty()
+inline CRef Sat::addEmpty()
 {
 	contradiction = true;
 	return CREF_UNDEF;
 }
 
-inline CRef ClauseSet::addUnary(Lit a)
+inline CRef Sat::addUnary(Lit a)
 {
 	units.push_back(a);
 	return CREF_UNDEF;
 }
 
-inline CRef ClauseSet::addBinary(Lit a, Lit b)
+inline CRef Sat::addBinary(Lit a, Lit b)
 {
 	bins[a].push_back(b);
 	bins[b].push_back(a);
 	return CREF_UNDEF;
 }
 
-inline CRef ClauseSet::addClause(const std::vector<Lit>& lits)
+inline CRef Sat::addClause(const std::vector<Lit>& lits)
 {
 	if(lits.size() == 0)
 		return addEmpty();
@@ -103,12 +103,12 @@ inline CRef ClauseSet::addClause(const std::vector<Lit>& lits)
 	return clauses.addClause(lits);
 }
 
-inline size_t ClauseSet::unaryCount() const
+inline size_t Sat::unaryCount() const
 {
 	return units.size();
 }
 
-inline size_t ClauseSet::binaryCount() const
+inline size_t Sat::binaryCount() const
 {
 	size_t r = 0;
 	for(auto& b : bins)
@@ -116,7 +116,7 @@ inline size_t ClauseSet::binaryCount() const
 	return r/2;
 }
 
-inline size_t ClauseSet::longCount() const
+inline size_t Sat::longCount() const
 {
 	size_t r = 0;
 	for(auto _ : clauses)
@@ -124,7 +124,7 @@ inline size_t ClauseSet::longCount() const
 	return r;
 }
 
-inline size_t ClauseSet::clauseCount() const
+inline size_t Sat::clauseCount() const
 {
 	return unaryCount() + binaryCount() + longCount();
 }

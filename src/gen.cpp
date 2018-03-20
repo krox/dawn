@@ -27,7 +27,7 @@ int main(int argc, char *argv[])
 		sol.set(Lit(i, coinDist(rng)));
 
 	// generate clauses that are satisfied by the solution
-	ClauseSet cs(varCount);
+	Sat sat(varCount);
 	std::vector<Lit> cl;
 	for(int ci = 0; ci < clauseCount; )
 	{
@@ -44,10 +44,10 @@ int main(int argc, char *argv[])
 		if(sol.satisfied(cl))
 		{
 			++ci;
-			cs.addClause(cl);
+			sat.addClause(cl);
 		}
 
 		cl.resize(0);
 	}
-	std::cout << cs;
+	std::cout << sat;
 }

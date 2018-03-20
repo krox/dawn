@@ -60,7 +60,7 @@ constexpr Reason REASON_UNDEF = Reason();
 class PropEngine
 {
 public:
-	ClauseSet& cs;
+	Sat& sat;
 	std::vector<std::vector<CRef>> watches;
 	std::vector<Lit> trail;
 	std::vector<int> mark; // indices into trail
@@ -77,7 +77,7 @@ public:
 	bool conflict = false;
 
 	/** constructor */
-	PropEngine(ClauseSet& cs);
+	PropEngine(Sat& sat);
 
 	/** assign a literal and do unit propagation */
 	void branch(Lit x); // starts a new level

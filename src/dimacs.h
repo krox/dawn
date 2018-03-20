@@ -6,7 +6,7 @@
 #include "solution.h"
 
 /** filename = "" means reading from stdin */
-void parseCnf(std::string filename, ClauseSet& cs);
+void parseCnf(std::string filename, Sat& sat);
 void parseSolution(std::string filename, Solution& sol);
 
 #endif

@@ -32,15 +32,13 @@ struct Config
 
 int main(int argc, char *argv[])
 {
-
 	Config conf(argc, argv);
 
-	ClauseSet cs;
-	parseCnf(conf.cnfFile, cs);
+	Sat sat;
+	parseCnf(conf.cnfFile, sat);
 
 	Solution sol;
-	//if(solveSimple(cs, sol, conf.doProbing))
-	if(solve(cs, sol))
+	if(solve(sat, sol))
 	{
 		std::cout << "s SATISFIABLE" << std::endl;
 		std::cout << sol;

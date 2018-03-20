@@ -3,7 +3,7 @@
 #include <cassert>
 #include <algorithm>
 
-void ClauseSet::cleanup()
+void Sat::cleanup()
 {
 	// empty clause -> remove everything
 	if(contradiction)
@@ -83,24 +83,24 @@ void ClauseSet::cleanup()
 	units.erase(std::unique(units.begin(), units.end()), units.end());
 }
 
-std::ostream& operator<<(std::ostream& stream, const ClauseSet& cs)
+std::ostream& operator<<(std::ostream& stream, const Sat& sat)
 {
 	// empty clause
-	if(cs.contradiction)
+	if(sat.contradiction)
 		stream << "0\n";
 
 	// unary clauses
-	for(auto a : cs.units)
+	for(auto a : sat.units)
 		stream << a << " 0\n";
 
 	// binary clauses
-	for(uint32_t l = 0; l < 2*cs.varCount(); ++l)
-		for(auto b : cs.bins[l])
+	for(uint32_t l = 0; l < 2*sat.varCount(); ++l)
+		for(auto b : sat.bins[l])
 			if(l <= b)
 				stream << Lit(l) << " " << b << " 0\n";
 
 	// long clauses
-	stream << cs.clauses;
+	stream << sat.clauses;
 
 	return stream;
 }

@@ -3,18 +3,18 @@
 #include "sat.h"
 #include "solver.h"
 
-bool check(const ClauseSet& cs, const Solution& sol)
+bool check(const Sat& sat, const Solution& sol)
 {
-	if(cs.contradiction)
+	if(sat.contradiction)
 		return false;
-	for(Lit a : cs.units)
+	for(Lit a : sat.units)
 		if(!sol.satisfied(a))
 			return false;
-	for(int i = 0; i < 2*(int)cs.varCount(); ++i)
-		for(Lit b : cs.bins[Lit(i)])
+	for(int i = 0; i < 2*(int)sat.varCount(); ++i)
+		for(Lit b : sat.bins[Lit(i)])
 			if(!sol.satisfied(Lit(i), b))
 				return false;
-	for(auto [i,c] : cs.clauses)
+	for(auto [i,c] : sat.clauses)
 		if(!sol.satisfied(c))
 			return false;
 	return true;
@@ -28,14 +28,14 @@ int main(int argc, char *argv[])
 		return -1;
 	}
 
-	ClauseSet cs;
-	parseCnf(argv[1], cs);
+	Sat sat;
+	parseCnf(argv[1], sat);
 
 	Solution sol;
-	sol.varCount(cs.varCount());
+	sol.varCount(sat.varCount());
 	parseSolution(argv[2], sol);
 
-	if(check(cs, sol))
+	if(check(sat, sol))
 	{
 		std::cout << "c solution checked" << std::endl;
 		return 0;
