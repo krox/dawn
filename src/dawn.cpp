@@ -1,7 +1,7 @@
+#include "sat/dimacs.h"
+#include "sat/sat.h"
+#include "sat/solver.h"
 #include <iostream>
-#include <dimacs.h>
-#include "sat.h"
-#include "solver.h"
 
 struct Config
 {
@@ -12,15 +12,16 @@ struct Config
 	{
 		std::vector<std::string> args;
 
-		for(int i = 1; i < argc; ++i)
+		for (int i = 1; i < argc; ++i)
 		{
 			auto arg = std::string(argv[i]);
-			if(arg == "--probing")
+			if (arg == "--probing")
 				doProbing = true;
-			else args.push_back(arg);
+			else
+				args.push_back(arg);
 		}
 
-		if(args.size() != 1)
+		if (args.size() != 1)
 		{
 			std::cerr << "usage: dawn [options] <cnf-input>" << std::endl;
 			exit(-1);
@@ -38,7 +39,7 @@ int main(int argc, char *argv[])
 	parseCnf(conf.cnfFile, sat);
 
 	Solution sol;
-	if(solve(sat, sol))
+	if (solve(sat, sol))
 	{
 		std::cout << "s SATISFIABLE" << std::endl;
 		std::cout << sol;

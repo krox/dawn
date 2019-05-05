@@ -1,14 +1,14 @@
-#include "dimacs.h"
-#include <fstream>
-#include <string>
-#include <cstdio>
-#include <memory>
-#include <cstdio>
-#include <cstring>
+#include "sat/dimacs.h"
+
 #include <cctype>
 #include <climits>
-#include <vector>
+#include <cstdio>
+#include <cstring>
+#include <fstream>
 #include <iostream>
+#include <memory>
+#include <string>
+#include <vector>
 
 static void panic(std::string msg)
 {
@@ -16,26 +16,27 @@ static void panic(std::string msg)
 	exit(-1);
 }
 
-#define enforce(x,msg) if(!(x)) panic(msg);
+#define enforce(x, msg)                                                        \
+	if (!(x))                                                                  \
+		panic(msg);
 
 /**
  * Custom file buffer + parsing utilities.
  */
 class Parser
 {
-	static constexpr size_t CHUNK = 256*1024;
-	FILE* file;
+	static constexpr size_t CHUNK = 256 * 1024;
+	FILE *file;
 	bool needClose;
 	size_t pos = 0; // current position in buf
 	std::unique_ptr<char[]> buf;
 
-public:
+  public:
+	Parser(const Parser &) = delete;
+	Parser &operator=(const Parser &) = delete;
 
 	/** returns 0 at end of file */
-	inline char operator*()
-	{
-		return buf[pos];
-	}
+	inline char operator*() { return buf[pos]; }
 
 	/** advances by one character */
 	inline void operator++()
@@ -43,10 +44,10 @@ public:
 		++pos;
 
 		// chunk exhausted -> read new chunk
-		if(pos >= CHUNK)
+		if (pos >= CHUNK)
 		{
 			auto size = fread(buf.get(), 1, CHUNK, file);
-			memset(buf.get()+size, 0, CHUNK-size);
+			memset(buf.get() + size, 0, CHUNK - size);
 			pos = 0;
 		}
 	}
@@ -55,7 +56,7 @@ public:
 	{
 		int r = 0;
 		int s = 1;
-		if(**this == '-')
+		if (**this == '-')
 		{
 			s = -1;
 			++*this;
@@ -63,21 +64,21 @@ public:
 
 		enforce(isdigit(**this), "unexpected character");
 
-		while(isdigit(**this))
+		while (isdigit(**this))
 		{
 			int d = **this - '0';
 			++*this;
-			enforce(r <= (INT_MAX-d)/10, "integer overflow");
-			r = 10*r + d;
+			enforce(r <= (INT_MAX - d) / 10, "integer overflow");
+			r = 10 * r + d;
 		}
-		return r*s;
+		return r * s;
 	}
 
 	std::string parseString()
 	{
 		std::string r;
 		enforce(isalpha(**this), "unexpected character");
-		while(isalpha(**this))
+		while (isalpha(**this))
 		{
 			r += **this;
 			++*this;
@@ -88,22 +89,22 @@ public:
 	/** skip whitespace (including newlines) */
 	inline void skipWhite()
 	{
-		while(isspace(**this))
+		while (isspace(**this))
 			++*this;
 	}
 
 	/** advances the stream to the next line */
 	inline void skipLine()
 	{
-		while(**this != 0 && **this != '\n')
+		while (**this != 0 && **this != '\n')
 			++*this;
-		if(**this == '\n')
+		if (**this == '\n')
 			++*this;
 	}
 
 	Parser(std::string filename)
 	{
-		if(filename.empty())
+		if (filename.empty())
 		{
 			file = stdin;
 			needClose = false;
@@ -121,14 +122,14 @@ public:
 
 	~Parser()
 	{
-		if(needClose && file != NULL)
+		if (needClose && file != NULL)
 			fclose(file);
 	}
 };
 
-void parseCnf(std::string filename, Sat& sat)
+void parseCnf(std::string filename, Sat &sat)
 {
-	if(filename != "")
+	if (filename != "")
 		std::cout << "c reading " << filename << std::endl;
 	else
 		std::cout << "c reading from stdin" << std::endl;
@@ -137,23 +138,23 @@ void parseCnf(std::string filename, Sat& sat)
 	int varCount = -1;
 	int clauseCount = -1;
 	std::vector<Lit> clause;
-	while(true)
+	while (true)
 	{
 		parser.skipWhite();
 
 		// end of file
-		if(*parser == 0)
+		if (*parser == 0)
 			break;
 
 		// comment lines
-		else if(*parser == 'c')
+		else if (*parser == 'c')
 		{
 			parser.skipLine();
 			continue;
 		}
 
 		// header in format 'p cnf <varCount> <clauseCount>'
-		else if(*parser == 'p')
+		else if (*parser == 'p')
 		{
 			++parser;
 			parser.skipWhite();
@@ -167,10 +168,10 @@ void parseCnf(std::string filename, Sat& sat)
 		}
 
 		// integer
-		else if(isdigit(*parser) || *parser == '-')
+		else if (isdigit(*parser) || *parser == '-')
 		{
 			auto x = parser.parseInt();
-			if(x == 0)
+			if (x == 0)
 			{
 				sat.addClause(clause);
 				clause.resize(0);
@@ -178,66 +179,72 @@ void parseCnf(std::string filename, Sat& sat)
 			else
 			{
 				auto lit = Lit::fromDimacs(x);
-				while(sat.varCount() <= lit.var())
+				while (sat.varCount() <= lit.var())
 					sat.addVar();
 				clause.push_back(lit);
 			}
 			continue;
 		}
 
-		else panic(std::string("unexpected character '") + *parser + "'");
+		else
+			panic(std::string("unexpected character '") + *parser + "'");
 	}
 
 	enforce(clause.empty(), "incomplete clause at end of file");
-	enforce(varCount == -1 || varCount == (int)sat.varCount(), "wrong number of vars in header");
-	enforce(clauseCount == -1 || clauseCount == (int)sat.clauseCount(), "wrong number of clauses in header");
+	enforce(varCount == -1 || varCount == (int)sat.varCount(),
+	        "wrong number of vars in header");
+	enforce(clauseCount == -1 || clauseCount == (int)sat.clauseCount(),
+	        "wrong number of clauses in header");
 
-	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount() << " clauses" << std::endl;
+	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount()
+	          << " clauses" << std::endl;
 }
 
-void parseSolution(std::string filename, Solution& sol)
+void parseSolution(std::string filename, Solution &sol)
 {
 	auto parser = Parser(filename);
 
-	while(true)
+	while (true)
 	{
 		parser.skipWhite();
 
 		// end of file
-		if(*parser == 0)
+		if (*parser == 0)
 			break;
 
 		// comment lines
-		else if(*parser == 'c')
+		else if (*parser == 'c')
 		{
 			parser.skipLine();
 			continue;
 		}
 
 		// ignore the line 's SATISFIABLE'
-		else if(*parser == 's')
+		else if (*parser == 's')
 		{
 			parser.skipLine();
 			continue;
 		}
 
 		// 'v' line
-		else if(*parser == 'v')
+		else if (*parser == 'v')
 		{
 			++parser;
-			while(true)
+			while (true)
 			{
 				parser.skipWhite();
 				int x = parser.parseInt();
-				if(x == 0)
+				if (x == 0)
 					break;
 				auto lit = Lit::fromDimacs(x);
-				enforce(lit.var() < (unsigned)sol.varCount(), "invalid literal in solution");
+				enforce(lit.var() < (unsigned)sol.varCount(),
+				        "invalid literal in solution");
 				sol.set(lit);
 			}
 		}
 
-		else panic(std::string("unexpected character: '") + *parser + "'");
+		else
+			panic(std::string("unexpected character: '") + *parser + "'");
 	}
 
 	enforce(sol.valid(), "invalid/incomplete solution");

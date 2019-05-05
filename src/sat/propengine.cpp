@@ -1,24 +1,22 @@
-#include "propengine.h"
-#include <cassert>
-#include <queue>
-#include <iostream>
+#include "sat/propengine.h"
 
-PropEngine::PropEngine(Sat& sat)
-	: sat(sat),
-	watches(sat.varCount()*2),
-	reason(sat.varCount()),
-	trailPos(sat.varCount()),
-	assign(sat.varCount()*2)
+#include <cassert>
+#include <iostream>
+#include <queue>
+
+PropEngine::PropEngine(Sat &sat)
+    : sat(sat), watches(sat.varCount() * 2), reason(sat.varCount()),
+      trailPos(sat.varCount()), assign(sat.varCount() * 2)
 {
 	// empty clause -> don't bother doing anything
-	if(sat.contradiction)
+	if (sat.contradiction)
 	{
 		conflict = true;
 		return;
 	}
 
 	// attach long clauses
-	for(auto [i,c] : sat.clauses)
+	for (auto [i, c] : sat.clauses)
 	{
 		assert(c.size() >= 2);
 		watches[c[0]].push_back(i);
@@ -26,17 +24,17 @@ PropEngine::PropEngine(Sat& sat)
 	}
 
 	// propagate unary clauses
-	for(auto l : sat.units)
+	for (auto l : sat.units)
 	{
-		if(assign[l])
+		if (assign[l])
 			continue;
-		if(assign[l.neg()])
+		if (assign[l.neg()])
 		{
 			conflict = true;
 			return;
 		}
 		propagateFull(l, REASON_UNDEF);
-		if(conflict)
+		if (conflict)
 			return;
 	}
 }
@@ -56,15 +54,15 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	size_t pos = trail.size();
 	set(x, r);
 
-	while(pos != trail.size())
+	while (pos != trail.size())
 	{
 		Lit y = trail[pos++];
-		for(Lit z : sat.bins[y.neg()])
+		for (Lit z : sat.bins[y.neg()])
 		{
-			if(assign[z]) // already assigned true -> do nothing
+			if (assign[z]) // already assigned true -> do nothing
 				continue;
 
-			if(assign[z.neg()]) // already assigned false -> conflict
+			if (assign[z.neg()]) // already assigned false -> conflict
 			{
 				assert(conflictClause.empty());
 				conflictClause.push_back(y.neg());
@@ -82,30 +80,31 @@ void PropEngine::propagateFull(Lit x, Reason r)
 {
 	size_t pos = trail.size();
 	propagateBinary(x, r);
-	if(conflict)
+	if (conflict)
 		return;
 
-	while(pos != trail.size())
+	while (pos != trail.size())
 	{
 		Lit y = trail[pos++];
-		std::vector<CRef>& ws = watches[y.neg()];
-		for(size_t wi = 0; wi < ws.size(); ++wi)
+		std::vector<CRef> &ws = watches[y.neg()];
+		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
-			Clause& c = sat.clauses[ci];
+			Clause &c = sat.clauses[ci];
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
-			if(c[0] == y.neg())
+			if (c[0] == y.neg())
 				std::swap(c[0], c[1]);
 			assert(c[1] == y.neg());
 
 			// other watched lit is satisfied -> do nothing
-			if(assign[c[0]])
+			if (assign[c[0]])
 				continue;
 
 			// check the tail of the clause
-			for(size_t i = 2; i < c.size(); ++i)
-				if(!assign[c[i].neg()]) // literal satisfied or undef -> move watch
+			for (size_t i = 2; i < c.size(); ++i)
+				if (!assign[c[i].neg()]) // literal satisfied or undef -> move
+				                         // watch
 				{
 					std::swap(c[1], c[i]);
 					watches[c[1]].push_back(ws[wi]);
@@ -117,22 +116,22 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				}
 
 			// tail is all assigned false -> propagate or conflict
-			if(assign[c[0].neg()])
+			if (assign[c[0].neg()])
 			{
 				conflict = true;
 				assert(conflictClause.empty());
-				for(Lit l : c)
+				for (Lit l : c)
 					conflictClause.push_back(l);
 				return;
 			}
 			else
 			{
 				propagateBinary(c[0], Reason(ci));
-				if(conflict)
+				if (conflict)
 					return;
 			}
 
-			next_watch:;
+		next_watch:;
 		}
 	}
 }
@@ -143,15 +142,15 @@ int PropEngine::probe(Lit x)
 	mark.push_back(trail.size());
 	propagateFull(x, REASON_UNDEF);
 
-	if(conflict)
+	if (conflict)
 	{
-		unroll(level()-1);
+		unroll(level() - 1);
 		return -1;
 	}
 	else
 	{
-		int r = (int)(trail.size()-pos);
-		unroll(level()-1);
+		int r = (int)(trail.size() - pos);
+		unroll(level() - 1);
 		return r;
 	}
 }
@@ -160,23 +159,23 @@ int PropEngine::probeFull()
 {
 	int best = -1;
 	int bestScore = -1;
-	for(int i = 0; i < (int)sat.varCount(); ++i)
+	for (int i = 0; i < (int)sat.varCount(); ++i)
 	{
-		Lit a = Lit(i,false);
-		Lit b = Lit(i,true);
-		if(assign[a] || assign[b])
+		Lit a = Lit(i, false);
+		Lit b = Lit(i, true);
+		if (assign[a] || assign[b])
 			continue;
 
 		int scoreA = probe(a);
 		int scoreB = probe(b);
 
-		if(scoreA == -1 && scoreB == -1)
+		if (scoreA == -1 && scoreB == -1)
 			return -2;
-		else if(scoreA == -1)
+		else if (scoreA == -1)
 			propagateFull(b, REASON_UNDEF);
-		else if(scoreB == -1)
+		else if (scoreB == -1)
 			propagateFull(a, REASON_UNDEF);
-		else if(scoreA + scoreB > bestScore)
+		else if (scoreA + scoreB > bestScore)
 		{
 			best = i;
 			bestScore = scoreA + scoreB;
@@ -194,40 +193,37 @@ void PropEngine::branch(Lit x)
 	propagateFull(x, REASON_UNDEF);
 }
 
-Reason PropEngine::addClause(const std::vector<Lit>& cl)
+Reason PropEngine::addClause(const std::vector<Lit> &cl)
 {
-	switch(cl.size())
+	switch (cl.size())
 	{
-		case 0:
-			sat.addEmpty();
-			conflict = true;
-			return REASON_UNDEF;
-		case 1:
-			sat.addUnary(cl[0]);
-			return REASON_UNDEF;
-		case 2:
-			sat.addBinary(cl[0], cl[1]);
-			return Reason(cl[1]);
-		default:
-			CRef cref = sat.addClause(cl);
-			watches[cl[0]].push_back(cref);
-			watches[cl[1]].push_back(cref);
-			return Reason(cref);
+	case 0:
+		sat.addEmpty();
+		conflict = true;
+		return REASON_UNDEF;
+	case 1:
+		sat.addUnary(cl[0]);
+		return REASON_UNDEF;
+	case 2:
+		sat.addBinary(cl[0], cl[1]);
+		return Reason(cl[1]);
+	default:
+		CRef cref = sat.addClause(cl);
+		watches[cl[0]].push_back(cref);
+		watches[cl[1]].push_back(cref);
+		return Reason(cref);
 	}
 }
 
 int PropEngine::unassignedVariable() const
 {
-	for(int i = 0; i < (int)sat.varCount(); ++i)
-		if(!assign[Lit(i,false)] && !assign[Lit(i,true)])
+	for (int i = 0; i < (int)sat.varCount(); ++i)
+		if (!assign[Lit(i, false)] && !assign[Lit(i, true)])
 			return i;
 	return -1;
 }
 
-int PropEngine::level() const
-{
-	return (int)mark.size();
-}
+int PropEngine::level() const { return (int)mark.size(); }
 
 void PropEngine::unroll(int l)
 {
@@ -235,98 +231,100 @@ void PropEngine::unroll(int l)
 	conflict = false;
 	conflictClause.resize(0);
 
-	while((int)trail.size() > mark[l])
+	while ((int)trail.size() > mark[l])
 	{
 		Lit lit = trail.back();
 		trail.pop_back();
-		//assert(assign[lit] && !assign[lit.neg()]);
-		//reason[lit.var()] = REASON_UNDEF;
-		//trailPos[lit.var()] = -1;
+		// assert(assign[lit] && !assign[lit.neg()]);
+		// reason[lit.var()] = REASON_UNDEF;
+		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
 	}
 	mark.resize(l);
 }
 
 /** returns level to which to backtrack */
-int PropEngine::analyzeConflict(std::vector<Lit>& learnt) const
+int PropEngine::analyzeConflict(std::vector<Lit> &learnt) const
 {
 	assert(learnt.empty());
 	assert(conflict);
 	assert(!conflictClause.empty());
 	assert(level() > 0);
 
-	std::priority_queue<std::pair<int,Lit> > todo;
+	std::priority_queue<std::pair<int, Lit>> todo;
 
-	for(Lit l : conflictClause)
+	for (Lit l : conflictClause)
 	{
-		//assert(assign[l.neg()]);
+		// assert(assign[l.neg()]);
 		todo.emplace(trailPos[l.var()], l);
 	}
 
-	while(!todo.empty())
+	while (!todo.empty())
 	{
 		// next literal
 		Lit l = todo.top().second;
 		todo.pop();
-		//assert(assign[l.neg()]);
+		// assert(assign[l.neg()]);
 
 		// remove duplicates from queue
-		while(!todo.empty() && todo.top().second == l)
+		while (!todo.empty() && todo.top().second == l)
 			todo.pop();
 
 		// next one is reason side
 		//   -> this one is reason side or UIP
 		//   -> add this one to learnt clause
-		if(todo.empty() || todo.top().first < mark.back())
+		if (todo.empty() || todo.top().first < mark.back())
 		{
-			if(trailPos[l.var()] >= mark[0]) // skip level 0 assignments
+			if (trailPos[l.var()] >= mark[0]) // skip level 0 assignments
 				learnt.push_back(l);
 		}
 		else // otherwise resolve
 		{
 			Reason r = reason[l.var()];
-			if(r.isBinary())
+			if (r.isBinary())
 			{
 				todo.emplace(trailPos[r.lit().var()], r.lit());
 			}
-			else if(r.isLong())
+			else if (r.isLong())
 			{
-				const Clause& cl = sat.clauses[r.cref()];
-				//assert(cl[0] == l.neg());
-				for(int i = 1; i < cl.size(); ++i)
+				const Clause &cl = sat.clauses[r.cref()];
+				// assert(cl[0] == l.neg());
+				for (int i = 1; i < cl.size(); ++i)
 					todo.emplace(trailPos[cl[i].var()], cl[i]);
 			}
-			else assert(false);
+			else
+				assert(false);
 		}
 	}
 
 	// determine backtrack level
 	assert(!learnt.empty());
-	if(learnt.size() == 1)
+	if (learnt.size() == 1)
 		return 0;
-	int i = level()-1;
-	while(mark[i] > trailPos[learnt[1].var()])
+	int i = level() - 1;
+	while (mark[i] > trailPos[learnt[1].var()])
 		i -= 1;
-	return i+1;
+	return i + 1;
 }
 
 void PropEngine::printTrail() const
 {
-	for(int l = 0; l <= level(); ++l)
+	for (int l = 0; l <= level(); ++l)
 	{
 		std::cout << "=== level " << l << " ===" << std::endl;
-		int low = l==0 ? 0 : mark[l-1];
-		int high = l==(int)mark.size() ? (int)trail.size() : mark[l];
-		for(int i = low; i < high; ++i)
+		int low = l == 0 ? 0 : mark[l - 1];
+		int high = l == (int)mark.size() ? (int)trail.size() : mark[l];
+		for (int i = low; i < high; ++i)
 		{
 			std::cout << trail[i] << " <= ";
 			Reason r = reason[trail[i].var()];
-			if(r.isUndef())
+			if (r.isUndef())
 				std::cout << "()" << std::endl;
-			else if(r.isBinary())
+			else if (r.isBinary())
 				std::cout << "bin (" << r.lit() << ")" << std::endl;
-			else if(r.isLong())
-				std::cout << "long (" << sat.clauses[r.cref()] << ")" << std::endl;
+			else if (r.isLong())
+				std::cout << "long (" << sat.clauses[r.cref()] << ")"
+				          << std::endl;
 			else
 				assert(false);
 		}

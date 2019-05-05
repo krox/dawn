@@ -1,9 +1,9 @@
-#ifndef PROPENGINE_H
-#define PROPENGINE_H
+#ifndef SAT_PROPENGINE_H
+#define SAT_PROPENGINE_H
 
-#include <vector>
-#include <cassert>
 #include "sat.h"
+#include <cassert>
+#include <vector>
 
 struct Reason
 {
@@ -11,32 +11,26 @@ struct Reason
 	// msb=1 -> long clause
 	uint32_t _val;
 
-public:
-	constexpr Reason()
-		: _val(UINT32_MAX)
-	{}
+  public:
+	constexpr Reason() : _val(UINT32_MAX) {}
 
-	explicit constexpr Reason(Lit a)
-		: _val(a)
-	{ assert(a.proper()); }
+	explicit constexpr Reason(Lit a) : _val(a) { assert(a.proper()); }
 
-	explicit constexpr Reason(CRef cref)
-		: _val(cref | (1u<<31))
-	{ assert(cref.proper()); }
-
-	bool isUndef() const
+	explicit constexpr Reason(CRef cref) : _val(cref | (1u << 31))
 	{
-		return _val == UINT32_MAX;
+		assert(cref.proper());
 	}
+
+	bool isUndef() const { return _val == UINT32_MAX; }
 
 	bool isBinary() const
 	{
-		return _val != UINT32_MAX && (_val & (1u<<31)) == 0;
+		return _val != UINT32_MAX && (_val & (1u << 31)) == 0;
 	}
 
 	bool isLong() const
 	{
-		return _val != UINT32_MAX && (_val & (1u<<31)) != 0;
+		return _val != UINT32_MAX && (_val & (1u << 31)) != 0;
 	}
 
 	Lit lit() const
@@ -59,28 +53,28 @@ constexpr Reason REASON_UNDEF = Reason();
  */
 class PropEngine
 {
-public:
-	Sat& sat;
+  public:
+	Sat &sat;
 	std::vector<std::vector<CRef>> watches;
 	std::vector<Lit> trail;
-	std::vector<int> mark; // indices into trail
+	std::vector<int> mark;      // indices into trail
 	std::vector<Reason> reason; // only valid for assigned vars
-	std::vector<int> trailPos; // ditto
+	std::vector<int> trailPos;  // ditto
 
 	std::vector<Lit> conflictClause;
 
-	void set(Lit x, Reason r);	// no unit propagation
+	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
-public:
+  public:
 	std::vector<bool> assign;
 	bool conflict = false;
 
 	/** constructor */
-	PropEngine(Sat& sat);
+	PropEngine(Sat &sat);
 
 	/** assign a literal and do unit propagation */
-	void branch(Lit x); // starts a new level
+	void branch(Lit x);                  // starts a new level
 	void propagateFull(Lit x, Reason r); // stays on current level
 
 	/**
@@ -88,22 +82,25 @@ public:
 	 * Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	 * returns reason with which cl[0] might be propagated
 	 */
-	Reason addClause(const std::vector<Lit>& cl);
+	Reason addClause(const std::vector<Lit> &cl);
 
-	/** propagate x and unrolls immediately. Returns number of propagations or -1 on conflict */
+	/** propagate x and unrolls immediately. Returns number of propagations or
+	 * -1 on conflict */
 	int probe(Lit x);
 
 	/**
 	 * Probe all unassigned literals and propagate inverse of all failings.
-	 * Reuturns most active variable or -2 on conflict or -1 if everything is set already.
+	 * Reuturns most active variable or -2 on conflict or -1 if everything is
+	 * set already.
 	 */
 	int probeFull();
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
 	int level() const; /** current level */
-	void unroll(int l); /** unroll all assignments in levels > l, and set level to l */
-	int analyzeConflict(std::vector<Lit>& learnt) const;
+	void unroll(
+	    int l); /** unroll all assignments in levels > l, and set level to l */
+	int analyzeConflict(std::vector<Lit> &learnt) const;
 
 	/** for debugging */
 	void printTrail() const;

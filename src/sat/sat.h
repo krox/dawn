@@ -1,10 +1,9 @@
-#ifndef SAT_H
-#define SAT_H
+#ifndef SAT_SAT_H
+#define SAT_SAT_H
 
-#include <vector>
-#include <iostream>
 #include "clause.h"
-
+#include <iostream>
+#include <vector>
 
 /**
  * Sat problem in conjunctive normal form, i.e. a set of clauses.
@@ -13,7 +12,7 @@
  */
 class Sat
 {
-public:
+  public:
 	/** storage of clauses */
 	bool contradiction = false;
 	std::vector<Lit> units;
@@ -24,8 +23,8 @@ public:
 	Sat();
 	explicit Sat(int n);
 
-	Sat(const Sat&) = delete;
-	Sat(const Sat&&) = delete;
+	Sat(const Sat &) = delete;
+	Sat(const Sat &&) = delete;
 
 	/** add a new variable */
 	uint32_t addVar();
@@ -35,7 +34,7 @@ public:
 	CRef addEmpty();
 	CRef addUnary(Lit a);
 	CRef addBinary(Lit a, Lit b);
-	CRef addClause(const std::vector<Lit>& lits);
+	CRef addClause(const std::vector<Lit> &lits);
 
 	/** number of clauses */
 	size_t unaryCount() const;
@@ -50,15 +49,12 @@ public:
 	 */
 	void cleanup();
 
-	friend std::ostream& operator<<(std::ostream& stream, const Sat& cs);
+	friend std::ostream &operator<<(std::ostream &stream, const Sat &cs);
 };
 
-inline Sat::Sat()
-{}
+inline Sat::Sat() {}
 
-inline Sat::Sat(int n)
-	: bins(2*n)
-{}
+inline Sat::Sat(int n) : bins(2 * n) {}
 
 inline uint32_t Sat::addVar()
 {
@@ -68,58 +64,52 @@ inline uint32_t Sat::addVar()
 	return i;
 }
 
-inline uint32_t Sat::varCount() const
-{
-	return (uint32_t)bins.size()/2;
-}
+inline uint32_t Sat::varCount() const { return (uint32_t)bins.size() / 2; }
 
 inline CRef Sat::addEmpty()
 {
 	contradiction = true;
-	return CREF_UNDEF;
+	return CRef::undef();
 }
 
 inline CRef Sat::addUnary(Lit a)
 {
 	units.push_back(a);
-	return CREF_UNDEF;
+	return CRef::undef();
 }
 
 inline CRef Sat::addBinary(Lit a, Lit b)
 {
 	bins[a].push_back(b);
 	bins[b].push_back(a);
-	return CREF_UNDEF;
+	return CRef::undef();
 }
 
-inline CRef Sat::addClause(const std::vector<Lit>& lits)
+inline CRef Sat::addClause(const std::vector<Lit> &lits)
 {
-	if(lits.size() == 0)
+	if (lits.size() == 0)
 		return addEmpty();
-	if(lits.size() == 1)
+	if (lits.size() == 1)
 		return addUnary(lits[0]);
-	if(lits.size() == 2)
+	if (lits.size() == 2)
 		return addBinary(lits[0], lits[1]);
 	return clauses.addClause(lits);
 }
 
-inline size_t Sat::unaryCount() const
-{
-	return units.size();
-}
+inline size_t Sat::unaryCount() const { return units.size(); }
 
 inline size_t Sat::binaryCount() const
 {
 	size_t r = 0;
-	for(auto& b : bins)
+	for (auto &b : bins)
 		r += b.size();
-	return r/2;
+	return r / 2;
 }
 
 inline size_t Sat::longCount() const
 {
 	size_t r = 0;
-	for(auto _ : clauses)
+	for (auto _ [[maybe_unused]] : clauses)
 		++r;
 	return r;
 }
