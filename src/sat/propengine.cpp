@@ -120,7 +120,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			{
 				conflict = true;
 				assert(conflictClause.empty());
-				for (Lit l : c)
+				for (Lit l : c.lits())
 					conflictClause.push_back(l);
 				return;
 			}
@@ -208,7 +208,7 @@ Reason PropEngine::addClause(const std::vector<Lit> &cl)
 		sat.addBinary(cl[0], cl[1]);
 		return Reason(cl[1]);
 	default:
-		CRef cref = sat.addClause(cl);
+		CRef cref = sat.addLong(cl);
 		watches[cl[0]].push_back(cref);
 		watches[cl[1]].push_back(cref);
 		return Reason(cref);

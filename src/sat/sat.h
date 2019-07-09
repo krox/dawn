@@ -31,10 +31,11 @@ class Sat
 	uint32_t varCount() const;
 
 	/** add clause ('inner' numbering, no checking of tautologies and such) */
-	CRef addEmpty();
-	CRef addUnary(Lit a);
-	CRef addBinary(Lit a, Lit b);
-	CRef addClause(const std::vector<Lit> &lits);
+	void addEmpty();
+	void addUnary(Lit a);
+	void addBinary(Lit a, Lit b);
+	CRef addLong(span<const Lit> lits);
+	void addClause(span<const Lit> lits);
 
 	/** number of clauses */
 	size_t unaryCount() const;
@@ -66,34 +67,31 @@ inline uint32_t Sat::addVar()
 
 inline uint32_t Sat::varCount() const { return (uint32_t)bins.size() / 2; }
 
-inline CRef Sat::addEmpty()
-{
-	contradiction = true;
-	return CRef::undef();
-}
+inline void Sat::addEmpty() { contradiction = true; }
 
-inline CRef Sat::addUnary(Lit a)
-{
-	units.push_back(a);
-	return CRef::undef();
-}
+inline void Sat::addUnary(Lit a) { units.push_back(a); }
 
-inline CRef Sat::addBinary(Lit a, Lit b)
+inline void Sat::addBinary(Lit a, Lit b)
 {
 	bins[a].push_back(b);
 	bins[b].push_back(a);
-	return CRef::undef();
 }
 
-inline CRef Sat::addClause(const std::vector<Lit> &lits)
+inline CRef Sat::addLong(span<const Lit> lits)
+{
+	return clauses.addClause(lits);
+}
+
+inline void Sat::addClause(span<const Lit> lits)
 {
 	if (lits.size() == 0)
-		return addEmpty();
-	if (lits.size() == 1)
-		return addUnary(lits[0]);
-	if (lits.size() == 2)
-		return addBinary(lits[0], lits[1]);
-	return clauses.addClause(lits);
+		addEmpty();
+	else if (lits.size() == 1)
+		addUnary(lits[0]);
+	else if (lits.size() == 2)
+		addBinary(lits[0], lits[1]);
+	else
+		addLong(lits);
 }
 
 inline size_t Sat::unaryCount() const { return units.size(); }

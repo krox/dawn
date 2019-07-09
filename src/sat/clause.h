@@ -4,11 +4,14 @@
 #ifndef SAT_CLAUSE_H
 #define SAT_CLAUSE_H
 
+#include "util/span.h"
 #include <cstdint>
 #include <functional>
 #include <iostream>
 #include <tuple>
 #include <vector>
+
+using namespace util;
 
 /**
  * A literal is a variable number + sign. Also there are some special lits:
@@ -29,6 +32,7 @@ class Lit
 	static constexpr Lit one() { return Lit{(uint32_t)-2}; }
 	static constexpr Lit undef() { return Lit{(uint32_t)-3}; }
 	static constexpr Lit elim() { return Lit{(uint32_t)-4}; }
+	static constexpr Lit fixed(bool sign) { return one() ^ sign; }
 
 	/** basic accesors and properties */
 	constexpr operator uint32_t() const { return val_; }
@@ -39,15 +43,14 @@ class Lit
 
 	/** IO in dimacs convention */
 	static Lit fromDimacs(int x) { return Lit(x > 0 ? 2 * x - 2 : -2 * x - 1); }
-
 	int toDimacs() const { return sign() ? -var() - 1 : var() + 1; }
-
 	friend std::ostream &operator<<(std::ostream &stream, Lit l);
 
 	/** misc */
 	bool operator==(Lit b) const { return val_ == b.val_; }
 
 	Lit neg() const { return Lit(val_ ^ 1); }
+	Lit operator^(bool sign) { return Lit(val_ ^ sign); }
 };
 
 class Clause
@@ -61,22 +64,18 @@ class Clause
 	// array of Lits
 	// Lit _lits[]; // not valid C++
 
-	Lit *lits_() { return (Lit *)(this + 1); }
-	const Lit *lits_() const { return (const Lit *)(this + 1); }
-
 	Clause() {}
 	Clause(const Clause &) = delete;
 
 	/** array-like access to literals */
 	uint16_t size() const { return size_; }
-	Lit &operator[](size_t i) { return lits_()[i]; }
-	const Lit &operator[](size_t i) const { return lits_()[i]; }
-	typedef Lit *iterator;
-	typedef const Lit *const_iterator;
-	iterator begin() { return &lits_()[0]; }
-	iterator end() { return &lits_()[size_]; }
-	const_iterator begin() const { return lits_(); }
-	const_iterator end() const { return lits_() + size_; }
+	Lit &operator[](size_t i) { return lits()[i]; }
+	const Lit &operator[](size_t i) const { return lits()[i]; }
+	span<Lit> lits() { return span<Lit>{(Lit *)(this + 1), size_}; }
+	span<const Lit> lits() const
+	{
+		return span<const Lit>{(Lit *)(this + 1), size_};
+	}
 
 	/** flags */
 	bool isRemoved() const { return (flags_ & 1) != 0; }
@@ -109,7 +108,7 @@ class ClauseStorage
 
   public:
 	/** add a new clause, no checking of lits done */
-	CRef addClause(const std::vector<Lit> &lits)
+	CRef addClause(span<const Lit> lits)
 	{
 		if (lits.size() > UINT16_MAX)
 		{
