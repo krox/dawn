@@ -34,7 +34,10 @@ std::ostream &operator<<(std::ostream &stream, const Clause &cl)
 std::ostream &operator<<(std::ostream &stream, const ClauseStorage &clauses)
 {
 	for (auto [_, c] : clauses)
+	{
+		(void)_;
 		stream << c << " 0\n";
+	}
 	stream << std::flush;
 	return stream;
 }

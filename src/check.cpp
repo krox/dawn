@@ -14,9 +14,12 @@ bool check(const Sat &sat, const Solution &sol)
 		for (Lit b : sat.bins[Lit(i)])
 			if (!sol.satisfied(Lit(i), b))
 				return false;
-	for (auto [i, c] : sat.clauses)
+	for (auto [_, c] : sat.clauses)
+	{
+		(void)_;
 		if (!sol.satisfied(c))
 			return false;
+	}
 	return true;
 }
 

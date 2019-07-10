@@ -23,9 +23,9 @@ class Lit
 
   public:
 	/** constructors */
-	Lit() : val_(-3) {}
+	constexpr Lit() : val_(-3) {}
 	explicit constexpr Lit(uint32_t val) : val_(val) {}
-	Lit(uint32_t var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
+	constexpr Lit(uint32_t var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
 
 	/** special values of Lit */
 	static constexpr Lit zero() { return Lit{(uint32_t)-1}; }
@@ -37,20 +37,23 @@ class Lit
 	/** basic accesors and properties */
 	constexpr operator uint32_t() const { return val_; }
 	constexpr uint32_t var() const { return val_ >> 1; }
-	bool sign() const { return (val_ & 1) != 0; }
-	bool proper() const { return (int32_t)val_ >= 0; }
-	bool fixed() const { return (val_ & ~1) == (uint32_t)-2; }
+	constexpr bool sign() const { return (val_ & 1) != 0; }
+	constexpr bool proper() const { return (int32_t)val_ >= 0; }
+	constexpr bool fixed() const { return (val_ & ~1) == (uint32_t)-2; }
 
 	/** IO in dimacs convention */
-	static Lit fromDimacs(int x) { return Lit(x > 0 ? 2 * x - 2 : -2 * x - 1); }
-	int toDimacs() const { return sign() ? -var() - 1 : var() + 1; }
+	constexpr static Lit fromDimacs(int x)
+	{
+		return Lit(x > 0 ? 2 * x - 2 : -2 * x - 1);
+	}
+	constexpr int toDimacs() const { return sign() ? -var() - 1 : var() + 1; }
 	friend std::ostream &operator<<(std::ostream &stream, Lit l);
 
 	/** misc */
-	bool operator==(Lit b) const { return val_ == b.val_; }
+	constexpr bool operator==(Lit b) const { return val_ == b.val_; }
 
-	Lit neg() const { return Lit(val_ ^ 1); }
-	Lit operator^(bool sign) { return Lit(val_ ^ sign); }
+	constexpr Lit neg() const { return Lit(val_ ^ 1); }
+	constexpr Lit operator^(bool sign) const { return Lit(val_ ^ sign); }
 };
 
 class Clause

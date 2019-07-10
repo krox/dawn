@@ -13,7 +13,10 @@ void Sat::cleanup()
 		for (uint32_t i = 0; i < 2 * varCount(); ++i)
 			bins[i].resize(0);
 		for (auto [ci, cl] : clauses)
+		{
+			(void)ci;
 			cl.remove();
+		}
 		return;
 	}
 
@@ -28,6 +31,7 @@ void Sat::cleanup()
 	// remove assigned variables from long clauses
 	for (auto [ci, cl] : clauses)
 	{
+		(void)ci;
 		for (int i = 0; i < cl.size(); ++i)
 		{
 			if (assign[cl[i]])
