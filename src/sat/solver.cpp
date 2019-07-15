@@ -51,7 +51,7 @@ void probe(PropEngine &p)
 
 /** return true if solved (contradiction or solution found), false if maxConfl
  * reached */
-bool search(PropEngine &p, Solution &sol, uint64_t maxConfl)
+bool search(PropEngine &p, uint64_t maxConfl)
 {
 	uint64_t nConfl = 0;
 	std::vector<Lit> buf;
@@ -91,7 +91,6 @@ bool search(PropEngine &p, Solution &sol, uint64_t maxConfl)
 		// no unassigned left -> solution is found
 		if (branch == -1)
 		{
-			sol = p.assign;
 			std::cout << "c solution found after " << nConfl << " conflicts"
 			          << std::endl;
 			return true;
@@ -110,24 +109,63 @@ bool solve(Sat &sat, Solution &sol)
 	probe(*p);
 
 	std::cout << "c " << std::setw(8) << "vars"
+	          << " " << std::setw(8) << "units"
 	          << " " << std::setw(8) << "bins"
 	          << " " << std::setw(8) << "longs" << std::endl;
 
-	while (true)
+	int lastCleanup = 0;
+	for (int iter = 0;; ++iter)
 	{
 		assert(p->level() == 0);
 		if (p->trail.size() > sat.units.size())
-		{
 			sat.units = p->trail;
+
+		std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
+		          << sat.unaryCount() << " " << std::setw(8)
+		          << sat.binaryCount() << " " << std::setw(8) << sat.longCount()
+		          << std::endl;
+
+		if (sat.units.size() >= 100 ||
+		    (sat.units.size() > 0 && (iter - lastCleanup >= 10 || iter == 0)))
+		{
+			lastCleanup = iter;
+			std::cout << "c cleanup" << std::endl;
 			sat.cleanup();
 			p = std::make_unique<PropEngine>(sat);
+
+			std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
+			          << sat.unaryCount() << " " << std::setw(8)
+			          << sat.binaryCount() << " " << std::setw(8)
+			          << sat.longCount() << std::endl;
 		}
 
-		std::cout << "c " << std::setw(8) << sat.varCount() - sat.unaryCount()
-		          << " " << std::setw(8) << sat.binaryCount() << " "
-		          << std::setw(8) << sat.longCount() << std::endl;
-		if (search(*p, sol, 1000))
-			break;
+		if (search(*p, 1000))
+		{
+			if (p->conflict)
+				return false;
+			sol.varCount(sat.varCountOuter());
+			for (int i = 0; i < (int)sat.varCountOuter(); ++i)
+			{
+				auto a = Lit(sat.outerToInner(Lit(i, false)));
+				if (a.fixed())
+				{
+					sol.set(Lit(i, a.sign()));
+				}
+				else
+				{
+					assert(a.proper() && a.var() < sat.varCount());
+
+					assert(p->assign[a] || p->assign[a.neg()]);
+					assert(!(p->assign[a] && p->assign[a.neg()]));
+					if (p->assign[a])
+						sol.set(Lit(i, false));
+					if (p->assign[a.neg()])
+						sol.set(Lit(i, true));
+				}
+			}
+			assert(sol.valid());
+			return true;
+		}
 	}
 	return !p->conflict;
 }

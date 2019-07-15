@@ -56,6 +56,41 @@ class Lit
 	constexpr Lit operator^(bool sign) const { return Lit(val_ ^ sign); }
 };
 
+/**
+ * - removes duplicates and Lit::zero()
+ * - returns -1 for tautologies and Lit::one()
+ * - otherwiese, returns new size
+ */
+inline int normalizeClause(span<Lit> lits)
+{
+	int j = 0;
+	for (int i = 0; i < (int)lits.size(); ++i)
+	{
+		if (lits[i] == Lit::one()) // literal true -> remove clause
+			return -1;
+		if (lits[i] == Lit::zero()) // literal false -> remove lit
+			goto next;
+
+		assert(lits[i].proper());
+
+		for (int k = 0; k < i; ++k)
+		{
+			if (lits[i] == lits[k].neg()) // tautology -> remove clause
+				return -1;
+			if (lits[i] == lits[k]) // duplicate literal -> remove lit
+				goto next;
+		}
+
+		// no special case -> keep the literal
+		assert(lits[i].proper());
+		lits[j++] = lits[i];
+
+	next:;
+	}
+
+	return j;
+}
+
 class Clause
 {
   public:
@@ -83,6 +118,18 @@ class Clause
 	/** flags */
 	bool isRemoved() const { return (flags_ & 1) != 0; }
 	void remove() { flags_ |= 1; }
+
+	/**
+	 * - remove duplicate/fixed lits
+	 * - remove clause if tautological
+	 */
+	void normalize()
+	{
+		if (int s = normalizeClause(lits()); s == -1)
+			remove();
+		else
+			size_ = (uint16_t)s;
+	}
 };
 
 /** Reference to a clause inside a ClauseStorage object. */
@@ -150,25 +197,27 @@ class ClauseStorage
 	  public:
 		iterator(ClauseStorage &cs, std::vector<CRef>::iterator it)
 		    : cs(cs), it(it)
-		{}
+		{
+			while (it != cs.clauses.end() && cs[*it].isRemoved())
+				++it;
+		}
 
 		std::tuple<CRef, Clause &> operator*()
 		{
 			return std::make_tuple(*it, std::ref(cs[*it]));
 		}
 
-		void operator++() { ++it; }
+		void operator++()
+		{
+			++it;
+			while (it != cs.clauses.end() && cs[*it].isRemoved())
+				++it;
+		}
 
 		bool operator!=(const iterator &r) const { return it != r.it; }
 	};
 
-	iterator begin()
-	{
-		iterator it(*this, clauses.begin());
-		while (it != end() && std::get<1>(*it).isRemoved())
-			++it;
-		return it;
-	}
+	iterator begin() { return iterator(*this, clauses.begin()); }
 
 	iterator end() { return iterator(*this, clauses.end()); }
 
@@ -181,14 +230,22 @@ class ClauseStorage
 		const_iterator(const ClauseStorage &cs,
 		               std::vector<CRef>::const_iterator it)
 		    : cs(cs), it(it)
-		{}
+		{
+			while (it != cs.clauses.end() && cs[*it].isRemoved())
+				++it;
+		}
 
 		std::tuple<CRef, const Clause &> operator*()
 		{
 			return std::make_tuple(*it, std::ref(cs[*it]));
 		}
 
-		void operator++() { ++it; }
+		void operator++()
+		{
+			++it;
+			while (it != cs.clauses.end() && cs[*it].isRemoved())
+				++it;
+		}
 
 		bool operator!=(const const_iterator &r) const { return it != r.it; }
 	};

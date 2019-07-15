@@ -180,7 +180,7 @@ void parseCnf(std::string filename, Sat &sat)
 			{
 				auto lit = Lit::fromDimacs(x);
 				while (sat.varCount() <= lit.var())
-					sat.addVar();
+					sat.addVarOuter();
 				clause.push_back(lit);
 			}
 			continue;
