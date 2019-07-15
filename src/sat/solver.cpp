@@ -1,6 +1,7 @@
 #include "sat/solver.h"
 
 #include "sat/propengine.h"
+#include "sat/scc.h"
 #include <iomanip>
 #include <iostream>
 
@@ -125,7 +126,7 @@ bool solve(Sat &sat, Solution &sol)
 		          << sat.binaryCount() << " " << std::setw(8) << sat.longCount()
 		          << std::endl;
 
-		if (sat.units.size() >= 100 ||
+		if (runSCC(sat) || sat.units.size() >= 100 ||
 		    (sat.units.size() > 0 && (iter - lastCleanup >= 10 || iter == 0)))
 		{
 			lastCleanup = iter;
