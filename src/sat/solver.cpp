@@ -1,9 +1,9 @@
 #include "sat/solver.h"
 
+#include "fmt/format.h"
 #include "sat/propengine.h"
 #include "sat/scc.h"
 #include <iomanip>
-#include <iostream>
 
 /** do one full sweep of failed literal probing */
 void probe(PropEngine &p)
@@ -103,13 +103,56 @@ bool search(PropEngine &p, uint64_t maxConfl)
 	}
 }
 
+int unitPropagation(Sat &sat)
+{
+	if (sat.contradiction || sat.unaryCount() == 0)
+		return 0;
+
+	// TODO: a "light" version of PropEngine would be sufficient here,
+	//       withouth any conflict-analysis and such
+	auto p = PropEngine(sat);
+	int nFound;
+	if (p.conflict)
+	{
+		nFound = 1;
+		sat.addEmpty();
+	}
+	else
+	{
+		sat.units = p.trail;
+		nFound = (int)sat.units.size();
+	}
+
+	sat.cleanup();
+	assert(sat.unaryCount() == 0);
+	return nFound;
+}
+
 /** return true if solved, false if unsat */
 bool solve(Sat &sat, Solution &sol)
 {
+	// Step 1: Run unit-propagation and scc until completion. These are
+	// extremely fast so we do them before anything more complicated.
+	while (true)
+	{
+		if (int nFound = unitPropagation(sat); nFound)
+			fmt::print("c  UP removed {} variables\n", nFound);
+		else if (int nFound = runSCC(sat); nFound)
+			fmt::print("c SCC removed {} variables\n", nFound);
+		else
+			break;
+	}
+	fmt::print("c after initial cleanup: {} vars and {} clauses\n",
+	           sat.varCount(), sat.clauseCount());
+
+	// Step 2: top-level failed-literal-probing.
+	// TODO: this may need some kind of limit as it is potentially quite slow.
 	auto p = std::make_unique<PropEngine>(sat);
-
 	probe(*p);
+	fmt::print("c after initial FLP: {} vars and {} clauses\n", sat.varCount(),
+	           sat.clauseCount());
 
+	// Step 3: main solver loop
 	std::cout << "c " << std::setw(8) << "vars"
 	          << " " << std::setw(8) << "units"
 	          << " " << std::setw(8) << "bins"
@@ -118,31 +161,16 @@ bool solve(Sat &sat, Solution &sol)
 	int lastCleanup = 0;
 	for (int iter = 0;; ++iter)
 	{
-		assert(p->level() == 0);
-		if (p->trail.size() > sat.units.size())
-			sat.units = p->trail;
-
+		// print statistics line directly before going into the searcher
 		std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
 		          << sat.unaryCount() << " " << std::setw(8)
 		          << sat.binaryCount() << " " << std::setw(8) << sat.longCount()
+		          << " " << std::setw(8)
+		          << sat.clauses.memory_usage() / 1024. / 1024. << " MiB"
 		          << std::endl;
 
-		if (runSCC(sat) || sat.units.size() >= 100 ||
-		    (sat.units.size() > 0 && (iter - lastCleanup >= 10 || iter == 0)))
-		{
-			lastCleanup = iter;
-			std::cout << "c cleanup" << std::endl;
-			sat.cleanup();
-			p = std::make_unique<PropEngine>(sat);
-
-			std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
-			          << sat.unaryCount() << " " << std::setw(8)
-			          << sat.binaryCount() << " " << std::setw(8)
-			          << sat.longCount() << " " << std::setw(8)
-			          << sat.clauses.memory_usage() / 1024. / 1024. << " MiB"
-			          << std::endl;
-		}
-
+		// search for a number of conflicts
+		assert(p->level() == 0);
 		if (search(*p, 1000))
 		{
 			if (p->conflict)
@@ -169,6 +197,18 @@ bool solve(Sat &sat, Solution &sol)
 			}
 			assert(sol.valid());
 			return true;
+		}
+
+		// occasional cleanup when there are units/equivalences
+		if (runSCC(sat) || sat.units.size() >= 100 ||
+		    (sat.units.size() > 0 && iter - lastCleanup >= 10))
+		{
+			lastCleanup = iter;
+			std::cout << "c cleanup" << std::endl;
+			sat.cleanup();
+
+			// runSCC/cleanup invalidates the PropEngine, so recreate it
+			p = std::make_unique<PropEngine>(sat);
 		}
 	}
 	return !p->conflict;

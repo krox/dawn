@@ -78,10 +78,10 @@ class Tarjan
 
 } // namespace
 
-bool runSCC(Sat &sat)
+int runSCC(Sat &sat)
 {
 	if (sat.contradiction)
-		return false;
+		return 0;
 
 	auto tarjan = Tarjan(sat);
 
@@ -92,15 +92,15 @@ bool runSCC(Sat &sat)
 	// contradiction found -> don't bother to renumber (also equ[] is not fully
 	// built)
 	if (sat.contradiction)
-		return true;
+		return 1;
+
+	int nFound = sat.varCount() - tarjan.nComps;
 
 	// no equivalences -> quit
-	if (tarjan.nComps == sat.varCount())
-		return false;
+	if (nFound == 0)
+		return 0;
 
-	std::cout << "c found " << sat.varCount() - tarjan.nComps << " equivalences"
-	          << std::endl;
-
+	// otherwise renumber
 	sat.renumber(tarjan.equ, tarjan.nComps);
-	return true;
+	return nFound;
 }
