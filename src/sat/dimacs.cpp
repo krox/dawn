@@ -136,7 +136,7 @@ void parseCnf(std::string filename, Sat &sat)
 	auto parser = Parser(filename);
 
 	int varCount = -1;
-	int clauseCount = -1;
+	int64_t clauseCount = -1;
 	std::vector<Lit> clause;
 	while (true)
 	{
@@ -191,9 +191,9 @@ void parseCnf(std::string filename, Sat &sat)
 	}
 
 	enforce(clause.empty(), "incomplete clause at end of file");
-	enforce(varCount == -1 || varCount == (int)sat.varCount(),
+	enforce(varCount == -1 || varCount == sat.varCount(),
 	        "wrong number of vars in header");
-	enforce(clauseCount == -1 || clauseCount == (int)sat.clauseCount(),
+	enforce(clauseCount == -1 || clauseCount == (int64_t)sat.clauseCount(),
 	        "wrong number of clauses in header");
 
 	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount()
@@ -237,7 +237,7 @@ void parseSolution(std::string filename, Solution &sol)
 				if (x == 0)
 					break;
 				auto lit = Lit::fromDimacs(x);
-				enforce(lit.var() < (unsigned)sol.varCount(),
+				enforce(lit.var() < sol.varCount(),
 				        "invalid literal in solution");
 				sol.set(lit);
 			}

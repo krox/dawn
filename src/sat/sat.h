@@ -35,12 +35,12 @@ class Sat
 	Lit outerToInner(Lit a) const;
 
 	/** add/count variables in the 'inner' problem */
-	uint32_t addVar();
-	uint32_t varCount() const;
+	int addVar();
+	int varCount() const;
 
 	/** add/count variables in the 'outer problem */
-	uint32_t addVarOuter();
-	uint32_t varCountOuter() const;
+	int addVarOuter();
+	int varCountOuter() const;
 
 	/** add clause ('inner' numbering, no checking of tautologies and such) */
 	void addEmpty();
@@ -96,7 +96,7 @@ inline Lit Sat::outerToInner(Lit a) const
 	return outerToInner_[a.var()] ^ a.sign();
 }
 
-inline uint32_t Sat::addVar()
+inline int Sat::addVar()
 {
 	auto i = varCount();
 	bins.emplace_back();
@@ -105,19 +105,16 @@ inline uint32_t Sat::addVar()
 	return i;
 }
 
-inline uint32_t Sat::varCount() const { return (uint32_t)bins.size() / 2; }
+inline int Sat::varCount() const { return (int)bins.size() / 2; }
 
-inline uint32_t Sat::addVarOuter()
+inline int Sat::addVarOuter()
 {
 	auto i = varCountOuter();
 	outerToInner_.push_back(Lit(addVar(), false));
 	return i;
 }
 
-inline uint32_t Sat::varCountOuter() const
-{
-	return (uint32_t)outerToInner_.size();
-}
+inline int Sat::varCountOuter() const { return (uint32_t)outerToInner_.size(); }
 
 inline void Sat::addEmpty() { contradiction = true; }
 
@@ -214,7 +211,7 @@ inline void Sat::decayVariableActivity()
 	if (activityInc > 1e100)
 	{
 		activityInc /= 1e100;
-		for (int i = 0; i < (int)varCount(); ++i)
+		for (int i = 0; i < varCount(); ++i)
 			activity[i] /= 1e100;
 	}
 }

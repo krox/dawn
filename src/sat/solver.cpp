@@ -13,7 +13,7 @@ void probe(PropEngine &p)
 		return;
 
 	std::vector<Lit> buf;
-	for (uint32_t i = 0; i < 2 * p.sat.varCount(); ++i)
+	for (int i = 0; i < 2 * p.sat.varCount(); ++i)
 	{
 		Lit branch = Lit(i);
 
@@ -36,7 +36,7 @@ void probe(PropEngine &p)
 			assert(buf.size() == 1);
 			p.unroll(0);
 			p.addClause(buf);
-			p.propagateFull(buf[0], REASON_UNDEF);
+			p.propagateFull(buf[0], Reason::undef());
 			buf.resize(0);
 
 			// UNSAT encountered
@@ -146,7 +146,7 @@ bool solve(Sat &sat, Solution &sol)
 			if (p->conflict)
 				return false;
 			sol.varCount(sat.varCountOuter());
-			for (int i = 0; i < (int)sat.varCountOuter(); ++i)
+			for (int i = 0; i < sat.varCountOuter(); ++i)
 			{
 				auto a = Lit(sat.outerToInner(Lit(i, false)));
 				if (a.fixed())

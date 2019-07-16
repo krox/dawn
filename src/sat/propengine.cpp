@@ -33,13 +33,13 @@ PropEngine::PropEngine(Sat &sat)
 			conflict = true;
 			return;
 		}
-		propagateFull(l, REASON_UNDEF);
+		propagateFull(l, Reason::undef());
 		if (conflict)
 			return;
 	}
 
 	// add everything to the activity-activity heap
-	for (int i = 0; i < (int)sat.varCount(); ++i)
+	for (int i = 0; i < sat.varCount(); ++i)
 		activityHeap.push(i);
 }
 
@@ -144,7 +144,7 @@ int PropEngine::probe(Lit x)
 {
 	size_t pos = trail.size();
 	mark.push_back(trail.size());
-	propagateFull(x, REASON_UNDEF);
+	propagateFull(x, Reason::undef());
 
 	if (conflict)
 	{
@@ -163,7 +163,7 @@ int PropEngine::probeFull()
 {
 	int best = -1;
 	int bestScore = -1;
-	for (int i = 0; i < (int)sat.varCount(); ++i)
+	for (int i = 0; i < sat.varCount(); ++i)
 	{
 		Lit a = Lit(i, false);
 		Lit b = Lit(i, true);
@@ -176,9 +176,9 @@ int PropEngine::probeFull()
 		if (scoreA == -1 && scoreB == -1)
 			return -2;
 		else if (scoreA == -1)
-			propagateFull(b, REASON_UNDEF);
+			propagateFull(b, Reason::undef());
 		else if (scoreB == -1)
-			propagateFull(a, REASON_UNDEF);
+			propagateFull(a, Reason::undef());
 		else if (scoreA + scoreB > bestScore)
 		{
 			best = i;
@@ -194,7 +194,7 @@ void PropEngine::branch(Lit x)
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
 	mark.push_back(trail.size());
-	propagateFull(x, REASON_UNDEF);
+	propagateFull(x, Reason::undef());
 }
 
 Reason PropEngine::addClause(const std::vector<Lit> &cl)
@@ -204,10 +204,10 @@ Reason PropEngine::addClause(const std::vector<Lit> &cl)
 	case 0:
 		sat.addEmpty();
 		conflict = true;
-		return REASON_UNDEF;
+		return Reason::undef();
 	case 1:
 		sat.addUnary(cl[0]);
-		return REASON_UNDEF;
+		return Reason::undef();
 	case 2:
 		sat.addBinary(cl[0], cl[1]);
 		return Reason(cl[1]);
@@ -221,7 +221,7 @@ Reason PropEngine::addClause(const std::vector<Lit> &cl)
 
 int PropEngine::unassignedVariable() const
 {
-	for (int i = 0; i < (int)sat.varCount(); ++i)
+	for (int i = 0; i < sat.varCount(); ++i)
 		if (!assign[Lit(i, false)] && !assign[Lit(i, true)])
 			return i;
 	return -1;
@@ -236,7 +236,7 @@ int PropEngine::mostActiveVariable()
 			continue;
 
 		// check the heap(very expensive, debug only)
-		// for (int i = 0; i < (int)sat.varCount(); ++i)
+		// for (int i = 0; i < sat.varCount(); ++i)
 		//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
 		//	       sat.activity[i] <= sat.activity[v]);
 
@@ -258,7 +258,7 @@ void PropEngine::unroll(int l)
 		Lit lit = trail.back();
 		trail.pop_back();
 		// assert(assign[lit] && !assign[lit.neg()]);
-		// reason[lit.var()] = REASON_UNDEF;
+		// reason[lit.var()] = Reason::undef();
 		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
 		activityHeap.push(lit.var());
@@ -346,7 +346,7 @@ void PropEngine::printTrail() const
 		{
 			std::cout << trail[i] << " <= ";
 			Reason r = reason[trail[i].var()];
-			if (r.isUndef())
+			if (r == Reason::undef())
 				std::cout << "()" << std::endl;
 			else if (r.isBinary())
 				std::cout << "bin (" << r.lit() << ")" << std::endl;

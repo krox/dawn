@@ -15,7 +15,7 @@ class Tarjan
 	int cnt = 0;
 	std::vector<Lit> comp;
 	std::vector<Lit> equ;
-	uint32_t nComps = 0; // number of SCC's
+	int nComps = 0; // number of SCC's
 
 	Tarjan(Sat &sat)
 	    : sat(sat), visited(sat.varCount() * 2, false),
@@ -86,7 +86,7 @@ bool runSCC(Sat &sat)
 	auto tarjan = Tarjan(sat);
 
 	// run tarjan
-	for (uint32_t i = 0; i < sat.varCount() * 2 && !sat.contradiction; ++i)
+	for (int i = 0; i < sat.varCount() * 2 && !sat.contradiction; ++i)
 		tarjan.dfs(Lit(i));
 
 	// contradiction found -> don't bother to renumber (also equ[] is not fully

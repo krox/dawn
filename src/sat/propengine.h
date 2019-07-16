@@ -10,44 +10,44 @@ struct Reason
 {
 	// msb=0 -> binary clause
 	// msb=1 -> long clause
-	uint32_t _val;
+	uint32_t val_;
 
   public:
-	constexpr Reason() : _val(UINT32_MAX) {}
+	constexpr Reason() : val_(UINT32_MAX) {}
 
-	explicit constexpr Reason(Lit a) : _val(a) { assert(a.proper()); }
+	explicit constexpr Reason(Lit a) : val_(a) { assert(a.proper()); }
 
-	explicit constexpr Reason(CRef cref) : _val(cref | (1u << 31))
+	explicit constexpr Reason(CRef cref) : val_(cref | (1u << 31))
 	{
 		assert(cref.proper());
 	}
 
-	bool isUndef() const { return _val == UINT32_MAX; }
+	static constexpr Reason undef() { return Reason(); }
 
 	bool isBinary() const
 	{
-		return _val != UINT32_MAX && (_val & (1u << 31)) == 0;
+		return val_ != UINT32_MAX && (val_ & (1u << 31)) == 0;
 	}
 
 	bool isLong() const
 	{
-		return _val != UINT32_MAX && (_val & (1u << 31)) != 0;
+		return val_ != UINT32_MAX && (val_ & (1u << 31)) != 0;
 	}
 
 	Lit lit() const
 	{
 		assert(isBinary());
-		return Lit(_val & (UINT32_MAX >> 1));
+		return Lit(val_ & (UINT32_MAX >> 1));
 	}
 
 	CRef cref() const
 	{
 		assert(isLong());
-		return CRef(_val & (UINT32_MAX >> 1));
+		return CRef(val_ & (UINT32_MAX >> 1));
 	}
-};
 
-constexpr Reason REASON_UNDEF = Reason();
+	constexpr bool operator==(Reason b) const { return val_ == b.val_; }
+};
 
 /**
  * Unit propagation.

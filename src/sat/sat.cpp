@@ -11,7 +11,7 @@ void Sat::cleanup()
 	if (contradiction)
 	{
 		units.resize(0);
-		for (uint32_t i = 0; i < 2 * varCount(); ++i)
+		for (int i = 0; i < 2 * varCount(); ++i)
 			bins[i].resize(0);
 		for (auto [ci, cl] : clauses)
 		{
@@ -31,7 +31,7 @@ void Sat::cleanup()
 			trans[u.var()] = Lit::fixed(u.sign());
 		}
 		int newVarCount = 0;
-		for (int i = 0; i < (int)varCount(); ++i)
+		for (int i = 0; i < varCount(); ++i)
 		{
 			if (trans[i] == Lit::undef())
 				trans[i] = Lit(newVarCount++, false);
@@ -44,7 +44,7 @@ void Sat::cleanup()
 	units.erase(std::unique(units.begin(), units.end()), units.end());
 
 	// remove duplicate binary clauses
-	for (uint32_t i = 0; i < 2 * varCount(); ++i)
+	for (int i = 0; i < 2 * varCount(); ++i)
 	{
 		auto &v = bins[Lit(i)];
 		std::sort(v.begin(), v.end());
@@ -58,12 +58,12 @@ void Sat::cleanup()
 void Sat::renumber(span<const Lit> trans, int newVarCount)
 {
 	// check input
-	assert(trans.size() == varCount());
+	assert(trans.size() == (size_t)varCount());
 	for (Lit l : trans)
 		if (!l.fixed())
 		{
 			assert(l.proper());
-			assert((int)l.var() < newVarCount);
+			assert(l.var() < newVarCount);
 		}
 
 	// renumber units
@@ -178,7 +178,7 @@ std::ostream &operator<<(std::ostream &stream, const Sat &sat)
 		stream << a << " 0\n";
 
 	// binary clauses
-	for (uint32_t l = 0; l < 2 * sat.varCount(); ++l)
+	for (int l = 0; l < 2 * sat.varCount(); ++l)
 		for (auto b : sat.bins[l])
 			if (l <= b)
 				stream << Lit(l) << " " << b << " 0\n";

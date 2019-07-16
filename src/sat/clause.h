@@ -25,7 +25,7 @@ class Lit
 	/** constructors */
 	constexpr Lit() : val_(-3) {}
 	explicit constexpr Lit(uint32_t val) : val_(val) {}
-	constexpr Lit(uint32_t var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
+	constexpr Lit(int var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
 
 	/** special values of Lit */
 	static constexpr Lit zero() { return Lit{(uint32_t)-1}; }
@@ -35,8 +35,8 @@ class Lit
 	static constexpr Lit fixed(bool sign) { return one() ^ sign; }
 
 	/** basic accesors and properties */
-	constexpr operator uint32_t() const { return val_; }
-	constexpr uint32_t var() const { return val_ >> 1; }
+	constexpr operator int() const { return (int)val_; }
+	constexpr int var() const { return val_ >> 1; }
 	constexpr bool sign() const { return (val_ & 1) != 0; }
 	constexpr bool proper() const { return (int32_t)val_ >= 0; }
 	constexpr bool fixed() const { return (val_ & ~1) == (uint32_t)-2; }
