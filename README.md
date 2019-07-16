@@ -17,7 +17,7 @@
   - [x] implicit binary clauses
   - [ ] implicit ternary clauses (and blocking literal)
   - [x] packed long clauses with 32-bit references
-  - [ ] small-vector optimization for binaries and watches
+  - [x] small-vector optimization for binaries and watches
 * other
   - [ ] unsat proofs
   - [ ] multithreading

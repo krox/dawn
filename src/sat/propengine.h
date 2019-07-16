@@ -56,7 +56,8 @@ class PropEngine
 {
   public:
 	Sat &sat;
-	std::vector<std::vector<CRef>> watches;
+	using watches_t = std::vector<util::small_vector<CRef, 6>>;
+	watches_t watches;
 	std::vector<Lit> trail;
 	std::vector<int> mark;      // indices into trail
 	std::vector<Reason> reason; // only valid for assigned vars

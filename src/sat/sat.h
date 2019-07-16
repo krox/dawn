@@ -2,6 +2,7 @@
 #define SAT_SAT_H
 
 #include "sat/clause.h"
+#include "util/small_vector.h"
 #include <cassert>
 #include <iostream>
 #include <vector>
@@ -21,7 +22,8 @@ class Sat
 	/** storage of clauses */
 	bool contradiction = false;
 	std::vector<Lit> units;
-	std::vector<std::vector<Lit>> bins;
+	using bins_t = std::vector<util::small_vector<Lit, 6>>;
+	bins_t bins;
 	ClauseStorage clauses;
 
 	/** constructor */

@@ -82,7 +82,7 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 
 	// renumber binaries
 	{
-		std::vector<std::vector<Lit>> binsOld(newVarCount * 2);
+		bins_t binsOld(newVarCount * 2);
 		std::swap(bins, binsOld);
 
 		for (int i = 0; i < (int)binsOld.size(); ++i)

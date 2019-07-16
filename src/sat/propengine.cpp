@@ -90,7 +90,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 	while (pos != trail.size())
 	{
 		Lit y = trail[pos++];
-		std::vector<CRef> &ws = watches[y.neg()];
+		auto &ws = watches[y.neg()];
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
