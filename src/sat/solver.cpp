@@ -138,7 +138,9 @@ bool solve(Sat &sat, Solution &sol)
 			std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
 			          << sat.unaryCount() << " " << std::setw(8)
 			          << sat.binaryCount() << " " << std::setw(8)
-			          << sat.longCount() << std::endl;
+			          << sat.longCount() << " " << std::setw(8)
+			          << sat.clauses.memory_usage() / 1024. / 1024. << " MiB"
+			          << std::endl;
 		}
 
 		if (search(*p, 1000))

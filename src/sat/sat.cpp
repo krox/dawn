@@ -50,9 +50,6 @@ void Sat::cleanup()
 		std::sort(v.begin(), v.end());
 		v.erase(std::unique(v.begin(), v.end()), v.end());
 	}
-
-	// compactify storage of long clauses
-	// clauses.compactify(); // TODO
 }
 
 void Sat::renumber(span<const Lit> trans, int newVarCount)
@@ -165,6 +162,9 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 		if (outerToInner_[i].proper())
 			outerToInner_[i] =
 			    trans[outerToInner_[i].var()] ^ outerToInner_[i].sign();
+
+	// compactify storage of long clauses
+	clauses.compactify();
 }
 
 std::ostream &operator<<(std::ostream &stream, const Sat &sat)

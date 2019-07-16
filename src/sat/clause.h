@@ -139,6 +139,7 @@ class CRef
 	uint32_t _val;
 
   public:
+	CRef() = default;
 	constexpr explicit CRef(uint32_t val) : _val(val) {}
 
 	static constexpr CRef undef() { return CRef{UINT32_MAX}; }
@@ -256,6 +257,14 @@ class ClauseStorage
 	}
 
 	const_iterator end() const { return const_iterator(*this, clauses.end()); }
+
+	size_t memory_usage() const
+	{
+		return store.capacity() * sizeof(uint32_t) +
+		       clauses.capacity() * sizeof(CRef);
+	}
+
+	void compactify();
 };
 
 static_assert(sizeof(Lit) == 4);
