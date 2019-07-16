@@ -6,7 +6,7 @@
 
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), watches(sat.varCount() * 2), reason(sat.varCount()),
-      trailPos(sat.varCount()), assign(sat.varCount() * 2)
+      trailPos(sat.varCount()), activityHeap(sat), assign(sat.varCount() * 2)
 {
 	// empty clause -> don't bother doing anything
 	if (sat.contradiction)
@@ -37,6 +37,10 @@ PropEngine::PropEngine(Sat &sat)
 		if (conflict)
 			return;
 	}
+
+	// add everything to the activity-activity heap
+	for (int i = 0; i < (int)sat.varCount(); ++i)
+		activityHeap.push(i);
 }
 
 void PropEngine::set(Lit x, Reason r)
@@ -223,6 +227,24 @@ int PropEngine::unassignedVariable() const
 	return -1;
 }
 
+int PropEngine::mostActiveVariable()
+{
+	while (!activityHeap.empty())
+	{
+		int v = activityHeap.pop();
+		if (assign[Lit(v, false)] || assign[Lit(v, true)])
+			continue;
+
+		// check the heap(very expensive, debug only)
+		// for (int i = 0; i < (int)sat.varCount(); ++i)
+		//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
+		//	       sat.activity[i] <= sat.activity[v]);
+
+		return v;
+	}
+	return -1;
+}
+
 int PropEngine::level() const { return (int)mark.size(); }
 
 void PropEngine::unroll(int l)
@@ -239,12 +261,13 @@ void PropEngine::unroll(int l)
 		// reason[lit.var()] = REASON_UNDEF;
 		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
+		activityHeap.push(lit.var());
 	}
 	mark.resize(l);
 }
 
 /** returns level to which to backtrack */
-int PropEngine::analyzeConflict(std::vector<Lit> &learnt) const
+int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 {
 	assert(learnt.empty());
 	assert(conflict);
@@ -269,6 +292,9 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt) const
 		// remove duplicates from queue
 		while (!todo.empty() && todo.top().second == l)
 			todo.pop();
+
+		sat.bumpVariableActivity(l.var());
+		activityHeap.update(l.var());
 
 		// next one is reason side
 		//   -> this one is reason side or UIP
@@ -296,6 +322,8 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt) const
 				assert(false);
 		}
 	}
+
+	sat.decayVariableActivity();
 
 	// determine backtrack level
 	assert(!learnt.empty());

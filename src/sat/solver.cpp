@@ -87,7 +87,8 @@ bool search(PropEngine &p, uint64_t maxConfl)
 		}
 
 		// choose a branching variable
-		int branch = p.unassignedVariable();
+		// int branch = p.unassignedVariable();
+		int branch = p.mostActiveVariable();
 
 		// no unassigned left -> solution is found
 		if (branch == -1)

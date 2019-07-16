@@ -144,6 +144,22 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 			cl.remove();
 	}
 
+	// renumber activity array
+	{
+		std::vector<double> activityOld(newVarCount, 0.0);
+		std::swap(activity, activityOld);
+
+		for (int i = 0; i < (int)activityOld.size(); ++i)
+			if (trans[i].proper())
+			{
+				int j = trans[i].var();
+
+				// when multiple old variables are mapped to a single new one,
+				// we take the maximum of the two activities
+				activity[j] = std::max(activity[j], activityOld[i]);
+			}
+	}
+
 	// renumber translation array
 	for (int i = 0; i < (int)varCountOuter(); ++i)
 		if (outerToInner_[i].proper())

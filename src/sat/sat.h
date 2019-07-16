@@ -1,7 +1,7 @@
 #ifndef SAT_SAT_H
 #define SAT_SAT_H
 
-#include "clause.h"
+#include "sat/clause.h"
 #include <cassert>
 #include <iostream>
 #include <vector>
@@ -71,12 +71,18 @@ class Sat
 	 */
 	void renumber(span<const Lit> trans, int newVarCount);
 
+	/** tracking of variable activity */
+	std::vector<double> activity;
+	double activityInc = 1.0;
+	void bumpVariableActivity(int i);
+	void decayVariableActivity();
+
 	friend std::ostream &operator<<(std::ostream &stream, const Sat &cs);
 };
 
 inline Sat::Sat() {}
 
-inline Sat::Sat(int n) : outerToInner_(n), bins(2 * n)
+inline Sat::Sat(int n) : outerToInner_(n), bins(2 * n), activity(n, 0.0)
 {
 	for (int i = 0; i < n; ++i)
 		outerToInner_[i] = Lit(i, false);
@@ -95,6 +101,7 @@ inline uint32_t Sat::addVar()
 	auto i = varCount();
 	bins.emplace_back();
 	bins.emplace_back();
+	activity.push_back(0.0);
 	return i;
 }
 
@@ -195,6 +202,21 @@ inline size_t Sat::longCount() const
 inline size_t Sat::clauseCount() const
 {
 	return unaryCount() + binaryCount() + longCount();
+}
+
+inline void Sat::bumpVariableActivity(int i) { activity[i] += activityInc; }
+
+inline void Sat::decayVariableActivity()
+{
+	activityInc *= 1.05;
+
+	// scale everything down if neccessary
+	if (activityInc > 1e100)
+	{
+		activityInc /= 1e100;
+		for (int i = 0; i < (int)varCount(); ++i)
+			activity[i] /= 1e100;
+	}
 }
 
 #endif

@@ -2,6 +2,7 @@
 #define SAT_PROPENGINE_H
 
 #include "sat.h"
+#include "sat/activity_heap.h"
 #include <cassert>
 #include <vector>
 
@@ -63,6 +64,8 @@ class PropEngine
 
 	std::vector<Lit> conflictClause;
 
+	ActivityHeap activityHeap;
+
 	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
@@ -96,11 +99,12 @@ class PropEngine
 	int probeFull();
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
+	int mostActiveVariable();       /** -1 if everything is assigned */
 
 	int level() const; /** current level */
 	void unroll(
 	    int l); /** unroll all assignments in levels > l, and set level to l */
-	int analyzeConflict(std::vector<Lit> &learnt) const;
+	int analyzeConflict(std::vector<Lit> &learnt);
 
 	/** for debugging */
 	void printTrail() const;

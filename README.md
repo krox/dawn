@@ -1,7 +1,8 @@
 # features / todo list
 * main solver
   - [X] conflict-driven clause-learning
-  - [ ] branching heuristic
+  - [X] VSIDS branching heuristic
+  - [ ] polarity-saving
   - [ ] on-the-fly hyper-binary-resolution
   - [ ] clause-cleaning heuristic
   - [ ] on-the-fly minimization of learnt clauses
