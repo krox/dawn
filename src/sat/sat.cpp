@@ -7,6 +7,8 @@
 
 void Sat::cleanup()
 {
+	StopwatchGuard swg(stats.swCleanup);
+
 	// empty clause -> remove everything
 	if (contradiction)
 	{

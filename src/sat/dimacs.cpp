@@ -129,6 +129,8 @@ class Parser
 
 void parseCnf(std::string filename, Sat &sat)
 {
+	StopwatchGuard(sat.stats.swParsing);
+
 	if (filename != "")
 		std::cout << "c reading " << filename << std::endl;
 	else

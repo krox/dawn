@@ -54,6 +54,8 @@ void probe(PropEngine &p)
  * reached */
 bool search(PropEngine &p, uint64_t maxConfl)
 {
+	StopwatchGuard _(p.sat.stats.swSearch);
+
 	uint64_t nConfl = 0;
 	std::vector<Lit> buf;
 
@@ -82,7 +84,8 @@ bool search(PropEngine &p, uint64_t maxConfl)
 		/** maxConfl reached -> unroll and exit */
 		if (nConfl > maxConfl)
 		{
-			p.unroll(0);
+			if (p.level() > 0)
+				p.unroll(0);
 			return false;
 		}
 
@@ -131,6 +134,8 @@ int unitPropagation(Sat &sat)
 /** return true if solved, false if unsat */
 bool solve(Sat &sat, Solution &sol)
 {
+	StopwatchGuard _(sat.stats.swTotal);
+
 	// Step 1: Run unit-propagation and scc until completion. These are
 	// extremely fast so we do them before anything more complicated.
 	while (true)

@@ -1,51 +1,50 @@
+#include "CLI/CLI.hpp"
+#include "fmt/format.h"
 #include "sat/dimacs.h"
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include <iostream>
 
-struct Config
-{
-	std::string cnfFile;
-	bool doProbing = false;
-
-	Config(int argc, char *argv[])
-	{
-		std::vector<std::string> args;
-
-		for (int i = 1; i < argc; ++i)
-		{
-			auto arg = std::string(argv[i]);
-			if (arg == "--probing")
-				doProbing = true;
-			else
-				args.push_back(arg);
-		}
-
-		if (args.size() != 1)
-		{
-			std::cerr << "usage: dawn [options] <cnf-input>" << std::endl;
-			exit(-1);
-		}
-
-		cnfFile = args[0];
-	}
-};
-
 int main(int argc, char *argv[])
 {
-	Config conf(argc, argv);
+	// command line arguments
+	std::string cnfFile, solFile;
+	CLI::App app{"sat solver"};
+	app.add_option("input", cnfFile, "input CNF in dimacs format");
+	app.add_option("output", solFile, "output solution in dimacs format");
+	CLI11_PARSE(app, argc, argv);
 
+	// read CNF from file or stdin
 	Sat sat;
-	parseCnf(conf.cnfFile, sat);
+	parseCnf(cnfFile, sat);
 
+	// solve
 	Solution sol;
-	if (solve(sat, sol))
+	bool result = solve(sat, sol);
+
+	// print to stdout
+	if (result)
 	{
 		std::cout << "s SATISFIABLE" << std::endl;
-		std::cout << sol;
+		if (solFile == "")
+			std::cout << sol << std::endl;
 	}
 	else
-	{
 		std::cout << "s UNSATISFIABLE" << std::endl;
+
+	// print to file
+	if (solFile != "")
+	{
+		std::ofstream f(solFile, std::ofstream::out);
+		if (result)
+		{
+			f << "s SATISFIABLE" << std::endl;
+			f << sol << std::endl;
+		}
+		else
+			f << "s UNSATISFIABLE" << std::endl;
 	}
+
+	// statistics
+	sat.stats.dump();
 }

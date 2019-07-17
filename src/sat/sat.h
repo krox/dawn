@@ -2,6 +2,7 @@
 #define SAT_SAT_H
 
 #include "sat/clause.h"
+#include "sat/stats.h"
 #include "util/small_vector.h"
 #include <cassert>
 #include <iostream>
@@ -19,6 +20,8 @@ class Sat
 	std::vector<Lit> buf_;          // temporary
 
   public:
+	Stats stats;
+
 	/** storage of clauses */
 	bool contradiction = false;
 	std::vector<Lit> units;

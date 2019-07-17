@@ -8,6 +8,8 @@ PropEngine::PropEngine(Sat &sat)
     : sat(sat), watches(sat.varCount() * 2), reason(sat.varCount()),
       trailPos(sat.varCount()), activityHeap(sat), assign(sat.varCount() * 2)
 {
+	StopwatchGuard swg(sat.stats.swSearchInit);
+
 	// empty clause -> don't bother doing anything
 	if (sat.contradiction)
 	{
