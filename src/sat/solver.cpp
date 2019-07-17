@@ -73,6 +73,7 @@ bool search(PropEngine &p, uint64_t maxConfl)
 			// otherwise anaylze,unroll,learn
 			int backLevel = p.analyzeConflict(buf);
 			p.unroll(backLevel);
+			p.sat.stats.nLearnt += 1;
 			Reason r = p.addClause(buf);
 			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
 			for (int i = 1; i < (int)buf.size(); ++i)

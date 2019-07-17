@@ -7,15 +7,18 @@
 
 int main(int argc, char *argv[])
 {
+	Sat sat;
+
 	// command line arguments
 	std::string cnfFile, solFile;
 	CLI::App app{"sat solver"};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", solFile, "output solution in dimacs format");
+	app.add_flag("--watch-stats", sat.stats.watchStats,
+	             "print watchlist statistics");
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin
-	Sat sat;
 	parseCnf(cnfFile, sat);
 
 	// solve

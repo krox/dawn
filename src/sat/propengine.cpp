@@ -63,6 +63,7 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	while (pos != trail.size())
 	{
 		Lit y = trail[pos++];
+		sat.stats.binHistogram.add((int)sat.bins[y.neg()].size());
 		for (Lit z : sat.bins[y.neg()])
 		{
 			if (assign[z]) // already assigned true -> do nothing
@@ -70,6 +71,7 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 
 			if (assign[z.neg()]) // already assigned false -> conflict
 			{
+				sat.stats.nBinConfls += 1;
 				assert(conflictClause.empty());
 				conflictClause.push_back(y.neg());
 				conflictClause.push_back(z);
@@ -77,6 +79,7 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 				return;
 			}
 
+			sat.stats.nBinProps += 1;
 			set(z, Reason(y.neg())); // else -> propagate
 		}
 	}
@@ -93,6 +96,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 	{
 		Lit y = trail[pos++];
 		auto &ws = watches[y.neg()];
+		sat.stats.watchHistogram.add((int)ws.size());
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
@@ -124,6 +128,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			// tail is all assigned false -> propagate or conflict
 			if (assign[c[0].neg()])
 			{
+				sat.stats.nLongConfls += 1;
 				conflict = true;
 				assert(conflictClause.empty());
 				for (Lit l : c.lits())
@@ -132,6 +137,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			}
 			else
 			{
+				sat.stats.nLongProps += 1;
 				propagateBinary(c[0], Reason(ci));
 				if (conflict)
 					return;
