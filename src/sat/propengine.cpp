@@ -205,7 +205,7 @@ void PropEngine::branch(Lit x)
 	propagateFull(x, Reason::undef());
 }
 
-Reason PropEngine::addClause(const std::vector<Lit> &cl)
+Reason PropEngine::addClause(const std::vector<Lit> &cl, bool irred)
 {
 	switch (cl.size())
 	{
@@ -220,7 +220,7 @@ Reason PropEngine::addClause(const std::vector<Lit> &cl)
 		sat.addBinary(cl[0], cl[1]);
 		return Reason(cl[1]);
 	default:
-		CRef cref = sat.addLong(cl);
+		CRef cref = sat.addLong(cl, irred);
 		watches[cl[0]].push_back(cref);
 		watches[cl[1]].push_back(cref);
 		return Reason(cref);

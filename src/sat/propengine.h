@@ -86,7 +86,7 @@ class PropEngine
 	 * Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	 * returns reason with which cl[0] might be propagated
 	 */
-	Reason addClause(const std::vector<Lit> &cl);
+	Reason addClause(const std::vector<Lit> &cl, bool irred);
 
 	/** propagate x and unrolls immediately. Returns number of propagations or
 	 * -1 on conflict */

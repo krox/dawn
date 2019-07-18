@@ -35,7 +35,7 @@ void probe(PropEngine &p)
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
 			p.unroll(0);
-			p.addClause(buf);
+			p.addClause(buf, false);
 			p.propagateFull(buf[0], Reason::undef());
 			buf.resize(0);
 
@@ -74,7 +74,7 @@ bool search(PropEngine &p, uint64_t maxConfl)
 			int backLevel = p.analyzeConflict(buf);
 			p.unroll(backLevel);
 			p.sat.stats.nLearnt += 1;
-			Reason r = p.addClause(buf);
+			Reason r = p.addClause(buf, false);
 			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
 			for (int i = 1; i < (int)buf.size(); ++i)
 				assert(p.assign[buf[i].neg()]);
@@ -96,11 +96,7 @@ bool search(PropEngine &p, uint64_t maxConfl)
 
 		// no unassigned left -> solution is found
 		if (branch == -1)
-		{
-			std::cout << "c solution found after " << nConfl << " conflicts"
-			          << std::endl;
 			return true;
-		}
 
 		// propagate branch
 		p.branch(Lit(branch, false));
@@ -132,8 +128,32 @@ int unitPropagation(Sat &sat)
 	return nFound;
 }
 
-/** return true if solved, false if unsat */
-bool solve(Sat &sat, Solution &sol)
+void cleanClauses(ClauseStorage &clauses, size_t nKeep)
+{
+	std::vector<std::vector<CRef>> list(64);
+	for (auto [ci, cl] : clauses)
+	{
+		if (cl.irred())
+			continue;
+		if (cl.size() >= list.size())
+		{
+			cl.remove();
+			continue;
+		}
+		list[cl.size()].push_back(ci);
+	}
+
+	size_t count = 0;
+	size_t len = 0;
+	for (; len < list.size() && count < nKeep; len++)
+		count += list[len].size();
+	for (; len < list.size(); len++)
+		for (CRef ci : list[len])
+			clauses[ci].remove();
+}
+
+/** returns 10 for SAT, 20 for UNSAT, 30 for UNKNOWN (timeout or similar) */
+int solve(Sat &sat, Solution &sol)
 {
 	StopwatchGuard _(sat.stats.swTotal);
 
@@ -159,28 +179,31 @@ bool solve(Sat &sat, Solution &sol)
 	           sat.clauseCount());
 
 	// Step 3: main solver loop
-	std::cout << "c " << std::setw(8) << "vars"
-	          << " " << std::setw(8) << "units"
-	          << " " << std::setw(8) << "bins"
-	          << " " << std::setw(8) << "longs" << std::endl;
+	fmt::print("c     vars    units     bins    longs   learnt learnt-size\n");
 
 	int lastCleanup = 0;
 	for (int iter = 0;; ++iter)
 	{
 		// print statistics line directly before going into the searcher
-		std::cout << "c " << std::setw(8) << sat.varCount() << std::setw(8)
-		          << sat.unaryCount() << " " << std::setw(8)
-		          << sat.binaryCount() << " " << std::setw(8) << sat.longCount()
-		          << " " << std::setw(8)
-		          << sat.clauses.memory_usage() / 1024. / 1024. << " MiB"
-		          << std::endl;
+		fmt::print("c {:#8} {:#8} {:#8} {:#8} {:#8} {:5.2f} {:8.2f} MiB\n",
+		           sat.varCount(), sat.unaryCount(), sat.binaryCount(),
+		           sat.longCountIrred(), sat.longCountRed(),
+		           (double)sat.litCountRed() / sat.longCountRed(),
+		           sat.clauses.memory_usage() / 1024. / 1024.);
+
+		// check limit
+		if (sat.stats.nConfls() >= sat.stats.maxConfls)
+		{
+			fmt::print("c conflict limit reached. abort solver.\n");
+			return 30;
+		}
 
 		// search for a number of conflicts
 		assert(p->level() == 0);
 		if (search(*p, 1000))
 		{
 			if (p->conflict)
-				return false;
+				return 20;
 			sol.varCount(sat.varCountOuter());
 			for (int i = 0; i < sat.varCountOuter(); ++i)
 			{
@@ -202,15 +225,19 @@ bool solve(Sat &sat, Solution &sol)
 				}
 			}
 			assert(sol.valid());
-			return true;
+			return 10;
 		}
 
 		// occasional cleanup when there are units/equivalences
 		if (runSCC(sat) || sat.units.size() >= 100 ||
-		    (sat.units.size() > 0 && iter - lastCleanup >= 10))
+		    (sat.units.size() > 0 && iter - lastCleanup >= 10) ||
+		    sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
 		{
 			lastCleanup = iter;
 			std::cout << "c cleanup" << std::endl;
+
+			if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
+				cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
 			sat.cleanup();
 
 			// runSCC/cleanup invalidates the PropEngine, so recreate it

@@ -51,8 +51,8 @@ class Sat
 	void addEmpty();
 	void addUnary(Lit a);
 	void addBinary(Lit a, Lit b);
-	CRef addLong(span<const Lit> lits);
-	void addClause(span<const Lit> lits);
+	CRef addLong(span<const Lit> lits, bool irred);
+	void addClause(span<const Lit> lits, bool irred);
 
 	/** add clause ('outer' numbering, normalizes clause) */
 	void addClauseOuter(span<const Lit> lits);
@@ -62,6 +62,9 @@ class Sat
 	size_t binaryCount() const;
 	size_t longCount() const;
 	size_t clauseCount() const;
+	size_t longCountIrred() const;
+	size_t longCountRed() const;
+	size_t litCountRed() const;
 
 	/**
 	 * - Remove fixed variables from clauses (keeps unit clauses itself)
@@ -143,7 +146,7 @@ inline void Sat::addBinary(Lit a, Lit b)
 	bins[b].push_back(a);
 }
 
-inline CRef Sat::addLong(span<const Lit> lits)
+inline CRef Sat::addLong(span<const Lit> lits, bool irred)
 {
 	for (size_t i = 0; i < lits.size(); ++i)
 	{
@@ -154,10 +157,10 @@ inline CRef Sat::addLong(span<const Lit> lits)
 		for (size_t j = 0; j < i; ++j)
 			assert(lits[i].var() != lits[j].var());
 
-	return clauses.addClause(lits);
+	return clauses.addClause(lits, irred);
 }
 
-inline void Sat::addClause(span<const Lit> lits)
+inline void Sat::addClause(span<const Lit> lits, bool irred)
 {
 	if (lits.size() == 0)
 		addEmpty();
@@ -166,7 +169,7 @@ inline void Sat::addClause(span<const Lit> lits)
 	else if (lits.size() == 2)
 		addBinary(lits[0], lits[1]);
 	else
-		addLong(lits);
+		addLong(lits, irred);
 }
 
 inline void Sat::addClauseOuter(span<const Lit> lits)
@@ -178,7 +181,7 @@ inline void Sat::addClauseOuter(span<const Lit> lits)
 	if (s != -1)
 	{
 		buf_.resize(s);
-		addClause(buf_);
+		addClause(buf_, true);
 	}
 	buf_.resize(0);
 }
@@ -198,6 +201,33 @@ inline size_t Sat::longCount() const
 	size_t r = 0;
 	for (auto _ [[maybe_unused]] : clauses)
 		++r;
+	return r;
+}
+
+inline size_t Sat::longCountIrred() const
+{
+	size_t r = 0;
+	for (auto [_, cl] : clauses)
+		if ((void)_, cl.irred())
+			++r;
+	return r;
+}
+
+inline size_t Sat::longCountRed() const
+{
+	size_t r = 0;
+	for (auto [_, cl] : clauses)
+		if ((void)_, !cl.irred())
+			++r;
+	return r;
+}
+
+inline size_t Sat::litCountRed() const
+{
+	size_t r = 0;
+	for (auto [_, cl] : clauses)
+		if ((void)_, !cl.irred())
+			r += cl.size();
 	return r;
 }
 

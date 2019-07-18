@@ -6,7 +6,7 @@
 #include <cassert>
 #include <vector>
 
-/** returns empty if contradiction is found */
-bool solve(Sat &sat, Solution &sol);
+/** returns 10=SAT, 20=UNSAT, 30=UNKNWON */
+int solve(Sat &sat, Solution &sol);
 
 #endif

@@ -118,6 +118,9 @@ class Clause
 	/** flags */
 	bool isRemoved() const { return (flags_ & 1) != 0; }
 	void remove() { flags_ |= 1; }
+	bool irred() const { return (flags_ & 2) != 0; }
+	void makeIrred() { flags_ |= 2; }
+	void makeRed() { flags_ &= ~2; }
 
 	/**
 	 * - remove duplicate/fixed lits
@@ -159,7 +162,7 @@ class ClauseStorage
 
   public:
 	/** add a new clause, no checking of lits done */
-	CRef addClause(span<const Lit> lits)
+	CRef addClause(span<const Lit> lits, bool irred)
 	{
 		if (lits.size() > UINT16_MAX)
 		{
@@ -170,6 +173,8 @@ class ClauseStorage
 		Clause header;
 		header.size_ = (uint16_t)lits.size();
 		header.flags_ = 0;
+		if (irred)
+			header.makeIrred();
 		auto index = store.size();
 		if (index > CREF_MAX)
 		{

@@ -175,7 +175,7 @@ void parseCnf(std::string filename, Sat &sat)
 			auto x = parser.parseInt();
 			if (x == 0)
 			{
-				sat.addClause(clause);
+				sat.addClause(clause, true);
 				clause.resize(0);
 			}
 			else

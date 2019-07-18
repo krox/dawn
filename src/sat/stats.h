@@ -6,6 +6,8 @@
 
 struct Stats
 {
+	// configuration
+	int64_t maxConfls = INT64_MAX;
 	bool watchStats = false; // print histogram of watchlist size
 
 	// histogram of the visited(!) binary-lists and watchlists
@@ -18,6 +20,9 @@ struct Stats
 	int64_t nLearnt = 0;
 	int64_t nBinProps = 0, nBinConfls = 0;
 	int64_t nLongProps = 0, nLongConfls = 0;
+
+	int64_t nProps() const { return nBinProps + nLongProps; }
+	int64_t nConfls() const { return nBinConfls + nLongConfls; }
 
 	// time of different parts of the solver
 	util::Stopwatch swTotal, swParsing;

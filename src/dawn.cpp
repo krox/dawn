@@ -16,6 +16,8 @@ int main(int argc, char *argv[])
 	app.add_option("output", solFile, "output solution in dimacs format");
 	app.add_flag("--watch-stats", sat.stats.watchStats,
 	             "print watchlist statistics");
+	app.add_option("--max-confls", sat.stats.maxConfls,
+	               "stop solving after (approximately) this many conflicts");
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin
@@ -23,31 +25,40 @@ int main(int argc, char *argv[])
 
 	// solve
 	Solution sol;
-	bool result = solve(sat, sol);
+	int result = solve(sat, sol);
 
 	// print to stdout
-	if (result)
+	if (result == 10)
 	{
 		std::cout << "s SATISFIABLE" << std::endl;
 		if (solFile == "")
 			std::cout << sol << std::endl;
 	}
-	else
+	else if (result == 20)
 		std::cout << "s UNSATISFIABLE" << std::endl;
+	else if (result == 30)
+		std::cout << "s UNKNOWN" << std::endl;
+	else
+		assert(false);
 
 	// print to file
 	if (solFile != "")
 	{
 		std::ofstream f(solFile, std::ofstream::out);
-		if (result)
+		if (result == 10)
 		{
 			f << "s SATISFIABLE" << std::endl;
 			f << sol << std::endl;
 		}
-		else
+		else if (result == 20)
 			f << "s UNSATISFIABLE" << std::endl;
+		else if (result == 30)
+			f << "s UNKNOWN" << std::endl;
+		else
+			assert(false);
 	}
 
 	// statistics
 	sat.stats.dump();
+	return result; // 10/20/30 return code exactly like cryptominisat
 }
