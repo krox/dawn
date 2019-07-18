@@ -1,13 +1,21 @@
-# features / todo list
+# features / todo list / ideas
 * main solver
-  - [X] conflict-driven clause-learning
-  - [X] VSIDS branching heuristic
-  - [ ] polarity-saving
-  - [ ] on-the-fly hyper-binary-resolution
-  - [ ] clause-cleaning heuristic
-  - [ ] on-the-fly minimization of learnt clauses
+  * clause learning
+    - [X] UIP style
+    - [ ] full resolution to one variable per level
+    - [ ] on-the-fly minimization of learnt clauses
+    - [ ] on-the-fly hyper-binary-resolution
+  * branching heuristic
+    - [X] VSIDS
+    - [ ] polarity-saving
+  * clause-cleaning heuristic
+    - [X] size
+    - [ ] glue
+    - [ ] activity
 * preprocessing / inprocessing
   - [ ] subsumption / self-subsuming resolution
+  - [ ] transitive reduction of binary clauses
+  - [ ] disconnected components
   - [x] strongly-connected-components
   - [ ] bounded variable elimination
   - [ ] bounded variable addition (at least some?)
@@ -21,4 +29,4 @@
 * other
   - [ ] unsat proofs
   - [ ] multithreading
-  - [ ] memory-efficient reading of huge problems
+  - [ ] interface for incremental problems
