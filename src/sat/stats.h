@@ -28,6 +28,7 @@ struct Stats
 	util::Stopwatch swTotal, swParsing;
 	util::Stopwatch swSCC, swCleanup, swProbing;
 	util::Stopwatch swSearch, swSearchInit;
+	util::Stopwatch swSubsumeBin, swSubsumeLong;
 
 	// Write stats to stdout. Usually called once at the end of solving
 	void dump();

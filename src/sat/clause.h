@@ -122,6 +122,20 @@ class Clause
 	void makeIrred() { flags_ |= 2; }
 	void makeRed() { flags_ &= ~2; }
 
+	/** remove a literal from this clause. returns false if not found */
+	bool removeLiteral(Lit a)
+	{
+		for (int i = 0; i < size_; ++i)
+			if (lits()[i] == a)
+			{
+				for (int j = i + 1; j < size_; ++j)
+					lits()[j - 1] = lits()[j];
+				size_ -= 1;
+				return true;
+			}
+		return false;
+	}
+
 	/**
 	 * - remove duplicate/fixed lits
 	 * - remove clause if tautological

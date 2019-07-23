@@ -3,6 +3,7 @@
 #include "fmt/format.h"
 #include "sat/propengine.h"
 #include "sat/scc.h"
+#include "sat/subsumption.h"
 #include <iomanip>
 
 /** do one full sweep of failed literal probing */
@@ -173,10 +174,11 @@ int solve(Sat &sat, Solution &sol)
 
 	// Step 2: top-level failed-literal-probing.
 	// TODO: this may need some kind of limit as it is potentially quite slow.
+	subsumeBinary(sat);
 	auto p = std::make_unique<PropEngine>(sat);
 	probe(*p);
-	fmt::print("c after initial FLP: {} vars and {} clauses\n", sat.varCount(),
-	           sat.clauseCount());
+	fmt::print("c after initial FLP and subsumption: {} vars and {} clauses\n",
+	           sat.varCount(), sat.clauseCount());
 
 	// Step 3: main solver loop
 	fmt::print("c     vars    units     bins    longs   learnt learnt-size\n");
@@ -229,13 +231,16 @@ int solve(Sat &sat, Solution &sol)
 		}
 
 		// occasional cleanup when there are units/equivalences
-		if (runSCC(sat) || sat.units.size() >= 100 ||
-		    (sat.units.size() > 0 && iter - lastCleanup >= 10) ||
+		if (sat.units.size() >= 1000 ||
+		    (sat.units.size() > 0 && iter - lastCleanup >= 100) ||
 		    sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
 		{
 			lastCleanup = iter;
 			std::cout << "c cleanup" << std::endl;
-
+			runSCC(sat);
+			subsumeBinary(sat);
+			sat.cleanup();
+			unitPropagation(sat);
 			if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
 				cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
 			sat.cleanup();
