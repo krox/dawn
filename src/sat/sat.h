@@ -88,6 +88,8 @@ class Sat
 	friend std::ostream &operator<<(std::ostream &stream, const Sat &cs);
 };
 
+void shuffleVariables(Sat &sat);
+
 inline Sat::Sat() {}
 
 inline Sat::Sat(int n) : outerToInner_(n), bins(2 * n), activity(n, 0.0)

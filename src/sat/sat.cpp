@@ -4,6 +4,7 @@
 #include <cassert>
 #include <fmt/format.h>
 #include <iostream>
+#include <random>
 
 void Sat::cleanup()
 {
@@ -189,4 +190,16 @@ std::ostream &operator<<(std::ostream &stream, const Sat &sat)
 	stream << sat.clauses;
 
 	return stream;
+}
+
+void shuffleVariables(Sat &sat)
+{
+	auto trans = std::vector<Lit>(sat.varCount());
+	for (int i = 0; i < sat.varCount(); ++i)
+	{
+		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.stats.rng));
+		int j = std::uniform_int_distribution<int>(0, i)(sat.stats.rng);
+		std::swap(trans[i], trans[j]);
+	}
+	sat.renumber(trans, sat.varCount());
 }

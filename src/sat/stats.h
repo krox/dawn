@@ -1,11 +1,15 @@
 #ifndef SAT_STATS_H
 #define SAT_STATS_H
 
+#include "util/random.h"
 #include "util/stats.h"
 #include "util/stopwatch.h"
 
 struct Stats
 {
+	// pRNG state
+	util::xoshiro256 rng;
+
 	// configuration
 	int64_t maxConfls = INT64_MAX;
 	bool watchStats = false; // print histogram of watchlist size

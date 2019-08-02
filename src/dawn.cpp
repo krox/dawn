@@ -4,6 +4,7 @@
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include <iostream>
+#include <random>
 
 int main(int argc, char *argv[])
 {
@@ -11,6 +12,8 @@ int main(int argc, char *argv[])
 
 	// command line arguments
 	std::string cnfFile, solFile;
+	bool shuffle = false;
+	int64_t seed = 0;
 	CLI::App app{"sat solver"};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", solFile, "output solution in dimacs format");
@@ -18,10 +21,21 @@ int main(int argc, char *argv[])
 	             "print watchlist statistics");
 	app.add_option("--max-confls", sat.stats.maxConfls,
 	               "stop solving after (approximately) this many conflicts");
+	app.add_flag("--shuffle", shuffle,
+	             "shuffle the variables and their polarities before solving");
+	app.add_option(
+	    "--seed", seed,
+	    "seed for random number generator (default=0, unpredictable=-1)");
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin
 	parseCnf(cnfFile, sat);
+
+	if (seed == -1)
+		seed = std::random_device()();
+	sat.stats.rng.seed(seed);
+	if (shuffle)
+		shuffleVariables(sat);
 
 	// solve
 	Solution sol;
