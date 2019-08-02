@@ -7,9 +7,9 @@
 #include <iomanip>
 
 /** do one full sweep of failed literal probing */
-void probe(PropEngine &p)
+void probe(Sat &sat)
 {
-	assert(p.level() == 0);
+	PropEngine p(sat);
 	if (p.conflict)
 		return;
 
@@ -51,17 +51,68 @@ void probe(PropEngine &p)
 	}
 }
 
+static void printHeader()
+{
+	fmt::print("c     vars    units     bins    longs   learnt learnt-size\n");
+}
+
+static void printLine(Sat &sat)
+{
+	fmt::print("c {:#8} {:#8} {:#8} {:#8} {:#8} {:5.2f} {:8.2f} MiB\n",
+	           sat.varCount(), sat.unaryCount(), sat.binaryCount(),
+	           sat.longCountIrred(), sat.longCountRed(),
+	           (double)sat.litCountRed() / sat.longCountRed(),
+	           sat.clauses.memory_usage() / 1024. / 1024.);
+}
+
+Solution buildSolution(const PropEngine &p)
+{
+	auto sol = Solution(p.sat.varCountOuter());
+	for (int i = 0; i < p.sat.varCountOuter(); ++i)
+	{
+		auto a = Lit(p.sat.outerToInner(Lit(i, false)));
+		if (a.fixed())
+		{
+			sol.set(Lit(i, a.sign()));
+		}
+		else
+		{
+			assert(a.proper() && a.var() < p.sat.varCount());
+
+			assert(p.assign[a] || p.assign[a.neg()]);
+			assert(!(p.assign[a] && p.assign[a.neg()]));
+			if (p.assign[a])
+				sol.set(Lit(i, false));
+			if (p.assign[a.neg()])
+				sol.set(Lit(i, true));
+		}
+	}
+	assert(sol.valid());
+	return sol;
+}
+
 /** return true if solved (contradiction or solution found), false if maxConfl
  * reached */
-bool search(PropEngine &p, uint64_t maxConfl)
+std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 {
-	StopwatchGuard _(p.sat.stats.swSearch);
+	printHeader();
 
-	uint64_t nConfl = 0;
+	PropEngine p(sat);
+	StopwatchGuard _(sat.stats.swSearch);
+
+	int64_t nConfl = 0;
+	int64_t lastPrint = INT64_MIN;
+
 	std::vector<Lit> buf;
 
 	while (true)
 	{
+		if (nConfl >= lastPrint + 1000)
+		{
+			lastPrint = nConfl;
+			printLine(sat);
+		}
+
 		// handle conflicts
 		while (p.conflict)
 		{
@@ -69,7 +120,11 @@ bool search(PropEngine &p, uint64_t maxConfl)
 
 			// level 0 conflict -> UNSAT
 			if (p.level() == 0)
-				return true;
+			{
+				sat.addEmpty();
+				printLine(sat);
+				return std::nullopt;
+			}
 
 			// otherwise anaylze,unroll,learn
 			int backLevel = p.analyzeConflict(buf);
@@ -88,7 +143,8 @@ bool search(PropEngine &p, uint64_t maxConfl)
 		{
 			if (p.level() > 0)
 				p.unroll(0);
-			return false;
+			printLine(sat);
+			return std::nullopt;
 		}
 
 		// choose a branching variable
@@ -97,7 +153,10 @@ bool search(PropEngine &p, uint64_t maxConfl)
 
 		// no unassigned left -> solution is found
 		if (branch == -1)
-			return true;
+		{
+			printLine(sat);
+			return buildSolution(p);
+		}
 
 		// propagate branch
 		p.branch(Lit(branch, false));
@@ -158,8 +217,7 @@ int solve(Sat &sat, Solution &sol)
 {
 	StopwatchGuard _(sat.stats.swTotal);
 
-	// Step 1: Run unit-propagation and scc until completion. These are
-	// extremely fast so we do them before anything more complicated.
+	// Very cheap preprocessing: unit-propagation and SCC
 	while (true)
 	{
 		if (int nFound = unitPropagation(sat); nFound)
@@ -172,27 +230,15 @@ int solve(Sat &sat, Solution &sol)
 	fmt::print("c after initial cleanup: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
 
-	// Step 2: top-level failed-literal-probing.
-	// TODO: this may need some kind of limit as it is potentially quite slow.
+	// maybe-not-so-cheap preprocessing: subsumption+SSR and FLP
 	subsumeBinary(sat);
-	auto p = std::make_unique<PropEngine>(sat);
-	probe(*p);
+	probe(sat);
 	fmt::print("c after initial FLP and subsumption: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
 
-	// Step 3: main solver loop
-	fmt::print("c     vars    units     bins    longs   learnt learnt-size\n");
-
-	int lastCleanup = 0;
+	// main solver loop
 	for (int iter = 0;; ++iter)
 	{
-		// print statistics line directly before going into the searcher
-		fmt::print("c {:#8} {:#8} {:#8} {:#8} {:#8} {:5.2f} {:8.2f} MiB\n",
-		           sat.varCount(), sat.unaryCount(), sat.binaryCount(),
-		           sat.longCountIrred(), sat.longCountRed(),
-		           (double)sat.litCountRed() / sat.longCountRed(),
-		           sat.clauses.memory_usage() / 1024. / 1024.);
-
 		// check limit
 		if (sat.stats.nConfls() >= sat.stats.maxConfls)
 		{
@@ -201,53 +247,24 @@ int solve(Sat &sat, Solution &sol)
 		}
 
 		// search for a number of conflicts
-		assert(p->level() == 0);
-		if (search(*p, 1000))
+		if (auto tmp = search(sat, 10000); tmp)
 		{
-			if (p->conflict)
+			if (sat.contradiction)
 				return 20;
-			sol.varCount(sat.varCountOuter());
-			for (int i = 0; i < sat.varCountOuter(); ++i)
-			{
-				auto a = Lit(sat.outerToInner(Lit(i, false)));
-				if (a.fixed())
-				{
-					sol.set(Lit(i, a.sign()));
-				}
-				else
-				{
-					assert(a.proper() && a.var() < sat.varCount());
-
-					assert(p->assign[a] || p->assign[a.neg()]);
-					assert(!(p->assign[a] && p->assign[a.neg()]));
-					if (p->assign[a])
-						sol.set(Lit(i, false));
-					if (p->assign[a.neg()])
-						sol.set(Lit(i, true));
-				}
-			}
-			assert(sol.valid());
+			sol = *tmp;
 			return 10;
 		}
 
-		// occasional cleanup when there are units/equivalences
-		if (sat.units.size() >= 1000 ||
-		    (sat.units.size() > 0 && iter - lastCleanup >= 100) ||
-		    sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
-		{
-			lastCleanup = iter;
-			std::cout << "c cleanup" << std::endl;
-			runSCC(sat);
-			subsumeBinary(sat);
-			sat.cleanup();
-			unitPropagation(sat);
-			if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
-				cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
-			sat.cleanup();
+		std::cout << "c cleanup" << std::endl;
+		unitPropagation(sat);
+		runSCC(sat);
+		subsumeBinary(sat);
+		sat.cleanup();
 
-			// runSCC/cleanup invalidates the PropEngine, so recreate it
-			p = std::make_unique<PropEngine>(sat);
+		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
+		{
+			cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
+			sat.cleanup();
 		}
 	}
-	return !p->conflict;
 }
