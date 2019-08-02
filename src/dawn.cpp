@@ -19,6 +19,9 @@ int main(int argc, char *argv[])
 	app.add_option("output", solFile, "output solution in dimacs format");
 	app.add_flag("--watch-stats", sat.stats.watchStats,
 	             "print watchlist statistics");
+	app.add_option("--otf", sat.stats.otf,
+	               "on-the-fly strengthening of learnt clauses"
+	               "(0=off, 1=basic, 2=recursive=default)");
 	app.add_option("--max-confls", sat.stats.maxConfls,
 	               "stop solving after (approximately) this many conflicts");
 	app.add_flag("--shuffle", shuffle,

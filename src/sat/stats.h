@@ -13,6 +13,8 @@ struct Stats
 	// configuration
 	int64_t maxConfls = INT64_MAX;
 	bool watchStats = false; // print histogram of watchlist size
+	int otf = 2;             // on-the-fly strengthening of learnt clauses
+	                         // (0=off, 1=basic, 2=recursive)
 
 	// histogram of the visited(!) binary-lists and watchlists
 	util::IntHistogram binHistogram;
@@ -24,6 +26,7 @@ struct Stats
 	int64_t nLearnt = 0;
 	int64_t nBinProps = 0, nBinConfls = 0;
 	int64_t nLongProps = 0, nLongConfls = 0;
+	int64_t nLitsLearnt = 0, nLitsOtfRemoved = 0;
 
 	int64_t nProps() const { return nBinProps + nLongProps; }
 	int64_t nConfls() const { return nBinConfls + nLongConfls; }

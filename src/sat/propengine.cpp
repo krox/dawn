@@ -1,12 +1,14 @@
 #include "sat/propengine.h"
 
+#include "fmt/format.h"
 #include <cassert>
 #include <iostream>
 #include <queue>
 
 PropEngine::PropEngine(Sat &sat)
-    : sat(sat), watches(sat.varCount() * 2), reason(sat.varCount()),
-      trailPos(sat.varCount()), activityHeap(sat), assign(sat.varCount() * 2)
+    : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
+      reason(sat.varCount()), trailPos(sat.varCount()), activityHeap(sat),
+      assign(sat.varCount() * 2)
 {
 	StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -281,12 +283,14 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 	assert(conflict);
 	assert(!conflictClause.empty());
 	assert(level() > 0);
+	seen.clear();
 
 	std::priority_queue<std::pair<int, Lit>> todo;
 
 	for (Lit l : conflictClause)
 	{
 		// assert(assign[l.neg()]);
+		seen[l.var()] = true;
 		todo.emplace(trailPos[l.var()], l);
 	}
 
@@ -318,29 +322,81 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 			if (r.isBinary())
 			{
 				todo.emplace(trailPos[r.lit().var()], r.lit());
+				seen[r.lit().var()] = true;
 			}
 			else if (r.isLong())
 			{
 				const Clause &cl = sat.clauses[r.cref()];
 				// assert(cl[0] == l.neg());
 				for (int i = 1; i < cl.size(); ++i)
+				{
 					todo.emplace(trailPos[cl[i].var()], cl[i]);
+					seen[cl[i].var()] = true;
+				}
 			}
 			else
 				assert(false);
 		}
 	}
 
+	// NOTE: at this point, resolution is done and the learnt clause is
+	// ordered by decreasing trailPos. In particular, learnt[0] is the UIP
+
+	sat.stats.nLitsLearnt += learnt.size();
 	sat.decayVariableActivity();
 
-	// determine backtrack level
+	// strengthen the conflict clause using the reason clauses
+	// (NOTE: keep the order of remaining literals the same)
+	if (sat.stats.otf >= 1)
+	{
+		int j = 1;
+		for (int i = 1; i < (int)learnt.size(); ++i)
+			if (isRedundant(learnt[i]))
+				sat.stats.nLitsOtfRemoved += 1;
+			else
+				learnt[j++] = learnt[i];
+		learnt.resize(j);
+	}
+
+	// determine backtrack level ( = level of learnt[1])
 	assert(!learnt.empty());
 	if (learnt.size() == 1)
 		return 0;
 	int i = level() - 1;
 	while (mark[i] > trailPos[learnt[1].var()])
 		i -= 1;
+
 	return i + 1;
+}
+
+// helper for OTF strengthening
+bool PropEngine::isRedundant(Lit lit)
+{
+	assert(lit.proper());
+
+	Reason r = reason[lit.var()];
+
+	if (r.isUndef()) // descision variable -> cannot be removed
+		return false;
+
+	if (r.isBinary())
+	{
+		return seen[r.lit().var()] ||
+		       (sat.stats.otf >= 2 && isRedundant(r.lit()));
+	}
+
+	if (r.isLong())
+	{
+		Clause &cl = sat.clauses[r.cref()];
+		for (Lit l : cl.lits())
+			if (l != lit && !seen[l.var()] &&
+			    !(sat.stats.otf >= 2 && isRedundant(l)))
+				return false;
+		seen[lit.var()] = true; // shortcut other calls to isRedundant
+		return true;
+	}
+
+	assert(false);
 }
 
 void PropEngine::printTrail() const

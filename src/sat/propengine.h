@@ -3,6 +3,7 @@
 
 #include "sat.h"
 #include "sat/activity_heap.h"
+#include "util/bitset.h"
 #include <cassert>
 #include <vector>
 
@@ -34,6 +35,8 @@ struct Reason
 		return val_ != UINT32_MAX && (val_ & (1u << 31)) != 0;
 	}
 
+	bool isUndef() const { return val_ == UINT32_MAX; }
+
 	Lit lit() const
 	{
 		assert(isBinary());
@@ -56,6 +59,12 @@ class PropEngine
 {
   public:
 	Sat &sat;
+
+  private:
+	util::bitset seen;         // temporary during conflict analysis
+	bool isRedundant(Lit lit); // helper for OTF strengthening
+
+  public:
 	using watches_t = std::vector<util::small_vector<CRef, 6>>;
 	watches_t watches;
 	std::vector<Lit> trail;

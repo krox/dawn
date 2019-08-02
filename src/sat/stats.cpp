@@ -34,7 +34,8 @@ void Stats::dump()
 	           100. * nLongProps / watchHistogram.sum());
 	fmt::print("c long confls:    {:#10} ({:#4.1f} % of watches)\n",
 	           nLongConfls, 100. * nLongConfls / watchHistogram.sum());
-	fmt::print("c clauses learnt: {:#10}\n", nLearnt);
+	fmt::print("c clauses learnt: {:#10} ({:#4.1f} % shortened by otf)\n",
+	           nLearnt, 100. * nLitsOtfRemoved / nLitsLearnt);
 
 	fmt::print("c ============================ time stats "
 	           "=============================\n");

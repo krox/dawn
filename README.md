@@ -3,7 +3,7 @@
   * clause learning
     - [X] UIP style
     - [ ] full resolution to one variable per level
-    - [ ] on-the-fly minimization of learnt clauses
+    - [X] on-the-fly minimization of learnt clauses
     - [ ] on-the-fly hyper-binary-resolution
   * branching heuristic
     - [X] VSIDS
