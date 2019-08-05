@@ -74,8 +74,6 @@ class PropEngine
 
 	std::vector<Lit> conflictClause;
 
-	ActivityHeap activityHeap;
-
 	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
@@ -97,24 +95,18 @@ class PropEngine
 	 */
 	Reason addClause(const std::vector<Lit> &cl, bool irred);
 
-	/** propagate x and unrolls immediately. Returns number of propagations or
-	 * -1 on conflict */
-	int probe(Lit x);
+	int unassignedVariable() const; /** -1 if everything is assigned */
+
+	int level() const;                  /** current level */
+	void unroll(int l);                 /** unroll */
+	void unroll(int l, ActivityHeap &); /** unroll and re-add vars to heap */
 
 	/**
-	 * Probe all unassigned literals and propagate inverse of all failings.
-	 * Reuturns most active variable or -2 on conflict or -1 if everything is
-	 * set already.
+	 *  - analyze conflict up to UIP
+	 *  - bumps activity of all involved variables
+	 *  - performs otf minimization if enabled in config
 	 */
-	int probeFull();
-
-	int unassignedVariable() const; /** -1 if everything is assigned */
-	int mostActiveVariable();       /** -1 if everything is assigned */
-
-	int level() const; /** current level */
-	void unroll(
-	    int l); /** unroll all assignments in levels > l, and set level to l */
-	int analyzeConflict(std::vector<Lit> &learnt);
+	int analyzeConflict(std::vector<Lit> &learnt, ActivityHeap &activityHeap);
 
 	/** for debugging */
 	void printTrail() const;

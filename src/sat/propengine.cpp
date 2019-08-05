@@ -7,7 +7,7 @@
 
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
-      reason(sat.varCount()), trailPos(sat.varCount()), activityHeap(sat),
+      reason(sat.varCount()), trailPos(sat.varCount()),
       assign(sat.varCount() * 2)
 {
 	StopwatchGuard swg(sat.stats.swSearchInit);
@@ -41,10 +41,6 @@ PropEngine::PropEngine(Sat &sat)
 		if (conflict)
 			return;
 	}
-
-	// add everything to the activity-activity heap
-	for (int i = 0; i < sat.varCount(); ++i)
-		activityHeap.push(i);
 }
 
 void PropEngine::set(Lit x, Reason r)
@@ -150,55 +146,6 @@ void PropEngine::propagateFull(Lit x, Reason r)
 	}
 }
 
-int PropEngine::probe(Lit x)
-{
-	size_t pos = trail.size();
-	mark.push_back(trail.size());
-	propagateFull(x, Reason::undef());
-
-	if (conflict)
-	{
-		unroll(level() - 1);
-		return -1;
-	}
-	else
-	{
-		int r = (int)(trail.size() - pos);
-		unroll(level() - 1);
-		return r;
-	}
-}
-
-int PropEngine::probeFull()
-{
-	int best = -1;
-	int bestScore = -1;
-	for (int i = 0; i < sat.varCount(); ++i)
-	{
-		Lit a = Lit(i, false);
-		Lit b = Lit(i, true);
-		if (assign[a] || assign[b])
-			continue;
-
-		int scoreA = probe(a);
-		int scoreB = probe(b);
-
-		if (scoreA == -1 && scoreB == -1)
-			return -2;
-		else if (scoreA == -1)
-			propagateFull(b, Reason::undef());
-		else if (scoreB == -1)
-			propagateFull(a, Reason::undef());
-		else if (scoreA + scoreB > bestScore)
-		{
-			best = i;
-			bestScore = scoreA + scoreB;
-		}
-		assert(!conflict);
-	}
-	return best;
-}
-
 void PropEngine::branch(Lit x)
 {
 	assert(!conflict);
@@ -237,27 +184,27 @@ int PropEngine::unassignedVariable() const
 	return -1;
 }
 
-int PropEngine::mostActiveVariable()
-{
-	while (!activityHeap.empty())
-	{
-		int v = activityHeap.pop();
-		if (assign[Lit(v, false)] || assign[Lit(v, true)])
-			continue;
-
-		// check the heap(very expensive, debug only)
-		// for (int i = 0; i < sat.varCount(); ++i)
-		//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
-		//	       sat.activity[i] <= sat.activity[v]);
-
-		return v;
-	}
-	return -1;
-}
-
 int PropEngine::level() const { return (int)mark.size(); }
 
 void PropEngine::unroll(int l)
+{
+	assert(l < level());
+	conflict = false;
+	conflictClause.resize(0);
+
+	while ((int)trail.size() > mark[l])
+	{
+		Lit lit = trail.back();
+		trail.pop_back();
+		// assert(assign[lit] && !assign[lit.neg()]);
+		// reason[lit.var()] = Reason::undef();
+		// trailPos[lit.var()] = -1;
+		assign[lit] = false;
+	}
+	mark.resize(l);
+}
+
+void PropEngine::unroll(int l, ActivityHeap &activityHeap)
 {
 	assert(l < level());
 	conflict = false;
@@ -277,7 +224,8 @@ void PropEngine::unroll(int l)
 }
 
 /** returns level to which to backtrack */
-int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
+int PropEngine::analyzeConflict(std::vector<Lit> &learnt,
+                                ActivityHeap &activityHeap)
 {
 	assert(learnt.empty());
 	assert(conflict);

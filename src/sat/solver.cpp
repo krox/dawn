@@ -9,6 +9,7 @@
 /** do one full sweep of failed literal probing */
 void probe(Sat &sat)
 {
+	ActivityHeap dummy(sat);
 	PropEngine p(sat);
 	if (p.conflict)
 		return;
@@ -32,7 +33,7 @@ void probe(Sat &sat)
 
 		if (p.conflict) // literal failed -> analyze and learn unit
 		{
-			int backLevel = p.analyzeConflict(buf);
+			int backLevel = p.analyzeConflict(buf, dummy);
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
 			p.unroll(0);
@@ -95,10 +96,14 @@ Solution buildSolution(const PropEngine &p)
  * reached */
 std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 {
+	StopwatchGuard _(sat.stats.swSearch);
+
 	printHeader();
 
 	PropEngine p(sat);
-	StopwatchGuard _(sat.stats.swSearch);
+	ActivityHeap activityHeap(sat);
+	for (int i = 0; i < sat.varCount(); ++i)
+		activityHeap.push(i);
 
 	int64_t nConfl = 0;
 	int64_t lastPrint = INT64_MIN;
@@ -127,8 +132,8 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 			}
 
 			// otherwise anaylze,unroll,learn
-			int backLevel = p.analyzeConflict(buf);
-			p.unroll(backLevel);
+			int backLevel = p.analyzeConflict(buf, activityHeap);
+			p.unroll(backLevel, activityHeap);
 			p.sat.stats.nLearnt += 1;
 			Reason r = p.addClause(buf, false);
 			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
@@ -142,14 +147,29 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		if (nConfl > maxConfl)
 		{
 			if (p.level() > 0)
-				p.unroll(0);
+				p.unroll(0, activityHeap);
 			printLine(sat);
 			return std::nullopt;
 		}
 
 		// choose a branching variable
 		// int branch = p.unassignedVariable();
-		int branch = p.mostActiveVariable();
+		int branch = -1;
+
+		while (!activityHeap.empty())
+		{
+			int v = activityHeap.pop();
+			if (p.assign[Lit(v, false)] || p.assign[Lit(v, true)])
+				continue;
+
+			// check the heap(very expensive, debug only)
+			// for (int i = 0; i < sat.varCount(); ++i)
+			//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
+			//	       sat.activity[i] <= sat.activity[v]);
+
+			branch = v;
+			break;
+		}
 
 		// no unassigned left -> solution is found
 		if (branch == -1)
