@@ -79,14 +79,25 @@ class Subsumption
 
 		// strengthen clauses using implications a -> *
 		for (CRef k : occs[a])
-			if (!sat.clauses[k].isRemoved())
-				for (Lit x : sat.clauses[k].lits())
+		{
+			Clause &cl = sat.clauses[k];
+
+			if (!cl.isRemoved())
+				for (Lit x : cl.lits())
 					if (seen[x])
 					{
-						if (sat.clauses[k].removeLiteral(a))
+						if (cl.removeLiteral(a))
+						{
 							++nRemovedLitsBin;
+							if (cl.size() == 2)
+							{
+								sat.addBinary(cl[0], cl[1]);
+								cl.remove();
+							}
+						}
 						break;
 					}
+		}
 	}
 };
 } // namespace
