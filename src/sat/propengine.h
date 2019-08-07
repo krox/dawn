@@ -70,12 +70,15 @@ class PropEngine
 	std::vector<Lit> trail;
 	std::vector<int> mark;      // indices into trail
 	std::vector<Reason> reason; // only valid for assigned vars
+	std::vector<Lit> binDom;    // ditto
 	std::vector<int> trailPos;  // ditto
 
 	std::vector<Lit> conflictClause;
 
 	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
+
+	Lit analyzeBin(util::span<const Lit> reason); // helper for LHBR
 
   public:
 	std::vector<bool> assign;
@@ -93,6 +96,7 @@ class PropEngine
 	 * Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	 * returns reason with which cl[0] might be propagated
 	 */
+	Reason addClause(Lit c0, Lit c1);
 	Reason addClause(const std::vector<Lit> &cl, bool irred);
 
 	int unassignedVariable() const; /** -1 if everything is assigned */

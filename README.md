@@ -4,7 +4,7 @@
     - [X] UIP style
     - [ ] full resolution to one variable per level
     - [X] on-the-fly minimization of learnt clauses
-    - [ ] on-the-fly hyper-binary-resolution
+    - [X] lazy hyper-binary-resolution
   * branching heuristic
     - [X] VSIDS
     - [ ] polarity-saving

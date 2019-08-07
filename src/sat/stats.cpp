@@ -34,6 +34,7 @@ void Stats::dump()
 	           100. * nLongProps / watchHistogram.sum());
 	fmt::print("c long confls:    {:#10} ({:#4.1f} % of watches)\n",
 	           nLongConfls, 100. * nLongConfls / watchHistogram.sum());
+	fmt::print("c hyper-binaries: {:#10}\n", nLhbr);
 	fmt::print("c clauses learnt: {:#10} ({:#4.1f} % shortened by otf)\n",
 	           nLearnt, 100. * nLitsOtfRemoved / nLitsLearnt);
 

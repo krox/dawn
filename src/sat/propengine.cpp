@@ -7,7 +7,7 @@
 
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
-      reason(sat.varCount()), trailPos(sat.varCount()),
+      reason(sat.varCount()), binDom(sat.varCount()), trailPos(sat.varCount()),
       assign(sat.varCount() * 2)
 {
 	StopwatchGuard swg(sat.stats.swSearchInit);
@@ -49,6 +49,10 @@ void PropEngine::set(Lit x, Reason r)
 	assert(!assign[x] && !assign[x.neg()]);
 	assign[x] = true;
 	reason[x.var()] = r;
+	if (r.isBinary())
+		binDom[x.var()] = binDom[r.lit().var()];
+	else
+		binDom[x.var()] = x;
 	trailPos[x.var()] = (int)trail.size();
 	trail.push_back(x);
 }
@@ -136,7 +140,21 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			else
 			{
 				sat.stats.nLongProps += 1;
-				propagateBinary(c[0], Reason(ci));
+				Reason r2 = Reason(ci);
+
+				// lazy hyper-binary resolution
+				if (sat.stats.lhbr)
+					if (Lit dom = analyzeBin(c.lits().subspan(1, c.size()));
+					    dom != Lit::undef())
+					{
+						sat.stats.nLhbr += 1;
+
+						// learn new binary clause and use it
+						assert(assign[dom.neg()]);
+						r2 = addClause(c[0], dom);
+					}
+
+				propagateBinary(c[0], r2);
 				if (conflict)
 					return;
 			}
@@ -152,6 +170,13 @@ void PropEngine::branch(Lit x)
 	assert(!assign[x] && !assign[x.neg()]);
 	mark.push_back(trail.size());
 	propagateFull(x, Reason::undef());
+}
+
+Reason PropEngine::addClause(Lit c0, Lit c1)
+{
+	assert(c0.var() != c1.var());
+	sat.addBinary(c0, c1);
+	return Reason(c1);
 }
 
 Reason PropEngine::addClause(const std::vector<Lit> &cl, bool irred)
@@ -221,6 +246,44 @@ void PropEngine::unroll(int l, ActivityHeap &activityHeap)
 		activityHeap.push(lit.var());
 	}
 	mark.resize(l);
+}
+
+/** similar to analyzeConflict, but for lhbr */
+Lit PropEngine::analyzeBin(util::span<const Lit> tail)
+{
+	std::priority_queue<std::pair<int, Lit>> todo;
+
+	Lit dom = binDom[tail[0].var()];
+
+	for (Lit l : tail)
+	{
+		assert(assign[l.neg()]);
+		if (binDom[l.var()] != dom)
+			return Lit::undef();
+		todo.emplace(trailPos[l.var()], l);
+	}
+
+	while (true)
+	{
+		// next literal
+		assert(!todo.empty());
+		Lit l = todo.top().second;
+		todo.pop();
+		assert(assign[l.neg()]);
+
+		// remove duplicates from queue
+		while (!todo.empty() && todo.top().second == l)
+			todo.pop();
+
+		// nothing else -> we found UIP
+		if (todo.empty())
+			return l;
+
+		// otherwise resolve
+		Reason r = reason[l.var()];
+		assert(r.isBinary());
+		todo.emplace(trailPos[r.lit().var()], r.lit());
+	}
 }
 
 /** returns level to which to backtrack */
