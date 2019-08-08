@@ -28,7 +28,11 @@ int main(int argc, char *argv[])
 	app.add_option("--max-learnt-size", sat.stats.maxLearntSize,
 	               "learnt clauses larger than this are removed very quickly "
 	               "independent of cleaning strategy");
+	app.add_option("--max-learnt-glue", sat.stats.maxLearntGlue);
+	app.add_option("--max-learnt", sat.stats.maxLearnt);
 	app.add_flag("--lhbr", sat.stats.lhbr, "lazy hyper-binary resolution");
+	app.add_flag("--use-glue", sat.stats.useGlue,
+	             "use glue for clause-cleaning (default=true)");
 	app.add_option("--max-confls", sat.stats.maxConfls,
 	               "stop solving after (approximately) this many conflicts");
 	app.add_flag("--shuffle", shuffle,

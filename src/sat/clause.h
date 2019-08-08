@@ -97,7 +97,7 @@ class Clause
 	// 4 byte header
 	uint16_t size_;
 	uint8_t flags_;
-	uint8_t reserved_;
+	uint8_t glue;
 
 	// array of Lits
 	// Lit _lits[]; // not valid C++
@@ -187,6 +187,8 @@ class ClauseStorage
 		Clause header;
 		header.size_ = (uint16_t)lits.size();
 		header.flags_ = 0;
+		header.glue =
+		    (uint8_t)std::min((size_t)255, lits.size()); // may decrease later
 		if (irred)
 			header.makeIrred();
 		auto index = store.size();

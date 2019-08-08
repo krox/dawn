@@ -54,7 +54,7 @@ int probe(Sat &sat)
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
 			p.unroll(0);
-			p.addClause(buf, false);
+			p.addLearntClause(buf, 1);
 			p.propagateFull(buf[0], Reason::undef());
 			buf.resize(0);
 
@@ -73,16 +73,49 @@ int probe(Sat &sat)
 
 static void printHeader()
 {
-	fmt::print("c     vars    units     bins    longs   learnt learnt-size\n");
+	fmt::print(
+	    "c     vars    units     bins    longs  size   learnt  size  glue\n");
 }
 
 static void printLine(Sat &sat)
 {
-	fmt::print("c {:#8} {:#8} {:#8} {:#8} {:#8} {:5.2f} {:8.2f} MiB\n",
-	           sat.varCount(), sat.unaryCount(), sat.binaryCount(),
-	           sat.longCountIrred(), sat.longCountRed(),
-	           (double)sat.litCountRed() / sat.longCountRed(),
-	           sat.clauses.memory_usage() / 1024. / 1024.);
+	// number of unary/binary clauses
+	size_t unaryCount = sat.units.size();
+	size_t binaryCount = 0;
+	for (auto &b : sat.bins)
+		binaryCount += b.size();
+	binaryCount /= 2;
+
+	// number/size/glue of irred/learnt long clauses
+	size_t longCount = 0;
+	size_t learntCount = 0;
+	size_t longLits = 0;
+	size_t learntLits = 0;
+	size_t learntGlue = 0;
+
+	for (auto [ci, cl] : sat.clauses)
+		if (!cl.isRemoved())
+		{
+			(void)ci;
+			if (cl.irred())
+			{
+				longCount += 1;
+				longLits += cl.size();
+			}
+			else
+			{
+				learntCount += 1;
+				learntLits += cl.size();
+				learntGlue += cl.glue;
+			}
+		}
+
+	fmt::print(
+	    "c {:#8} {:#8} {:#8} {:#8} {:5.2f} {:#8} {:5.2f} {:5.2f} {:8.2f} MiB\n",
+	    sat.varCount(), unaryCount, binaryCount, longCount,
+	    (double)longLits / longCount, learntCount,
+	    (double)learntLits / learntCount, (double)learntGlue / learntCount,
+	    sat.clauses.memory_usage() / 1024. / 1024.);
 }
 
 Solution buildSolution(const PropEngine &p)
@@ -152,9 +185,10 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 
 			// otherwise anaylze,unroll,learn
 			int backLevel = p.analyzeConflict(buf, activityHeap);
+			auto glue = p.calcGlue(buf);
 			p.unroll(backLevel, activityHeap);
 			p.sat.stats.nLearnt += 1;
-			Reason r = p.addClause(buf, false);
+			Reason r = p.addLearntClause(buf, glue);
 			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
 			for (int i = 1; i < (int)buf.size(); ++i)
 				assert(p.assign[buf[i].neg()]);
@@ -227,9 +261,9 @@ int unitPropagation(Sat &sat)
 	return nFound;
 }
 
-void cleanClauses(ClauseStorage &clauses, size_t nKeep)
+void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 {
-	std::vector<std::vector<CRef>> list(64);
+	std::vector<std::vector<CRef>> list(200);
 	for (auto [ci, cl] : clauses)
 	{
 		if (cl.irred())
@@ -240,6 +274,30 @@ void cleanClauses(ClauseStorage &clauses, size_t nKeep)
 			continue;
 		}
 		list[cl.size()].push_back(ci);
+	}
+
+	size_t count = 0;
+	size_t len = 0;
+	for (; len < list.size() && count < nKeep; len++)
+		count += list[len].size();
+	for (; len < list.size(); len++)
+		for (CRef ci : list[len])
+			clauses[ci].remove();
+}
+
+void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
+{
+	std::vector<std::vector<CRef>> list(200);
+	for (auto [ci, cl] : clauses)
+	{
+		if (cl.irred())
+			continue;
+		if (cl.glue >= list.size())
+		{
+			cl.remove();
+			continue;
+		}
+		list[cl.glue].push_back(ci);
 	}
 
 	size_t count = 0;
@@ -327,12 +385,26 @@ int solve(Sat &sat, Solution &sol)
 		for (auto [ci, cl] : sat.clauses)
 		{
 			(void)ci;
-			if (!cl.irred() && cl.size() > sat.stats.maxLearntSize)
+			if (cl.irred())
+				continue;
+			if (cl.size() > sat.stats.maxLearntSize ||
+			    cl.glue > sat.stats.maxLearntGlue)
 				cl.remove();
 		}
-		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
+		if ((int64_t)sat.longCountRed() > sat.stats.maxLearnt)
 		{
-			cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
+			if (sat.stats.useGlue)
+				cleanClausesGlue(sat.clauses, sat.stats.maxLearnt);
+			else
+				cleanClausesSize(sat.clauses, sat.stats.maxLearnt);
+			sat.cleanup();
+		}
+		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
+		{
+			if (sat.stats.useGlue)
+				cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
+			else
+				cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
 			sat.cleanup();
 		}
 	}

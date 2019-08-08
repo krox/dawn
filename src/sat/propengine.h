@@ -96,8 +96,8 @@ class PropEngine
 	 * Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	 * returns reason with which cl[0] might be propagated
 	 */
-	Reason addClause(Lit c0, Lit c1);
-	Reason addClause(const std::vector<Lit> &cl, bool irred);
+	Reason addLearntClause(Lit c0, Lit c1);
+	Reason addLearntClause(const std::vector<Lit> &cl, uint8_t glue);
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
@@ -111,6 +111,9 @@ class PropEngine
 	 *  - performs otf minimization if enabled in config
 	 */
 	int analyzeConflict(std::vector<Lit> &learnt, ActivityHeap &activityHeap);
+
+	/** compute glue, i.e. number of distinct decision levels of clause */
+	uint8_t calcGlue(util::span<const Lit> cl) const;
 
 	/** for debugging */
 	void printTrail() const;

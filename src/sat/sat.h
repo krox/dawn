@@ -64,7 +64,6 @@ class Sat
 	size_t clauseCount() const;
 	size_t longCountIrred() const;
 	size_t longCountRed() const;
-	size_t litCountRed() const;
 
 	/**
 	 * - Remove fixed variables from clauses (keeps unit clauses itself)
@@ -224,15 +223,6 @@ inline size_t Sat::longCountRed() const
 	for (auto [_, cl] : clauses)
 		if ((void)_, !cl.irred())
 			++r;
-	return r;
-}
-
-inline size_t Sat::litCountRed() const
-{
-	size_t r = 0;
-	for (auto [_, cl] : clauses)
-		if ((void)_, !cl.irred())
-			r += cl.size();
 	return r;
 }
 

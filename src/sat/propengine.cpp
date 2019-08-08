@@ -152,7 +152,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 
 						// learn new binary clause and use it
 						assert(assign[dom.neg()]);
-						r2 = addClause(c[0], dom);
+						r2 = addLearntClause(c[0], dom);
 					}
 
 				propagateBinary(c[0], r2);
@@ -173,14 +173,14 @@ void PropEngine::branch(Lit x)
 	propagateFull(x, Reason::undef());
 }
 
-Reason PropEngine::addClause(Lit c0, Lit c1)
+Reason PropEngine::addLearntClause(Lit c0, Lit c1)
 {
 	assert(c0.var() != c1.var());
 	sat.addBinary(c0, c1);
 	return Reason(c1);
 }
 
-Reason PropEngine::addClause(const std::vector<Lit> &cl, bool irred)
+Reason PropEngine::addLearntClause(const std::vector<Lit> &cl, uint8_t glue)
 {
 	switch (cl.size())
 	{
@@ -195,9 +195,11 @@ Reason PropEngine::addClause(const std::vector<Lit> &cl, bool irred)
 		sat.addBinary(cl[0], cl[1]);
 		return Reason(cl[1]);
 	default:
-		CRef cref = sat.addLong(cl, irred);
+		CRef cref = sat.addLong(cl, false);
 		watches[cl[0]].push_back(cref);
 		watches[cl[1]].push_back(cref);
+		assert(2 <= glue && glue <= cl.size());
+		sat.clauses[cref].glue = glue;
 		return Reason(cref);
 	}
 }
@@ -409,6 +411,25 @@ bool PropEngine::isRedundant(Lit lit)
 	}
 
 	assert(false);
+}
+
+uint8_t PropEngine::calcGlue(util::span<const Lit> cl) const
+{
+	int glue = 1;
+	for (int lev = 1; lev < level(); ++lev)
+		for (Lit l : cl)
+		{
+			assert(assign[l.neg()]);
+			if (mark[lev - 1] <= trailPos[l.var()] &&
+			    trailPos[l.var()] < mark[lev])
+			{
+				glue += 1;
+				break;
+			}
+		}
+	if (glue > 255)
+		return 255;
+	return (uint8_t)glue;
 }
 
 void PropEngine::printTrail() const

@@ -18,7 +18,10 @@ struct Stats
 	int subsume = 2;         // subsumption and self-subsuming resolution
 	                         // (0=off, 1=binary, 2=full)
 	bool lhbr = true;        // lazy hyper-binary resolution
+	bool useGlue = true;     // use glue for clause cleaning
 	int maxLearntSize = 100; // eagerly remove learnt very large learnt clauses
+	int maxLearntGlue = 100;
+	int64_t maxLearnt = INT64_MAX;
 
 	// histogram of the visited(!) binary-lists and watchlists
 	util::IntHistogram binHistogram;

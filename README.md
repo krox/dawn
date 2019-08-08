@@ -10,7 +10,7 @@
     - [x] polarity-saving
   * clause-cleaning heuristic
     - [x] size
-    - [ ] glue
+    - [x] glue
     - [ ] activity
 * preprocessing / inprocessing
   - [x] subsumption / self-subsuming resolution
