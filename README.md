@@ -1,15 +1,15 @@
 # features / todo list / ideas
 * main solver
   * clause learning
-    - [X] UIP style
+    - [x] UIP style
     - [ ] full resolution to one variable per level
-    - [X] on-the-fly minimization of learnt clauses
-    - [X] lazy hyper-binary-resolution
+    - [x] on-the-fly minimization of learnt clauses
+    - [x] lazy hyper-binary-resolution
   * branching heuristic
-    - [X] VSIDS
-    - [ ] polarity-saving
+    - [x] VSIDS
+    - [x] polarity-saving
   * clause-cleaning heuristic
-    - [X] size
+    - [x] size
     - [ ] glue
     - [ ] activity
 * preprocessing / inprocessing

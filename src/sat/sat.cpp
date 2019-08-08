@@ -160,6 +160,20 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 			}
 	}
 
+	// renumber polarity array
+	{
+		// when multiple old variables are mapped to a single new one, take
+		// arbitrary polarity (should be the same in most cases anyway)
+		std::vector<bool> polarityOld(newVarCount, false);
+		std::swap(polarity, polarityOld);
+		for (int i = 0; i < (int)polarityOld.size(); ++i)
+			if (trans[i].proper())
+			{
+				int j = trans[i].var();
+				polarity[j] = polarityOld[i] ^ trans[i].sign();
+			}
+	}
+
 	// renumber translation array
 	for (int i = 0; i < (int)varCountOuter(); ++i)
 		if (outerToInner_[i].proper())

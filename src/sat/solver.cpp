@@ -198,7 +198,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		}
 
 		// propagate branch
-		p.branch(Lit(branch, false));
+		p.branch(Lit(branch, sat.polarity[branch]));
 	}
 }
 

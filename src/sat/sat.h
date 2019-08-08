@@ -79,8 +79,9 @@ class Sat
 	 */
 	void renumber(span<const Lit> trans, int newVarCount);
 
-	/** tracking of variable activity */
+	/** tracking of variable activity and polarity */
 	std::vector<double> activity;
+	std::vector<bool> polarity;
 	double activityInc = 1.0;
 	void bumpVariableActivity(int i);
 	void decayVariableActivity();
@@ -92,7 +93,8 @@ void shuffleVariables(Sat &sat);
 
 inline Sat::Sat() {}
 
-inline Sat::Sat(int n) : outerToInner_(n), bins(2 * n), activity(n, 0.0)
+inline Sat::Sat(int n)
+    : outerToInner_(n), bins(2 * n), activity(n, 0.0), polarity(n, false)
 {
 	for (int i = 0; i < n; ++i)
 		outerToInner_[i] = Lit(i, false);
@@ -112,6 +114,7 @@ inline int Sat::addVar()
 	bins.emplace_back();
 	bins.emplace_back();
 	activity.push_back(0.0);
+	polarity.push_back(false);
 	return i;
 }
 

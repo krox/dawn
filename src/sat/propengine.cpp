@@ -48,6 +48,7 @@ void PropEngine::set(Lit x, Reason r)
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
 	assign[x] = true;
+	sat.polarity[x.var()] = x.sign();
 	reason[x.var()] = r;
 	if (r.isBinary())
 		binDom[x.var()] = binDom[r.lit().var()];
