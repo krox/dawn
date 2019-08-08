@@ -2,8 +2,44 @@
 
 #include "fmt/format.h"
 #include "util/bitset.h"
+#include "util/span.h"
 
 namespace {
+
+bool trySubsume(Clause &a, Clause &b)
+{
+	if (a.size() > b.size())
+		return false;
+
+	Lit x = Lit::undef();
+	for (int i = 0; i < a.size(); ++i)
+	{
+		for (int j = 0; j < b.size(); ++j)
+		{
+			if (a[i] == b[j])
+				goto next;
+			if (a[i] == b[j].neg())
+			{
+				if (x != Lit::undef())
+					return false;
+				x = b[j];
+			}
+		}
+		return false;
+	next:;
+	}
+
+	if (x == Lit::undef())
+	{
+		if (b.irred())
+			a.makeIrred();
+		b.remove();
+	}
+	else
+		b.removeLiteral(x);
+	return true;
+}
+
 class Subsumption
 {
 	std::vector<Lit> stack; // temporary for DFS
@@ -15,7 +51,6 @@ class Subsumption
 
 	// statistics
 	size_t nRemovedClsBin = 0, nRemovedLitsBin = 0;
-	size_t nRemovedClsLong = 0, nRemovedLitsLong = 0;
 
 	Subsumption(Sat &sat)
 	    : sat(sat), occs(sat.varCount() * 2), seen(sat.varCount() * 2)
@@ -111,7 +146,52 @@ bool subsumeBinary(Sat &sat)
 		sub.subsumeBinary(Lit(i));
 	fmt::print("c binary-long subsumption removed {} clauses and {} lits\n",
 	           sub.nRemovedClsBin, sub.nRemovedLitsBin);
-	// fmt::print("c long-long subsumption removed {} clauses and {} lits\n",
-	// sub.nRemovedClsLong, sub.nRemovedLitsLong);
-	return true;
+
+	return sub.nRemovedClsBin || sub.nRemovedLitsBin;
+}
+
+bool subsumeLong(Sat &sat)
+{
+	util::StopwatchGuard swg(sat.stats.swSubsumeLong);
+
+	// create occurence-lists per variable
+	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.varCount());
+	for (auto [ci, cl] : sat.clauses)
+		for (Lit a : cl.lits())
+			occs[a.var()].push_back(ci);
+
+	int64_t nRemovedClsLong = 0;
+	int64_t nRemovedLitsLong = 0;
+
+	// subsume clauses using cl
+	for (auto [i, cl] : sat.clauses)
+	{
+		// skip already removed
+		if (cl.isRemoved())
+			continue;
+
+		// choose variable with shortest occ list
+		int pivot = cl[0].var();
+		for (Lit lit : cl.lits())
+			if (occs[lit.var()].size() < occs[pivot].size())
+				pivot = lit.var();
+
+		// use occ-list of pivot variable as candidates for subsumption
+		for (CRef j : occs[pivot])
+		{
+			if (i == j) // dont subsume clauses with itself
+				continue;
+			if (trySubsume(cl, sat.clauses[j]))
+			{
+				if (sat.clauses[j].isRemoved())
+					nRemovedClsLong += 1;
+				else
+					nRemovedLitsLong += 1;
+			}
+		}
+	}
+
+	fmt::print("c long-long subsumption removed {} clauses and {} lits\n",
+	           nRemovedClsLong, nRemovedLitsLong);
+	return nRemovedClsLong || nRemovedLitsLong;
 }

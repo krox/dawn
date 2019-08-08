@@ -15,6 +15,8 @@ struct Stats
 	bool watchStats = false; // print histogram of watchlist size
 	int otf = 2;             // on-the-fly strengthening of learnt clauses
 	                         // (0=off, 1=basic, 2=recursive)
+	int subsume = 2;         // subsumption and self-subsuming resolution
+	                         // (0=off, 1=binary, 2=full)
 	bool lhbr = true;        // lazy hyper-binary resolution
 	int maxLearntSize = 100; // eagerly remove learnt very large learnt clauses
 

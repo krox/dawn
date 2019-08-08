@@ -22,6 +22,9 @@ int main(int argc, char *argv[])
 	app.add_option("--otf", sat.stats.otf,
 	               "on-the-fly strengthening of learnt clauses"
 	               "(0=off, 1=basic, 2=recursive=default)");
+	app.add_option("--subsume", sat.stats.subsume,
+	               "subsumption and self-subsuming resolution"
+	               "(0=off, 1=binary, 2=full=default)");
 	app.add_option("--max-learnt-size", sat.stats.maxLearntSize,
 	               "learnt clauses larger than this are removed very quickly "
 	               "independent of cleaning strategy");

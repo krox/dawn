@@ -13,7 +13,7 @@
     - [ ] glue
     - [ ] activity
 * preprocessing / inprocessing
-  - [ ] subsumption / self-subsuming resolution
+  - [x] subsumption / self-subsuming resolution
   - [ ] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components

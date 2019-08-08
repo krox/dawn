@@ -251,7 +251,10 @@ int solve(Sat &sat, Solution &sol)
 	           sat.varCount(), sat.clauseCount());
 
 	// maybe-not-so-cheap preprocessing: subsumption+SSR and FLP
-	subsumeBinary(sat);
+	if (sat.stats.subsume >= 1)
+		subsumeBinary(sat);
+	if (sat.stats.subsume >= 2)
+		subsumeLong(sat);
 	probe(sat);
 	fmt::print("c after initial FLP and subsumption: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
@@ -278,7 +281,10 @@ int solve(Sat &sat, Solution &sol)
 		std::cout << "c cleanup" << std::endl;
 		unitPropagation(sat);
 		runSCC(sat);
-		subsumeBinary(sat);
+		if (sat.stats.subsume >= 1)
+			subsumeBinary(sat);
+		if (sat.stats.subsume >= 2)
+			subsumeLong(sat);
 
 		for (auto [ci, cl] : sat.clauses)
 		{
