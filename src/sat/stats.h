@@ -16,6 +16,7 @@ struct Stats
 	int otf = 2;             // on-the-fly strengthening of learnt clauses
 	                         // (0=off, 1=basic, 2=recursive)
 	bool lhbr = true;        // lazy hyper-binary resolution
+	int maxLearntSize = 100; // eagerly remove learnt very large learnt clauses
 
 	// histogram of the visited(!) binary-lists and watchlists
 	util::IntHistogram binHistogram;

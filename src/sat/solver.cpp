@@ -279,6 +279,14 @@ int solve(Sat &sat, Solution &sol)
 		unitPropagation(sat);
 		runSCC(sat);
 		subsumeBinary(sat);
+
+		for (auto [ci, cl] : sat.clauses)
+		{
+			(void)ci;
+			if (!cl.irred() && cl.size() > sat.stats.maxLearntSize)
+				cl.remove();
+		}
+
 		sat.cleanup();
 
 		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)

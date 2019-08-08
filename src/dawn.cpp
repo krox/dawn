@@ -22,6 +22,9 @@ int main(int argc, char *argv[])
 	app.add_option("--otf", sat.stats.otf,
 	               "on-the-fly strengthening of learnt clauses"
 	               "(0=off, 1=basic, 2=recursive=default)");
+	app.add_option("--max-learnt-size", sat.stats.maxLearntSize,
+	               "learnt clauses larger than this are removed very quickly "
+	               "independent of cleaning strategy");
 	app.add_flag("--lhbr", sat.stats.lhbr, "lazy hyper-binary resolution");
 	app.add_option("--max-confls", sat.stats.maxConfls,
 	               "stop solving after (approximately) this many conflicts");
