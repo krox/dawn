@@ -7,32 +7,49 @@
 #include <iomanip>
 
 /** do one full sweep of failed literal probing */
-void probe(Sat &sat)
+int probe(Sat &sat)
 {
 	ActivityHeap dummy(sat);
 	PropEngine p(sat);
 	if (p.conflict)
-		return;
+		return 0;
 
-	std::vector<Lit> buf;
-	for (int i = 0; i < 2 * p.sat.varCount(); ++i)
+	// list and shuffle candidates
+	std::vector<Lit> candidates;
+	for (int i = 0; i < 2 * sat.varCount(); ++i)
 	{
-		Lit branch = Lit(i);
+		auto l = Lit(i);
+		if (sat.bins[l.neg()].empty())
+			continue;
+		if (!sat.bins[l].empty())
+			continue;
 
+		candidates.push_back(l);
+		auto dist =
+		    std::uniform_int_distribution<size_t>(0, candidates.size() - 1);
+		auto k = dist(sat.stats.rng);
+		std::swap(candidates.back(), candidates[k]);
+	}
+
+	if (candidates.size() > 10000)
+		candidates.resize(10000);
+
+	int nTries = 0, nFails = 0;
+	std::vector<Lit> buf;
+
+	for (Lit branch : candidates)
+	{
 		// skip fixed literals
 		if (p.assign[branch] || p.assign[branch.neg()])
 			continue;
 
-		// only do roots of the binary implication graph
-		if (p.sat.bins[branch.neg()].empty())
-			continue;
-		if (!p.sat.bins[branch].empty())
-			continue;
+		nTries += 1;
 
 		p.branch(branch);
 
 		if (p.conflict) // literal failed -> analyze and learn unit
 		{
+			nFails += 1;
 			int backLevel = p.analyzeConflict(buf, dummy);
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
@@ -43,13 +60,15 @@ void probe(Sat &sat)
 
 			// UNSAT encountered
 			if (p.conflict)
-				return;
+				return 1;
 		}
 		else // no fail -> do nothing
 		{
 			p.unroll(0);
 		}
 	}
+
+	return nFails;
 }
 
 static void printHeader()
@@ -232,12 +251,9 @@ void cleanClauses(ClauseStorage &clauses, size_t nKeep)
 			clauses[ci].remove();
 }
 
-/** returns 10 for SAT, 20 for UNSAT, 30 for UNKNOWN (timeout or similar) */
-int solve(Sat &sat, Solution &sol)
+// Very cheap preprocessing: unit-propagation and SCC
+void inprocessCheap(Sat &sat)
 {
-	StopwatchGuard _(sat.stats.swTotal);
-
-	// Very cheap preprocessing: unit-propagation and SCC
 	while (true)
 	{
 		if (int nFound = unitPropagation(sat); nFound)
@@ -247,16 +263,41 @@ int solve(Sat &sat, Solution &sol)
 		else
 			break;
 	}
-	fmt::print("c after initial cleanup: {} vars and {} clauses\n",
-	           sat.varCount(), sat.clauseCount());
+}
 
-	// maybe-not-so-cheap preprocessing: subsumption+SSR and FLP
+void inprocess(Sat &sat)
+{
+	inprocessCheap(sat);
+
+	for (int iter = 0; iter < 5; ++iter)
+	{
+		if (int nFound = probe(sat); nFound)
+		{
+			fmt::print("c FLP found {} failing literals\n", nFound);
+			inprocessCheap(sat);
+		}
+		else
+			break;
+	}
+
+	// maybe-not-so-cheap preprocessing: subsumption+SSR
 	if (sat.stats.subsume >= 1)
+	{
 		subsumeBinary(sat);
-	if (sat.stats.subsume >= 2)
-		subsumeLong(sat);
-	probe(sat);
-	fmt::print("c after initial FLP and subsumption: {} vars and {} clauses\n",
+		if (sat.stats.subsume >= 2)
+			subsumeLong(sat);
+		inprocessCheap(sat);
+	}
+}
+
+/** returns 10 for SAT, 20 for UNSAT, 30 for UNKNOWN (timeout or similar) */
+int solve(Sat &sat, Solution &sol)
+{
+	StopwatchGuard _(sat.stats.swTotal);
+
+	inprocess(sat);
+
+	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
 
 	// main solver loop
@@ -278,23 +319,17 @@ int solve(Sat &sat, Solution &sol)
 			return 10;
 		}
 
+		// inprocessing
 		std::cout << "c cleanup" << std::endl;
-		unitPropagation(sat);
-		runSCC(sat);
-		if (sat.stats.subsume >= 1)
-			subsumeBinary(sat);
-		if (sat.stats.subsume >= 2)
-			subsumeLong(sat);
+		inprocess(sat);
 
+		// clause cleaning
 		for (auto [ci, cl] : sat.clauses)
 		{
 			(void)ci;
 			if (!cl.irred() && cl.size() > sat.stats.maxLearntSize)
 				cl.remove();
 		}
-
-		sat.cleanup();
-
 		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 2)
 		{
 			cleanClauses(sat.clauses, sat.stats.nConfls() / 4);
