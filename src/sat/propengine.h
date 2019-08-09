@@ -64,11 +64,13 @@ class PropEngine
 	util::bitset seen;         // temporary during conflict analysis
 	bool isRedundant(Lit lit); // helper for OTF strengthening
 
+	std::vector<Lit> trail_; // assigned variables
+	std::vector<int> mark_;  // indices into trail
+
   public:
 	using watches_t = std::vector<util::small_vector<CRef, 6>>;
 	watches_t watches;
-	std::vector<Lit> trail;
-	std::vector<int> mark;      // indices into trail
+
 	std::vector<Reason> reason; // only valid for assigned vars
 	std::vector<Lit> binDom;    // ditto
 	std::vector<int> trailPos;  // ditto
@@ -90,6 +92,10 @@ class PropEngine
 	/** assign a literal and do unit propagation */
 	void branch(Lit x);                  // starts a new level
 	void propagateFull(Lit x, Reason r); // stays on current level
+
+	/** read-only view (into trail_) of assignments */
+	util::span<const Lit> trail() const;      // all levels
+	util::span<const Lit> trail(int l) const; // level l
 
 	/**
 	 * Add clause to underlying ClauseSet without propagating.
@@ -118,5 +124,21 @@ class PropEngine
 	/** for debugging */
 	void printTrail() const;
 };
+
+inline util::span<const Lit> PropEngine::trail() const { return trail_; }
+
+inline util::span<const Lit> PropEngine::trail(int l) const
+{
+	assert(0 <= l && l <= level());
+	auto t = trail();
+	if (l == 0 && level() == 0)
+		return t;
+	else if (l == 0)
+		return t.subspan(0, mark_[0]);
+	else if (l == level())
+		return t.subspan(mark_[l - 1], t.size());
+	else
+		return t.subspan(mark_[l - 1], mark_[l]);
+}
 
 #endif

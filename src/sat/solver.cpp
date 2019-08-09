@@ -6,7 +6,12 @@
 #include "sat/subsumption.h"
 #include <iomanip>
 
-/** do one full sweep of failed literal probing */
+/**
+ * Do one sweep of failed literal probing
+ *   - only tries at roots of implication graph
+ *   - does UIP analysis in case something is found
+ *   - does not modify polarity of variables
+ */
 int probe(Sat &sat)
 {
 	ActivityHeap dummy(sat);
@@ -193,6 +198,8 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 			for (int i = 1; i < (int)buf.size(); ++i)
 				assert(p.assign[buf[i].neg()]);
 			p.propagateFull(buf[0], r);
+			for (Lit x : p.trail(p.level()))
+				sat.polarity[x.var()] = x.sign();
 			buf.resize(0);
 		}
 
@@ -233,6 +240,8 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 
 		// propagate branch
 		p.branch(Lit(branch, sat.polarity[branch]));
+		for (Lit x : p.trail(p.level()))
+			sat.polarity[x.var()] = x.sign();
 	}
 }
 
@@ -252,7 +261,7 @@ int unitPropagation(Sat &sat)
 	}
 	else
 	{
-		sat.units = p.trail;
+		sat.units.assign(p.trail().begin(), p.trail().end());
 		nFound = (int)sat.units.size();
 	}
 

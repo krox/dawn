@@ -48,24 +48,23 @@ void PropEngine::set(Lit x, Reason r)
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
 	assign[x] = true;
-	sat.polarity[x.var()] = x.sign();
 	reason[x.var()] = r;
 	if (r.isBinary())
 		binDom[x.var()] = binDom[r.lit().var()];
 	else
 		binDom[x.var()] = x;
-	trailPos[x.var()] = (int)trail.size();
-	trail.push_back(x);
+	trailPos[x.var()] = (int)trail_.size();
+	trail_.push_back(x);
 }
 
 void PropEngine::propagateBinary(Lit x, Reason r)
 {
-	size_t pos = trail.size();
+	size_t pos = trail_.size();
 	set(x, r);
 
-	while (pos != trail.size())
+	while (pos != trail_.size())
 	{
-		Lit y = trail[pos++];
+		Lit y = trail_[pos++];
 		sat.stats.binHistogram.add((int)sat.bins[y.neg()].size());
 		for (Lit z : sat.bins[y.neg()])
 		{
@@ -90,14 +89,14 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 
 void PropEngine::propagateFull(Lit x, Reason r)
 {
-	size_t pos = trail.size();
+	size_t pos = trail_.size();
 	propagateBinary(x, r);
 	if (conflict)
 		return;
 
-	while (pos != trail.size())
+	while (pos != trail_.size())
 	{
-		Lit y = trail[pos++];
+		Lit y = trail_[pos++];
 		auto &ws = watches[y.neg()];
 		sat.stats.watchHistogram.add((int)ws.size());
 		for (size_t wi = 0; wi < ws.size(); ++wi)
@@ -169,7 +168,7 @@ void PropEngine::branch(Lit x)
 {
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
-	mark.push_back(trail.size());
+	mark_.push_back(trail_.size());
 	propagateFull(x, Reason::undef());
 }
 
@@ -212,7 +211,7 @@ int PropEngine::unassignedVariable() const
 	return -1;
 }
 
-int PropEngine::level() const { return (int)mark.size(); }
+int PropEngine::level() const { return (int)mark_.size(); }
 
 void PropEngine::unroll(int l)
 {
@@ -220,16 +219,16 @@ void PropEngine::unroll(int l)
 	conflict = false;
 	conflictClause.resize(0);
 
-	while ((int)trail.size() > mark[l])
+	while ((int)trail_.size() > mark_[l])
 	{
-		Lit lit = trail.back();
-		trail.pop_back();
+		Lit lit = trail_.back();
+		trail_.pop_back();
 		// assert(assign[lit] && !assign[lit.neg()]);
 		// reason[lit.var()] = Reason::undef();
 		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
 	}
-	mark.resize(l);
+	mark_.resize(l);
 }
 
 void PropEngine::unroll(int l, ActivityHeap &activityHeap)
@@ -238,17 +237,17 @@ void PropEngine::unroll(int l, ActivityHeap &activityHeap)
 	conflict = false;
 	conflictClause.resize(0);
 
-	while ((int)trail.size() > mark[l])
+	while ((int)trail_.size() > mark_[l])
 	{
-		Lit lit = trail.back();
-		trail.pop_back();
+		Lit lit = trail_.back();
+		trail_.pop_back();
 		// assert(assign[lit] && !assign[lit.neg()]);
 		// reason[lit.var()] = Reason::undef();
 		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
 		activityHeap.push(lit.var());
 	}
-	mark.resize(l);
+	mark_.resize(l);
 }
 
 /** similar to analyzeConflict, but for lhbr */
@@ -325,9 +324,9 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt,
 		// next one is reason side
 		//   -> this one is reason side or UIP
 		//   -> add this one to learnt clause
-		if (todo.empty() || todo.top().first < mark.back())
+		if (todo.empty() || todo.top().first < mark_.back())
 		{
-			if (trailPos[l.var()] >= mark[0]) // skip level 0 assignments
+			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
 				learnt.push_back(l);
 		}
 		else // otherwise resolve
@@ -377,7 +376,7 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt,
 	if (learnt.size() == 1)
 		return 0;
 	int i = level() - 1;
-	while (mark[i] > trailPos[learnt[1].var()])
+	while (mark_[i] > trailPos[learnt[1].var()])
 		i -= 1;
 
 	return i + 1;
@@ -420,8 +419,8 @@ uint8_t PropEngine::calcGlue(util::span<const Lit> cl) const
 		for (Lit l : cl)
 		{
 			assert(assign[l.neg()]);
-			if (mark[lev - 1] <= trailPos[l.var()] &&
-			    trailPos[l.var()] < mark[lev])
+			if (mark_[lev - 1] <= trailPos[l.var()] &&
+			    trailPos[l.var()] < mark_[lev])
 			{
 				glue += 1;
 				break;
@@ -437,12 +436,12 @@ void PropEngine::printTrail() const
 	for (int l = 0; l <= level(); ++l)
 	{
 		std::cout << "=== level " << l << " ===" << std::endl;
-		int low = l == 0 ? 0 : mark[l - 1];
-		int high = l == (int)mark.size() ? (int)trail.size() : mark[l];
+		int low = l == 0 ? 0 : mark_[l - 1];
+		int high = l == (int)mark_.size() ? (int)trail_.size() : mark_[l];
 		for (int i = low; i < high; ++i)
 		{
-			std::cout << trail[i] << " <= ";
-			Reason r = reason[trail[i].var()];
+			std::cout << trail_[i] << " <= ";
+			Reason r = reason[trail_[i].var()];
 			if (r == Reason::undef())
 				std::cout << "()" << std::endl;
 			else if (r.isBinary())
