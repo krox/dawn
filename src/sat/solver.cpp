@@ -10,11 +10,10 @@
  * Do one sweep of failed literal probing
  *   - only tries at roots of implication graph
  *   - does UIP analysis in case something is found
- *   - does not modify polarity of variables
+ *   - does not use or modify polarity/activity of variables
  */
 int probe(Sat &sat)
 {
-	ActivityHeap dummy(sat);
 	PropEngine p(sat);
 	if (p.conflict)
 		return 0;
@@ -55,7 +54,7 @@ int probe(Sat &sat)
 		if (p.conflict) // literal failed -> analyze and learn unit
 		{
 			nFails += 1;
-			int backLevel = p.analyzeConflict(buf, dummy);
+			int backLevel = p.analyzeConflict(buf);
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
 			p.unroll(0);
@@ -167,6 +166,11 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 
 	std::vector<Lit> buf;
 
+	auto callback = [&](Lit l) {
+		sat.bumpVariableActivity(l.var());
+		activityHeap.update(l.var());
+	};
+
 	while (true)
 	{
 		if (nConfl >= lastPrint + 1000)
@@ -188,18 +192,20 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 				return std::nullopt;
 			}
 
-			// otherwise anaylze,unroll,learn
-			int backLevel = p.analyzeConflict(buf, activityHeap);
+			// analyze conflict
+			int backLevel = p.analyzeConflict(buf, callback);
+			sat.decayVariableActivity();
 			auto glue = p.calcGlue(buf);
-			p.unroll(backLevel, activityHeap);
-			p.sat.stats.nLearnt += 1;
+			sat.stats.nLearnt += 1;
+			sat.stats.nLitsLearnt += buf.size();
+
+			// unroll to apropriate level and propagate new learnt clause
+			p.unroll_and_activate(backLevel, activityHeap);
 			Reason r = p.addLearntClause(buf, glue);
-			assert(!p.assign[buf[0]] && !p.assign[buf[0].neg()]);
-			for (int i = 1; i < (int)buf.size(); ++i)
-				assert(p.assign[buf[i].neg()]);
 			p.propagateFull(buf[0], r);
 			for (Lit x : p.trail(p.level()))
 				sat.polarity[x.var()] = x.sign();
+
 			buf.resize(0);
 		}
 
@@ -207,7 +213,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		if (nConfl > maxConfl)
 		{
 			if (p.level() > 0)
-				p.unroll(0, activityHeap);
+				p.unroll_and_activate(0, activityHeap);
 			printLine(sat);
 			return std::nullopt;
 		}

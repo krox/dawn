@@ -223,31 +223,17 @@ void PropEngine::unroll(int l)
 	{
 		Lit lit = trail_.back();
 		trail_.pop_back();
-		// assert(assign[lit] && !assign[lit.neg()]);
-		// reason[lit.var()] = Reason::undef();
-		// trailPos[lit.var()] = -1;
 		assign[lit] = false;
 	}
 	mark_.resize(l);
 }
 
-void PropEngine::unroll(int l, ActivityHeap &activityHeap)
+void PropEngine::unroll_and_activate(int l, ActivityHeap &activityHeap)
 {
 	assert(l < level());
-	conflict = false;
-	conflictClause.resize(0);
-
-	while ((int)trail_.size() > mark_[l])
-	{
-		Lit lit = trail_.back();
-		trail_.pop_back();
-		// assert(assign[lit] && !assign[lit.neg()]);
-		// reason[lit.var()] = Reason::undef();
-		// trailPos[lit.var()] = -1;
-		assign[lit] = false;
-		activityHeap.push(lit.var());
-	}
-	mark_.resize(l);
+	for (int i = mark_[l]; i < (int)trail_.size(); ++i)
+		activityHeap.push(trail_[i].var());
+	unroll(l);
 }
 
 /** similar to analyzeConflict, but for lhbr */
@@ -286,100 +272,6 @@ Lit PropEngine::analyzeBin(util::span<const Lit> tail)
 		assert(r.isBinary());
 		todo.emplace(trailPos[r.lit().var()], r.lit());
 	}
-}
-
-/** returns level to which to backtrack */
-int PropEngine::analyzeConflict(std::vector<Lit> &learnt,
-                                ActivityHeap &activityHeap)
-{
-	assert(learnt.empty());
-	assert(conflict);
-	assert(!conflictClause.empty());
-	assert(level() > 0);
-	seen.clear();
-
-	std::priority_queue<std::pair<int, Lit>> todo;
-
-	for (Lit l : conflictClause)
-	{
-		// assert(assign[l.neg()]);
-		seen[l.var()] = true;
-		todo.emplace(trailPos[l.var()], l);
-	}
-
-	while (!todo.empty())
-	{
-		// next literal
-		Lit l = todo.top().second;
-		todo.pop();
-		// assert(assign[l.neg()]);
-
-		// remove duplicates from queue
-		while (!todo.empty() && todo.top().second == l)
-			todo.pop();
-
-		sat.bumpVariableActivity(l.var());
-		activityHeap.update(l.var());
-
-		// next one is reason side
-		//   -> this one is reason side or UIP
-		//   -> add this one to learnt clause
-		if (todo.empty() || todo.top().first < mark_.back())
-		{
-			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
-				learnt.push_back(l);
-		}
-		else // otherwise resolve
-		{
-			Reason r = reason[l.var()];
-			if (r.isBinary())
-			{
-				todo.emplace(trailPos[r.lit().var()], r.lit());
-				seen[r.lit().var()] = true;
-			}
-			else if (r.isLong())
-			{
-				const Clause &cl = sat.clauses[r.cref()];
-				// assert(cl[0] == l.neg());
-				for (int i = 1; i < cl.size(); ++i)
-				{
-					todo.emplace(trailPos[cl[i].var()], cl[i]);
-					seen[cl[i].var()] = true;
-				}
-			}
-			else
-				assert(false);
-		}
-	}
-
-	// NOTE: at this point, resolution is done and the learnt clause is
-	// ordered by decreasing trailPos. In particular, learnt[0] is the UIP
-
-	sat.stats.nLitsLearnt += learnt.size();
-	sat.decayVariableActivity();
-
-	// strengthen the conflict clause using the reason clauses
-	// (NOTE: keep the order of remaining literals the same)
-	if (sat.stats.otf >= 1)
-	{
-		int j = 1;
-		for (int i = 1; i < (int)learnt.size(); ++i)
-			if (isRedundant(learnt[i]))
-				sat.stats.nLitsOtfRemoved += 1;
-			else
-				learnt[j++] = learnt[i];
-		learnt.resize(j);
-	}
-
-	// determine backtrack level ( = level of learnt[1])
-	assert(!learnt.empty());
-	if (learnt.size() == 1)
-		return 0;
-	int i = level() - 1;
-	while (mark_[i] > trailPos[learnt[1].var()])
-		i -= 1;
-
-	return i + 1;
 }
 
 // helper for OTF strengthening
