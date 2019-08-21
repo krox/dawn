@@ -239,6 +239,9 @@ void PropEngine::unroll_and_activate(int l, ActivityHeap &activityHeap)
 /** similar to analyzeConflict, but for lhbr */
 Lit PropEngine::analyzeBin(util::span<const Lit> tail)
 {
+	if (level() == 0)
+		return Lit::undef();
+	assert(level() > 0);
 	std::priority_queue<std::pair<int, Lit>> todo;
 
 	Lit dom = binDom[tail[0].var()];
@@ -246,6 +249,8 @@ Lit PropEngine::analyzeBin(util::span<const Lit> tail)
 	for (Lit l : tail)
 	{
 		assert(assign[l.neg()]);
+		if (trailPos[l.var()] < mark_[0])
+			continue;
 		if (binDom[l.var()] != dom)
 			return Lit::undef();
 		todo.emplace(trailPos[l.var()], l);
@@ -290,7 +295,7 @@ bool PropEngine::isRedundant(Lit lit)
 		       (sat.stats.otf >= 2 && isRedundant(r.lit()));
 	}
 
-	if (r.isLong())
+	assert(r.isLong());
 	{
 		Clause &cl = sat.clauses[r.cref()];
 		for (Lit l : cl.lits())
@@ -300,8 +305,6 @@ bool PropEngine::isRedundant(Lit lit)
 		seen[lit.var()] = true; // shortcut other calls to isRedundant
 		return true;
 	}
-
-	assert(false);
 }
 
 uint8_t PropEngine::calcGlue(util::span<const Lit> cl) const

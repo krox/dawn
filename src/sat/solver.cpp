@@ -37,6 +37,7 @@ int probe(Sat &sat)
 
 	if (candidates.size() > 10000)
 		candidates.resize(10000);
+	std::sort(candidates.begin(), candidates.end());
 
 	int nTries = 0, nFails = 0;
 	std::vector<Lit> buf;
@@ -45,6 +46,10 @@ int probe(Sat &sat)
 	{
 		// skip fixed literals
 		if (p.assign[branch] || p.assign[branch.neg()])
+			continue;
+
+		// skip non-roots (former roots might have become non-roots)
+		if (sat.bins[branch.neg()].empty() || !sat.bins[branch].empty())
 			continue;
 
 		nTries += 1;
