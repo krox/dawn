@@ -4,9 +4,12 @@
 #include "util/random.h"
 #include "util/stats.h"
 #include "util/stopwatch.h"
+#include <atomic>
 
 struct Stats
 {
+	std::atomic_bool interrupt = false;
+
 	// pRNG state
 	util::xoshiro256 rng;
 

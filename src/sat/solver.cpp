@@ -215,7 +215,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		}
 
 		/** maxConfl reached -> unroll and exit */
-		if (nConfl > maxConfl)
+		if (nConfl > maxConfl || sat.stats.interrupt)
 		{
 			if (p.level() > 0)
 				p.unroll_and_activate(0, activityHeap);
@@ -347,7 +347,7 @@ void inprocess(Sat &sat)
 {
 	inprocessCheap(sat);
 
-	for (int iter = 0; iter < 5; ++iter)
+	for (int iter = 0; iter < 5 && !sat.stats.interrupt; ++iter)
 	{
 		if (int nFound = probe(sat); nFound)
 		{
@@ -359,7 +359,7 @@ void inprocess(Sat &sat)
 	}
 
 	// maybe-not-so-cheap preprocessing: subsumption+SSR
-	if (sat.stats.subsume >= 1)
+	if (sat.stats.subsume >= 1 && !sat.stats.interrupt)
 	{
 		subsumeBinary(sat);
 		if (sat.stats.subsume >= 2)
@@ -397,9 +397,21 @@ int solve(Sat &sat, Solution &sol)
 			return 10;
 		}
 
+		if (sat.stats.interrupt)
+		{
+			fmt::print("c interrupted. abort solver.\n");
+			return 30;
+		}
+
 		// inprocessing
 		std::cout << "c cleanup" << std::endl;
 		inprocess(sat);
+
+		if (sat.stats.interrupt)
+		{
+			fmt::print("c interrupted. abort solver.\n");
+			return 30;
+		}
 
 		// clause cleaning
 		for (auto [ci, cl] : sat.clauses)

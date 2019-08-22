@@ -3,17 +3,27 @@
 #include "sat/dimacs.h"
 #include "sat/sat.h"
 #include "sat/solver.h"
+#include <csignal>
 #include <iostream>
 #include <random>
+#include <unistd.h>
+
+static Sat sat;
+
+extern "C" void interruptHandler(int)
+{
+	sat.stats.interrupt.store(true);
+	signal(SIGINT, SIG_DFL); // remove the handler so that a second SIGINT will
+	                         // abort the program
+}
 
 int main(int argc, char *argv[])
 {
-	Sat sat;
-
 	// command line arguments
 	std::string cnfFile, solFile;
 	bool shuffle = false;
 	int64_t seed = 0;
+	int timeout = 0;
 	CLI::App app{"sat solver"};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", solFile, "output solution in dimacs format");
@@ -35,6 +45,8 @@ int main(int argc, char *argv[])
 	             "use glue for clause-cleaning (default=true)");
 	app.add_option("--max-confls", sat.stats.maxConfls,
 	               "stop solving after (approximately) this many conflicts");
+	app.add_option("--max-time", timeout,
+	               "stop solving after (approximately) this time (seconds)");
 	app.add_flag("--shuffle", shuffle,
 	             "shuffle the variables and their polarities before solving");
 	app.add_option(
@@ -50,6 +62,13 @@ int main(int argc, char *argv[])
 	sat.stats.rng.seed(seed);
 	if (shuffle)
 		shuffleVariables(sat);
+
+	std::signal(SIGINT, &interruptHandler);
+	if (timeout > 0)
+	{
+		std::signal(SIGALRM, &interruptHandler);
+		alarm(timeout);
+	}
 
 	// solve
 	Solution sol;
