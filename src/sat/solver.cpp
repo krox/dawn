@@ -12,7 +12,7 @@
  *   - does UIP analysis in case something is found
  *   - does not use or modify polarity/activity of variables
  */
-int probe(Sat &sat)
+int probe(Sat &sat, int maxTries)
 {
 	PropEngine p(sat);
 	if (p.conflict)
@@ -27,17 +27,11 @@ int probe(Sat &sat)
 			continue;
 		if (!sat.bins[l].empty())
 			continue;
-
 		candidates.push_back(l);
-		auto dist =
-		    std::uniform_int_distribution<size_t>(0, candidates.size() - 1);
-		auto k = dist(sat.stats.rng);
-		std::swap(candidates.back(), candidates[k]);
 	}
-
-	if (candidates.size() > 10000)
-		candidates.resize(10000);
-	std::sort(candidates.begin(), candidates.end());
+	std::shuffle(candidates.begin(), candidates.end(), sat.stats.rng);
+	if (maxTries && (int)candidates.size() > maxTries)
+		candidates.resize(maxTries);
 
 	int nTries = 0, nFails = 0;
 	std::vector<Lit> buf;
@@ -59,7 +53,7 @@ int probe(Sat &sat)
 		if (p.conflict) // literal failed -> analyze and learn unit
 		{
 			nFails += 1;
-			int backLevel = p.analyzeConflict(buf);
+			[[maybe_unused]] int backLevel = p.analyzeConflict(buf);
 			assert(backLevel == 0);
 			assert(buf.size() == 1);
 			p.unroll(0);
@@ -330,17 +324,22 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 }
 
 // Very cheap preprocessing: unit-propagation and SCC
-void inprocessCheap(Sat &sat)
+int inprocessCheap(Sat &sat)
 {
+	int totalUP = 0;
+	int totalSCC = 0;
 	while (true)
 	{
 		if (int nFound = unitPropagation(sat); nFound)
-			fmt::print("c  UP removed {} variables\n", nFound);
+			totalUP += nFound;
 		else if (int nFound = runSCC(sat); nFound)
-			fmt::print("c SCC removed {} variables\n", nFound);
+			totalSCC += nFound;
 		else
 			break;
 	}
+
+	fmt::print("c UP+SCC removed {} + {} variables\n", totalUP, totalSCC);
+	return totalUP + totalSCC;
 }
 
 void inprocess(Sat &sat)
@@ -348,17 +347,32 @@ void inprocess(Sat &sat)
 	printBinaryStats(sat);
 	inprocessCheap(sat);
 
-	for (int iter = 0; iter < 5 && !sat.stats.interrupt; ++iter)
-	{
-		printBinaryStats(sat);
-		if (int nFound = probe(sat); nFound)
+	// failed literal probing settings:
+	// 0 = none
+	// 1 = only run while very successful
+	// 2 = run until everything is found (TODO: not exactly implemented...)
+	if (sat.stats.probing == 1)
+		while (!sat.stats.interrupt)
 		{
+			int nFound = probe(sat, 10000);
+			printBinaryStats(sat);
 			fmt::print("c FLP found {} failing literals\n", nFound);
+			if (nFound == 0)
+				break;
+			if (inprocessCheap(sat) < 10000)
+				break;
+		}
+
+	if (sat.stats.probing == 2)
+		while (!sat.stats.interrupt)
+		{
+			int nFound = probe(sat, 0);
+			printBinaryStats(sat);
+			fmt::print("c FLP found {} failing literals\n", nFound);
+			if (nFound == 0)
+				break;
 			inprocessCheap(sat);
 		}
-		else
-			break;
-	}
 
 	// maybe-not-so-cheap preprocessing: subsumption+SSR
 	if (sat.stats.subsume >= 1 && !sat.stats.interrupt)
