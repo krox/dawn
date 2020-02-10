@@ -1,8 +1,8 @@
 #include "sat/solver.h"
 
 #include "fmt/format.h"
+#include "sat/binary.h"
 #include "sat/propengine.h"
-#include "sat/scc.h"
 #include "sat/subsumption.h"
 #include <iomanip>
 
@@ -345,10 +345,12 @@ void inprocessCheap(Sat &sat)
 
 void inprocess(Sat &sat)
 {
+	printBinaryStats(sat);
 	inprocessCheap(sat);
 
 	for (int iter = 0; iter < 5 && !sat.stats.interrupt; ++iter)
 	{
+		printBinaryStats(sat);
 		if (int nFound = probe(sat); nFound)
 		{
 			fmt::print("c FLP found {} failing literals\n", nFound);
