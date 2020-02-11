@@ -29,15 +29,19 @@ struct Stats
 	int64_t maxLearnt = INT64_MAX;
 
 	// histogram of the visited(!) binary-lists and watchlists
-	util::IntHistogram binHistogram;
-	util::IntHistogram watchHistogram;
+	util::IntHistogram binHistogram;        // length of binary-list
+	util::IntHistogram watchHistogram;      // length of watch-list
+	util::IntHistogram clauseSizeHistogram; // length of visited long clauses
 
-	Stats() : binHistogram(0, 21), watchHistogram(0, 21) {}
+	Stats()
+	    : binHistogram(0, 21), watchHistogram(0, 21), clauseSizeHistogram(0, 21)
+	{}
 
 	// statistics on the search process
 	int64_t nLearnt = 0;
-	int64_t nBinProps = 0, nBinConfls = 0;
-	int64_t nLongProps = 0, nLongConfls = 0;
+	int64_t nBinSatisfied = 0, nBinProps = 0, nBinConfls = 0;
+	int64_t nLongSatisfied = 0, nLongShifts = 0, nLongProps = 0,
+	        nLongConfls = 0;
 	int64_t nLitsLearnt = 0, nLitsOtfRemoved = 0;
 	int64_t nLhbr = 0;
 

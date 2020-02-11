@@ -23,13 +23,25 @@ void Stats::dump()
 		fmt::print("c ===================== watchlist size histogram "
 		           "======================\n");
 		dumpHistogram(watchHistogram);
+		fmt::print("c =================== visited clause size histogram "
+		           "===================\n");
+		dumpHistogram(clauseSizeHistogram);
 	}
 
 	fmt::print("c ========================= propagation stats "
 	           "=========================\n");
 	fmt::print("c watchlist size: {:#10.2f}\n", watchHistogram.mean());
-	fmt::print("c binary props:   {:#10}\n", nBinProps);
-	fmt::print("c binary confls:  {:#10}\n", nBinConfls);
+	int64_t nBinTotal = nBinSatisfied + nBinProps + nBinConfls;
+	fmt::print("c binary sat.:    {:#10} ({:#4.1f} % of bins)\n", nBinSatisfied,
+	           100. * nBinSatisfied / nBinTotal);
+	fmt::print("c binary props:   {:#10} ({:#4.1f} % of bins)\n", nBinProps,
+	           100. * nBinProps / nBinTotal);
+	fmt::print("c binary confls:  {:#10} ({:#4.1f} % of bins)\n", nBinConfls,
+	           100. * nBinConfls / nBinTotal);
+	fmt::print("c long sat.:      {:#10} ({:#4.1f} % of watches)\n",
+	           nLongSatisfied, 100. * nLongSatisfied / watchHistogram.sum());
+	fmt::print("c long shift:     {:#10} ({:#4.1f} % of watches)\n",
+	           nLongShifts, 100. * nLongShifts / watchHistogram.sum());
 	fmt::print("c long props:     {:#10} ({:#4.1f} % of watches)\n", nLongProps,
 	           100. * nLongProps / watchHistogram.sum());
 	fmt::print("c long confls:    {:#10} ({:#4.1f} % of watches)\n",

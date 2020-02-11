@@ -344,7 +344,7 @@ int inprocessCheap(Sat &sat)
 
 void inprocess(Sat &sat)
 {
-	printBinaryStats(sat);
+	// printBinaryStats(sat);
 	inprocessCheap(sat);
 
 	// failed literal probing settings:
@@ -355,7 +355,7 @@ void inprocess(Sat &sat)
 		while (!sat.stats.interrupt)
 		{
 			int nFound = probe(sat, 10000);
-			printBinaryStats(sat);
+			// printBinaryStats(sat);
 			fmt::print("c FLP found {} failing literals\n", nFound);
 			if (nFound == 0)
 				break;
@@ -367,7 +367,7 @@ void inprocess(Sat &sat)
 		while (!sat.stats.interrupt)
 		{
 			int nFound = probe(sat, 0);
-			printBinaryStats(sat);
+			// printBinaryStats(sat);
 			fmt::print("c FLP found {} failing literals\n", nFound);
 			if (nFound == 0)
 				break;
@@ -405,7 +405,7 @@ int solve(Sat &sat, Solution &sol)
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = search(sat, 10000); tmp)
+		if (auto tmp = search(sat, 2000 * iter); tmp)
 		{
 			if (sat.contradiction)
 				return 20;

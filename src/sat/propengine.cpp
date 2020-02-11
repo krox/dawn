@@ -69,7 +69,10 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 		for (Lit z : sat.bins[y.neg()])
 		{
 			if (assign[z]) // already assigned true -> do nothing
+			{
+				sat.stats.nBinSatisfied += 1;
 				continue;
+			}
 
 			if (assign[z.neg()]) // already assigned false -> conflict
 			{
@@ -103,6 +106,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 		{
 			CRef ci = ws[wi];
 			Clause &c = sat.clauses[ci];
+			sat.stats.clauseSizeHistogram.add((int)c.size());
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if (c[0] == y.neg())
@@ -111,13 +115,17 @@ void PropEngine::propagateFull(Lit x, Reason r)
 
 			// other watched lit is satisfied -> do nothing
 			if (assign[c[0]])
+			{
+				sat.stats.nLongSatisfied += 1;
 				continue;
+			}
 
 			// check the tail of the clause
 			for (size_t i = 2; i < c.size(); ++i)
 				if (!assign[c[i].neg()]) // literal satisfied or undef -> move
 				                         // watch
 				{
+					sat.stats.nLongShifts += 1;
 					std::swap(c[1], c[i]);
 					watches[c[1]].push_back(ws[wi]);
 
