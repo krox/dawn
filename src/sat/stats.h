@@ -22,6 +22,8 @@ struct Stats
 	                         // (0=off, 1=binary, 2=full)
 	int probing = 1;         // failed literal probing
 	                         // (0=off, 1=limited, 2=full)
+	int tbr = 1;             // transitive binary reduction
+	                         // (0=off, 1=limited, 2=full)
 	bool lhbr = true;        // lazy hyper-binary resolution
 	bool useGlue = true;     // use glue for clause cleaning
 	int maxLearntSize = 100; // eagerly remove learnt very large learnt clauses

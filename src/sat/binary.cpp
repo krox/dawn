@@ -190,3 +190,80 @@ void printBinaryStats(Sat const &sat)
 		fmt::print("c (skipping {} smaller non-trivial components)\n",
 		           comps.size() - 10);
 }
+
+void runBinaryReduction(Sat &sat, int64_t limit)
+{
+	auto top = TopOrder(sat);
+	if (!top.valid()) // require acyclic
+		throw std::runtime_error("tried to run TBR without SCC first");
+
+	// sort clauses by topological order
+	for (int i = 0; i < sat.varCount() * 2; ++i)
+	{
+		auto a = Lit(i);
+		auto &bins = sat.bins[a.neg()];
+
+		std::sort(bins.begin(), bins.end(), [&top](Lit a, Lit b) -> bool {
+			return top.order(a) < top.order(b);
+		});
+
+		bins.erase(std::unique(bins.begin(), bins.end()), bins.end());
+
+		for (int j = 0; j < (int)bins.size(); ++j)
+		{
+			assert(top.order(Lit(i)) < top.order(bins[j]));
+			assert(j == 0 || top.order(bins[j - 1]) < top.order(bins[j]));
+		}
+	}
+
+	// start transitive reduction from pretty much all places
+	auto seen = util::bitset(2 * sat.varCount());
+	auto stack = std::vector<Lit>{};
+	int nFound = 0;
+	int64_t propCount = 0;
+	for (int i = 0; i < sat.varCount() * 2 && (limit == 0 || propCount < limit);
+	     ++i)
+	{
+		auto a = Lit(i);
+		if (sat.bins[a.neg()].size() < 2)
+			continue;
+
+		seen.clear();
+		assert(stack.empty());
+		for (size_t j = 0; j < sat.bins[a.neg()].size(); ++j)
+		{
+			Lit b = sat.bins[a.neg()][j];
+
+			// if b is already seen then (a->b) is redundant
+			if (seen[b])
+			{
+				nFound += 1;
+				sat.bins[a.neg()].erase(j);
+				--j;
+				continue;
+			}
+
+			// otherwise mark b and all its implications
+			stack.push_back(b);
+			seen[b] = true;
+			while (!stack.empty())
+			{
+				Lit c = stack.back();
+				stack.pop_back();
+				// fmt::print("pop {} ({} remain)\n", c.toDimacs(),
+				// stack.size());
+				for (Lit d : sat.bins[c.neg()])
+					if (!seen[d])
+					{
+						seen[d] = true;
+						stack.push_back(d);
+
+						propCount++;
+					}
+			}
+		}
+	}
+	assert(nFound % 2 == 0);
+	fmt::print("c TBR found {} redundant binaries (and used {} props)\n",
+	           nFound / 2, propCount);
+}

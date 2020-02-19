@@ -38,6 +38,9 @@ int main(int argc, char *argv[])
 	app.add_option("--probing", sat.stats.probing,
 	               "failed-literal probing"
 	               "(0=off, 1=limited, 2=full)");
+	app.add_option("--tbr", sat.stats.tbr,
+	               "transitive reduction for binaries"
+	               "(0=off, 1=limited, 2=full)");
 	app.add_option("--max-learnt-size", sat.stats.maxLearntSize,
 	               "learnt clauses larger than this are removed very quickly "
 	               "independent of cleaning strategy");

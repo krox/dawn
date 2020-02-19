@@ -14,7 +14,7 @@
     - [ ] activity
 * preprocessing / inprocessing
   - [x] subsumption / self-subsuming resolution
-  - [ ] transitive reduction of binary clauses
+  - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components
   - [ ] bounded variable elimination

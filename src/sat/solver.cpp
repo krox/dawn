@@ -346,6 +346,8 @@ void inprocess(Sat &sat)
 {
 	// printBinaryStats(sat);
 	inprocessCheap(sat);
+	if (sat.stats.tbr > 0)
+		runBinaryReduction(sat, sat.stats.tbr > 1 ? 0 : 1000000);
 
 	// failed literal probing settings:
 	// 0 = none

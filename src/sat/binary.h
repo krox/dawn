@@ -16,6 +16,9 @@ int runSCC(Sat &sat);
 /** print some stats about the binary implication graph */
 void printBinaryStats(Sat const &sat);
 
+/** remove redundant binary clauses */
+void runBinaryReduction(Sat &sat, int64_t limit);
+
 class TopOrder
 {
 	Sat const &sat_;
@@ -63,6 +66,7 @@ class TopOrder
 
 	std::vector<Lit> const &lits() const { return lits_; }
 	std::vector<int> const &order() const { return order_; }
+	int order(Lit a) const { return order_[a]; }
 	bool valid() const { return valid_; }
 };
 
