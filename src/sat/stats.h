@@ -15,17 +15,18 @@ struct Stats
 
 	// configuration
 	int64_t maxConfls = INT64_MAX;
-	bool watchStats = false; // print histogram of watchlist size
-	int otf = 2;             // on-the-fly strengthening of learnt clauses
-	                         // (0=off, 1=basic, 2=recursive)
-	int subsume = 2;         // subsumption and self-subsuming resolution
-	                         // (0=off, 1=binary, 2=full)
-	int probing = 1;         // failed literal probing
-	                         // (0=off, 1=limited, 2=full)
-	int tbr = 1;             // transitive binary reduction
-	                         // (0=off, 1=limited, 2=full)
-	bool lhbr = true;        // lazy hyper-binary resolution
-	bool useGlue = true;     // use glue for clause cleaning
+	bool watchStats = false;     // print histogram of watchlist size
+	int otf = 2;                 // on-the-fly strengthening of learnt clauses
+	                             // (0=off, 1=basic, 2=recursive)
+	int subsume = 2;             // subsumption and self-subsuming resolution
+	                             // (0=off, 1=binary, 2=full)
+	int probing = 1;             // failed literal probing
+	                             // (0=off, 1=limited, 2=full)
+	int tbr = 1;                 // transitive binary reduction
+	                             // (0=off, 1=limited, 2=full)
+	bool fullResolution = false; // learn by full resolution instead of UIP
+	bool lhbr = true;            // lazy hyper-binary resolution
+	bool useGlue = true;         // use glue for clause cleaning
 	int maxLearntSize = 100; // eagerly remove learnt very large learnt clauses
 	int maxLearntGlue = 100;
 	int64_t maxLearnt = INT64_MAX;

@@ -192,9 +192,21 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 			}
 
 			// analyze conflict
-			int backLevel = p.analyzeConflict(buf, callback);
+			int backLevel;
+			uint8_t glue;
+			if (sat.stats.fullResolution)
+			{
+				backLevel = p.analyzeConflictFull(buf, callback);
+				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
+				assert(glue == p.calcGlue(buf));
+			}
+			else
+			{
+				backLevel = p.analyzeConflict(buf, callback);
+				glue = p.calcGlue(buf);
+			}
+
 			sat.decayVariableActivity();
-			auto glue = p.calcGlue(buf);
 			sat.stats.nLearnt += 1;
 			sat.stats.nLitsLearnt += buf.size();
 

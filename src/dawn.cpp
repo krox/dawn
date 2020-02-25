@@ -47,6 +47,8 @@ int main(int argc, char *argv[])
 	app.add_option("--max-learnt-glue", sat.stats.maxLearntGlue);
 	app.add_option("--max-learnt", sat.stats.maxLearnt);
 	app.add_flag("--lhbr", sat.stats.lhbr, "lazy hyper-binary resolution");
+	app.add_flag("--full-resolution", sat.stats.fullResolution,
+	             "learn by full resolution instead of UIP (default=off)");
 	app.add_flag("--use-glue", sat.stats.useGlue,
 	             "use glue for clause-cleaning (default=true)");
 	app.add_option("--max-confls", sat.stats.maxConfls,
