@@ -6,7 +6,11 @@
 #include <cassert>
 #include <vector>
 
-/** returns 10=SAT, 20=UNSAT, 30=UNKNWON */
+/**
+ * Solves a SAT problem.
+ *   - configured using settings in 'sat.stats' (might be moved at some point)
+ *   - returns 10=SAT, 20=UNSAT, 30=UNKNWON (timeout or some other limit)
+ */
 int solve(Sat &sat, Solution &sol);
 
 #endif

@@ -49,5 +49,6 @@ int main(int argc, char *argv[])
 
 		cl.resize(0);
 	}
+	std::cout << "p cnf " << varCount << " " << clauseCount << std::endl;
 	std::cout << sat;
 }

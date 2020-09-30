@@ -147,8 +147,8 @@ Solution buildSolution(const PropEngine &p)
 	return sol;
 }
 
-/** return true if solved (contradiction or solution found), false if maxConfl
- * reached */
+/** returns solution if found, or std::nullopt if limits reached or
+ * contradiction */
 std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 {
 	StopwatchGuard _(sat.stats.swSearch);
@@ -398,12 +398,11 @@ void inprocess(Sat &sat)
 	}
 }
 
-/** returns 10 for SAT, 20 for UNSAT, 30 for UNKNOWN (timeout or similar) */
 int solve(Sat &sat, Solution &sol)
 {
 	StopwatchGuard _(sat.stats.swTotal);
 
-	inprocess(sat);
+	// inprocess(sat);
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
@@ -421,11 +420,13 @@ int solve(Sat &sat, Solution &sol)
 		// search for a number of conflicts
 		if (auto tmp = search(sat, 2000 * iter); tmp)
 		{
-			if (sat.contradiction)
-				return 20;
+			assert(!sat.contradiction);
 			sol = *tmp;
 			return 10;
 		}
+
+		if (sat.contradiction)
+			return 20;
 
 		if (sat.stats.interrupt)
 		{

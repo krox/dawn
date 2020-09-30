@@ -24,9 +24,12 @@ int main(int argc, char *argv[])
 	bool shuffle = false;
 	int64_t seed = 0;
 	int timeout = 0;
+	bool allSolutions = false;
 	CLI::App app{"sat solver"};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", solFile, "output solution in dimacs format");
+	app.add_flag("--all", allSolutions,
+	             "find all solutions instead of just one");
 	app.add_flag("--watch-stats", sat.stats.watchStats,
 	             "print watchlist statistics");
 	app.add_option("--otf", sat.stats.otf,
@@ -79,38 +82,60 @@ int main(int argc, char *argv[])
 	}
 
 	// solve
-	Solution sol;
-	int result = solve(sat, sol);
-
-	// print to stdout
-	if (result == 10)
+	int result = 10;
+	while (result == 10)
 	{
-		std::cout << "s SATISFIABLE" << std::endl;
-		if (solFile == "")
-			std::cout << sol << std::endl;
-	}
-	else if (result == 20)
-		std::cout << "s UNSATISFIABLE" << std::endl;
-	else if (result == 30)
-		std::cout << "s UNKNOWN" << std::endl;
-	else
-		assert(false);
+		Solution sol;
+		std::cout << "problem now is: " << std::endl;
+		std::cout << sat;
+		result = solve(sat, sol);
 
-	// print to file
-	if (solFile != "")
-	{
-		std::ofstream f(solFile, std::ofstream::out);
+		// print to stdout
 		if (result == 10)
 		{
-			f << "s SATISFIABLE" << std::endl;
-			f << sol << std::endl;
+			std::cout << "s SATISFIABLE" << std::endl;
+			if (solFile == "")
+				std::cout << sol << std::endl;
 		}
 		else if (result == 20)
-			f << "s UNSATISFIABLE" << std::endl;
+			std::cout << "s UNSATISFIABLE" << std::endl;
 		else if (result == 30)
-			f << "s UNKNOWN" << std::endl;
+			std::cout << "s UNKNOWN" << std::endl;
 		else
 			assert(false);
+
+		// print to file
+		if (solFile != "")
+		{
+			std::ofstream f(solFile, std::ofstream::out);
+			if (result == 10)
+			{
+				f << "s SATISFIABLE" << std::endl;
+				f << sol << std::endl;
+			}
+			else if (result == 20)
+				f << "s UNSATISFIABLE" << std::endl;
+			else if (result == 30)
+				f << "s UNKNOWN" << std::endl;
+			else
+				assert(false);
+		}
+
+		// if all solutions are requestes, add a clause excluding the current
+		// solution and start again
+		if (allSolutions && result == 10)
+		{
+			assert(sol.valid());
+			std::vector<Lit> cl;
+			for (int i = 0; i < sol.varCount(); ++i)
+				if (sol.satisfied(Lit(i, false)))
+					cl.push_back(Lit(i, true));
+				else
+					cl.push_back(Lit(i, false));
+			sat.addClauseOuter(cl);
+		}
+		else
+			break;
 	}
 
 	// statistics
