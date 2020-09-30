@@ -44,7 +44,7 @@ int main(int argc, char *argv[])
 		if (sol.satisfied(cl))
 		{
 			++ci;
-			sat.addClause(cl);
+			sat.addClause(cl, true);
 		}
 
 		cl.resize(0);
