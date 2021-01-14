@@ -2,77 +2,9 @@
 
 #include "fmt/format.h"
 #include "sat/binary.h"
+#include "sat/probing.h"
 #include "sat/propengine.h"
 #include "sat/subsumption.h"
-#include <iomanip>
-
-/**
- * Do one sweep of failed literal probing
- *   - only tries at roots of implication graph
- *   - does UIP analysis in case something is found
- *   - does not use or modify polarity/activity of variables
- */
-int probe(Sat &sat, int maxTries)
-{
-	PropEngine p(sat);
-	if (p.conflict)
-		return 0;
-
-	// list and shuffle candidates
-	std::vector<Lit> candidates;
-	for (int i = 0; i < 2 * sat.varCount(); ++i)
-	{
-		auto l = Lit(i);
-		if (sat.bins[l.neg()].empty())
-			continue;
-		if (!sat.bins[l].empty())
-			continue;
-		candidates.push_back(l);
-	}
-	std::shuffle(candidates.begin(), candidates.end(), sat.stats.rng);
-	if (maxTries && (int)candidates.size() > maxTries)
-		candidates.resize(maxTries);
-
-	int nTries = 0, nFails = 0;
-	std::vector<Lit> buf;
-
-	for (Lit branch : candidates)
-	{
-		// skip fixed literals
-		if (p.assign[branch] || p.assign[branch.neg()])
-			continue;
-
-		// skip non-roots (former roots might have become non-roots)
-		if (sat.bins[branch.neg()].empty() || !sat.bins[branch].empty())
-			continue;
-
-		nTries += 1;
-
-		p.branch(branch);
-
-		if (p.conflict) // literal failed -> analyze and learn unit
-		{
-			nFails += 1;
-			[[maybe_unused]] int backLevel = p.analyzeConflict(buf);
-			assert(backLevel == 0);
-			assert(buf.size() == 1);
-			p.unroll(0);
-			p.addLearntClause(buf, 1);
-			p.propagateFull(buf[0], Reason::undef());
-			buf.resize(0);
-
-			// UNSAT encountered
-			if (p.conflict)
-				return 1;
-		}
-		else // no fail -> do nothing
-		{
-			p.unroll(0);
-		}
-	}
-
-	return nFails;
-}
 
 static void printHeader()
 {
@@ -340,7 +272,7 @@ int inprocessCheap(Sat &sat)
 {
 	int totalUP = 0;
 	int totalSCC = 0;
-	while (true)
+	while (true) // in princinple, this loop should be capped...
 	{
 		if (int nFound = unitPropagation(sat); nFound)
 			totalUP += nFound;
@@ -354,35 +286,32 @@ int inprocessCheap(Sat &sat)
 	return totalUP + totalSCC;
 }
 
+/** run the full inprocessing, as configured in sat.stats */
 void inprocess(Sat &sat)
 {
 	// printBinaryStats(sat);
 	inprocessCheap(sat);
-	if (sat.stats.tbr > 0)
-		runBinaryReduction(sat, sat.stats.tbr > 1 ? 0 : 1000000);
 
 	// failed literal probing settings:
 	// 0 = none
 	// 1 = only run while very successful
-	// 2 = run until everything is found (TODO: not exactly implemented...)
+	// 2 = run until everything is found
 	if (sat.stats.probing == 1)
 		while (!sat.stats.interrupt)
 		{
 			int nFound = probe(sat, 10000);
-			// printBinaryStats(sat);
-			fmt::print("c FLP found {} failing literals\n", nFound);
+			fmt::print("c FLP (partial) found {} failing literals\n", nFound);
 			if (nFound == 0)
 				break;
 			if (inprocessCheap(sat) < 10000)
 				break;
 		}
 
-	if (sat.stats.probing == 2)
+	if (sat.stats.probing >= 2)
 		while (!sat.stats.interrupt)
 		{
 			int nFound = probe(sat, 0);
-			// printBinaryStats(sat);
-			fmt::print("c FLP found {} failing literals\n", nFound);
+			fmt::print("c FLP (full) found {} failing literals\n", nFound);
 			if (nFound == 0)
 				break;
 			inprocessCheap(sat);
@@ -396,6 +325,11 @@ void inprocess(Sat &sat)
 			subsumeLong(sat);
 		inprocessCheap(sat);
 	}
+
+	// cleanup
+	// (do this last, because it cant lead to anything new for the other passes)
+	if (sat.stats.tbr > 0)
+		runBinaryReduction(sat, sat.stats.tbr > 1 ? 0 : 1000000);
 }
 
 int solve(Sat &sat, Solution &sol)

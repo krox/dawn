@@ -141,11 +141,11 @@ inline util::span<const Lit> PropEngine::trail(int l) const
 	if (l == 0 && level() == 0)
 		return t;
 	else if (l == 0)
-		return t.subspan(0, mark_[0]);
+		return t.slice(0, mark_[0]);
 	else if (l == level())
-		return t.subspan(mark_[l - 1], t.size());
+		return t.slice(mark_[l - 1], t.size());
 	else
-		return t.subspan(mark_[l - 1], mark_[l]);
+		return t.slice(mark_[l - 1], mark_[l]);
 }
 
 inline int PropEngine::analyzeConflict(std::vector<Lit> &learnt)

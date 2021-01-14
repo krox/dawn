@@ -86,8 +86,6 @@ int main(int argc, char *argv[])
 	while (result == 10)
 	{
 		Solution sol;
-		std::cout << "problem now is: " << std::endl;
-		std::cout << sat;
 		result = solve(sat, sol);
 
 		// print to stdout

@@ -152,7 +152,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 
 				// lazy hyper-binary resolution
 				if (sat.stats.lhbr)
-					if (Lit dom = analyzeBin(c.lits().subspan(1, c.size()));
+					if (Lit dom = analyzeBin(c.lits().slice(1, c.size()));
 					    dom != Lit::undef())
 					{
 						sat.stats.nLhbr += 1;
