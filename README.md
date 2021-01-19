@@ -7,16 +7,19 @@
     - [x] lazy hyper-binary-resolution
   * branching heuristic
     - [x] VSIDS
-    - [x] polarity-saving
+    - [x] polarity saving
+    - [ ] dominating-literal branching
   * clause-cleaning heuristic
     - [x] size
     - [x] glue
     - [ ] activity
 * preprocessing / inprocessing
   - [x] subsumption / self-subsuming resolution
+  - [ ] vivification
   - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components
+  - [ ] blocked-clause elimination
   - [ ] bounded variable elimination
   - [ ] bounded variable addition (at least some?)
   - [ ] xor discovery and gaussian elimination
