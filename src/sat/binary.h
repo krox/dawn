@@ -17,7 +17,7 @@ int runSCC(Sat &sat);
 void printBinaryStats(Sat const &sat);
 
 /** remove redundant binary clauses */
-void runBinaryReduction(Sat &sat, int64_t limit);
+void runBinaryReduction(Sat &sat);
 
 class TopOrder
 {

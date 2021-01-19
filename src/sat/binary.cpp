@@ -191,7 +191,7 @@ void printBinaryStats(Sat const &sat)
 		           comps.size() - 10);
 }
 
-void runBinaryReduction(Sat &sat, int64_t limit)
+void runBinaryReduction(Sat &sat)
 {
 	auto top = TopOrder(sat);
 	if (!top.valid()) // require acyclic
@@ -221,8 +221,7 @@ void runBinaryReduction(Sat &sat, int64_t limit)
 	auto stack = std::vector<Lit>{};
 	int nFound = 0;
 	int64_t propCount = 0;
-	for (int i = 0; i < sat.varCount() * 2 && (limit == 0 || propCount < limit);
-	     ++i)
+	for (int i = 0; i < sat.varCount() * 2; ++i)
 	{
 		auto a = Lit(i);
 		if (sat.bins[a.neg()].size() < 2)
@@ -264,6 +263,6 @@ void runBinaryReduction(Sat &sat, int64_t limit)
 		}
 	}
 	assert(nFound % 2 == 0);
-	fmt::print("c TBR found {} redundant binaries (and used {} props)\n",
+	fmt::print("c TBR found {} redundant binaries (while using {} props)\n",
 	           nFound / 2, propCount);
 }

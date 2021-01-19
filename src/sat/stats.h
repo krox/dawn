@@ -22,8 +22,8 @@ struct Stats
 	                             // (0=off, 1=binary, 2=full)
 	int probing = 1;             // failed literal probing
 	                             // (0=off, 1=limited, 2=full)
-	int tbr = 1;                 // transitive binary reduction
-	                             // (0=off, 1=limited, 2=full)
+	int tbr = 2;                 // transitive binary reduction
+	                             // (0=off, 2=full)
 	bool fullResolution = false; // learn by full resolution instead of UIP
 	bool lhbr = true;            // lazy hyper-binary resolution
 	bool useGlue = true;         // use glue for clause cleaning

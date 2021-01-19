@@ -4,6 +4,8 @@
 
 int probe(Sat &sat, int maxTries)
 {
+	StopwatchGuard swg(sat.stats.swProbing);
+
 	PropEngine p(sat);
 	if (p.conflict)
 		return 0;

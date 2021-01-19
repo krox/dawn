@@ -272,17 +272,19 @@ int inprocessCheap(Sat &sat)
 {
 	int totalUP = 0;
 	int totalSCC = 0;
-	while (true) // in princinple, this loop should be capped...
+	int iter = 0;
+	for (;; ++iter) // in princinple, this loop should be capped...
 	{
 		if (int nFound = unitPropagation(sat); nFound)
 			totalUP += nFound;
-		else if (int nFound = runSCC(sat); nFound)
+		if (int nFound = runSCC(sat); nFound)
 			totalSCC += nFound;
 		else
 			break;
 	}
 
-	fmt::print("c UP+SCC removed {} + {} variables\n", totalUP, totalSCC);
+	fmt::print("c UP+SCC ({} iterations) removed {} + {} variables\n", iter,
+	           totalUP, totalSCC);
 	return totalUP + totalSCC;
 }
 
@@ -329,20 +331,20 @@ void inprocess(Sat &sat)
 	// cleanup
 	// (do this last, because it cant lead to anything new for the other passes)
 	if (sat.stats.tbr > 0)
-		runBinaryReduction(sat, sat.stats.tbr > 1 ? 0 : 1000000);
+		runBinaryReduction(sat);
 }
 
 int solve(Sat &sat, Solution &sol)
 {
 	StopwatchGuard _(sat.stats.swTotal);
 
-	// inprocess(sat);
+	inprocess(sat);
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
 
 	// main solver loop
-	for (int iter = 0;; ++iter)
+	for (int iter = 1;; ++iter)
 	{
 		// check limit
 		if (sat.stats.nConfls() >= sat.stats.maxConfls)
