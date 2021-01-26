@@ -17,20 +17,22 @@ void Stats::dump()
 {
 	if (watchStats)
 	{
-		fmt::print("c ======================= binlist size histogram "
-		           "=======================\n");
+		fmt::print("c ========================== binlist size histogram "
+		           "===========================\n");
 		dumpHistogram(binHistogram);
-		fmt::print("c ===================== watchlist size histogram "
-		           "======================\n");
+		fmt::print("c ========================= watchlist size histogram "
+		           "==========================\n");
 		dumpHistogram(watchHistogram);
-		fmt::print("c =================== visited clause size histogram "
-		           "===================\n");
+		fmt::print("c ============= visited clause size histogram (excl. "
+		           "blocked cls) =============\n");
 		dumpHistogram(clauseSizeHistogram);
 	}
 
 	fmt::print("c ========================= propagation stats "
 	           "=========================\n");
 	fmt::print("c watchlist size: {:#10.2f}\n", watchHistogram.mean());
+
+	// binary propagations
 	int64_t nBinTotal = nBinSatisfied + nBinProps + nBinConfls;
 	fmt::print("c binary sat.:    {:#10} ({:#4.1f} % of bins)\n", nBinSatisfied,
 	           100. * nBinSatisfied / nBinTotal);
@@ -38,6 +40,21 @@ void Stats::dump()
 	           100. * nBinProps / nBinTotal);
 	fmt::print("c binary confls:  {:#10} ({:#4.1f} % of bins)\n", nBinConfls,
 	           100. * nBinConfls / nBinTotal);
+
+	// ternary propagations
+	fmt::print("c ternary sat.:   {:#10} ({:#4.1f} % of watches)\n",
+	           nTernarySatisfied,
+	           100. * nTernarySatisfied / watchHistogram.sum());
+	fmt::print("c ternary noops:  {:#10} ({:#4.1f} % of watches)\n",
+	           nTernaryNoops, 100. * nTernaryNoops / watchHistogram.sum());
+	fmt::print("c ternary props:  {:#10} ({:#4.1f} % of watches)\n",
+	           nTernaryProps, 100. * nTernaryProps / watchHistogram.sum());
+	fmt::print("c ternary confls: {:#10} ({:#4.1f} % of watches)\n",
+	           nTernaryConfls, 100. * nTernaryConfls / watchHistogram.sum());
+
+	// long propagations
+	fmt::print("c long blocked:   {:#10} ({:#4.1f} % of watches)\n",
+	           nLongBlocked, 100. * nLongBlocked / watchHistogram.sum());
 	fmt::print("c long sat.:      {:#10} ({:#4.1f} % of watches)\n",
 	           nLongSatisfied, 100. * nLongSatisfied / watchHistogram.sum());
 	fmt::print("c long shift:     {:#10} ({:#4.1f} % of watches)\n",

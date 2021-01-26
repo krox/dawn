@@ -10,14 +10,26 @@
 
 struct Reason
 {
-	// msb=0 -> binary clause
-	// msb=1 -> long clause
+	// val_=UINT32_MAX -> undef
+	// msb=0 && lit2  = Lit::undef() -> binary clause
+	// msb=0 && lit2 != Lit::undef() -> ternary clause
+	// msb=1 -> long clause (lit2 unused)
+  private:
 	uint32_t val_;
+	Lit lit2_;
 
   public:
 	constexpr Reason() : val_(UINT32_MAX) {}
 
-	explicit constexpr Reason(Lit a) : val_(a) { assert(a.proper()); }
+	explicit constexpr Reason(Lit a) : val_(a), lit2_(Lit::undef())
+	{
+		assert(a.proper());
+	}
+
+	explicit constexpr Reason(Lit a, Lit b) : val_(a), lit2_(b)
+	{
+		assert(a.proper() && b.proper());
+	}
 
 	explicit constexpr Reason(CRef cref) : val_(cref | (1u << 31))
 	{
@@ -28,7 +40,14 @@ struct Reason
 
 	bool isBinary() const
 	{
-		return val_ != UINT32_MAX && (val_ & (1u << 31)) == 0;
+		return val_ != UINT32_MAX && (val_ & (1u << 31)) == 0 &&
+		       lit2_ == Lit::undef();
+	}
+
+	bool isTernary() const
+	{
+		return val_ != UINT32_MAX && (val_ & (1u << 31)) == 0 &&
+		       lit2_ != Lit::undef();
 	}
 
 	bool isLong() const
@@ -40,8 +59,14 @@ struct Reason
 
 	Lit lit() const
 	{
-		assert(isBinary());
+		assert(isBinary() || isTernary());
 		return Lit(val_ & (UINT32_MAX >> 1));
+	}
+
+	Lit lit2() const
+	{
+		assert(isTernary());
+		return lit2_;
 	}
 
 	CRef cref() const
@@ -51,6 +76,53 @@ struct Reason
 	}
 
 	constexpr bool operator==(Reason b) const { return val_ == b.val_; }
+};
+
+struct Watch
+{
+	// msb=0 -> ternary clause (lit2 is other literal)
+	// msb=1 -> long clause (lit2 is blocking literal)
+  private:
+	uint32_t val_;
+	Lit lit2_;
+
+  public:
+	// something like 'Watch::undef()' is never used, but being
+	// default-constructible is still nice
+	Watch() = default;
+
+	/** create watch for (implicit) ternary clause */
+	explicit constexpr Watch(Lit a, Lit b) : val_(a), lit2_(b)
+	{
+		assert(a.proper() && b.proper());
+	}
+
+	/** create watch for long clause (with blocking literal) */
+	explicit constexpr Watch(CRef cref, Lit blocking)
+	    : val_(cref | (1u << 31)), lit2_(blocking)
+	{
+		assert(cref.proper() && blocking.proper());
+	}
+
+	bool isTernary() const { return (val_ & (1u << 31)) == 0; }
+
+	bool isLong() const { return (val_ & (1u << 31)) != 0; }
+
+	Lit lit() const
+	{
+		assert(isTernary());
+		return Lit(val_ & (UINT32_MAX >> 1));
+	}
+
+	/** either last literal of ternary, or blocking literal of long clause */
+	Lit lit2() const { return lit2_; }
+	Lit &lit2() { return lit2_; }
+
+	CRef cref() const
+	{
+		assert(isLong());
+		return CRef(val_ & (UINT32_MAX >> 1));
+	}
 };
 
 /**
@@ -69,7 +141,7 @@ class PropEngine
 	std::vector<int> mark_;  // indices into trail
 
   public:
-	using watches_t = std::vector<util::small_vector<CRef, 6>>;
+	using watches_t = std::vector<util::small_vector<Watch, 7>>;
 	watches_t watches;
 
 	std::vector<Reason> reason; // only valid for assigned vars
@@ -82,6 +154,7 @@ class PropEngine
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
 	Lit analyzeBin(util::span<const Lit> reason); // helper for LHBR
+	Lit analyzeBin(Lit a, Lit b);                 // same as analyzeBin({a,b})
 
   public:
 	std::vector<bool> assign;
@@ -201,6 +274,13 @@ inline int PropEngine::analyzeConflict(std::vector<Lit> &learnt, F f)
 			{
 				todo.emplace(trailPos[r.lit().var()], r.lit());
 				seen[r.lit().var()] = true;
+			}
+			else if (r.isTernary())
+			{
+				todo.emplace(trailPos[r.lit().var()], r.lit());
+				todo.emplace(trailPos[r.lit2().var()], r.lit2());
+				seen[r.lit().var()] = true;
+				seen[r.lit2().var()] = true;
 			}
 			else if (r.isLong())
 			{

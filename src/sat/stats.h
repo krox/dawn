@@ -43,13 +43,18 @@ struct Stats
 	// statistics on the search process
 	int64_t nLearnt = 0;
 	int64_t nBinSatisfied = 0, nBinProps = 0, nBinConfls = 0;
-	int64_t nLongSatisfied = 0, nLongShifts = 0, nLongProps = 0,
-	        nLongConfls = 0;
+	int64_t nTernarySatisfied = 0, nTernaryNoops = 0, nTernaryProps = 0,
+	        nTernaryConfls = 0;
+	int64_t nLongBlocked = 0, nLongSatisfied = 0, nLongShifts = 0,
+	        nLongProps = 0, nLongConfls = 0;
 	int64_t nLitsLearnt = 0, nLitsOtfRemoved = 0;
 	int64_t nLhbr = 0;
 
-	int64_t nProps() const { return nBinProps + nLongProps; }
-	int64_t nConfls() const { return nBinConfls + nLongConfls; }
+	int64_t nProps() const { return nBinProps + nTernaryProps + nLongProps; }
+	int64_t nConfls() const
+	{
+		return nBinConfls + nTernaryConfls + nLongConfls;
+	}
 
 	// time of different parts of the solver
 	util::Stopwatch swTotal, swParsing;

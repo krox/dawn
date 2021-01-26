@@ -203,7 +203,7 @@ inline size_t Sat::binaryCount() const
 inline size_t Sat::longCount() const
 {
 	size_t r = 0;
-	for (auto _ [[maybe_unused]] : clauses)
+	for (auto _[[maybe_unused]] : clauses)
 		++r;
 	return r;
 }

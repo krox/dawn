@@ -19,12 +19,21 @@ PropEngine::PropEngine(Sat &sat)
 		return;
 	}
 
-	// attach long clauses
+	// attach long clauses (including ternary)
 	for (auto [i, c] : sat.clauses)
 	{
-		assert(c.size() >= 2);
-		watches[c[0]].push_back(i);
-		watches[c[1]].push_back(i);
+		if (c.size() == 3)
+		{
+			watches[c[0]].push_back(Watch(c[1], c[2]));
+			watches[c[1]].push_back(Watch(c[2], c[0]));
+			watches[c[2]].push_back(Watch(c[0], c[1]));
+		}
+		else
+		{
+			assert(c.size() >= 4);
+			watches[c[0]].push_back(Watch(i, c[1]));
+			watches[c[1]].push_back(Watch(i, c[0]));
+		}
 	}
 
 	// propagate unary clauses
@@ -104,7 +113,86 @@ void PropEngine::propagateFull(Lit x, Reason r)
 		sat.stats.watchHistogram.add((int)ws.size());
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
-			CRef ci = ws[wi];
+			if (ws[wi].isTernary())
+			{
+				// clause satisfied -> do nothing
+				if (assign[ws[wi].lit()] || assign[ws[wi].lit2()])
+				{
+					sat.stats.nTernarySatisfied += 1;
+					continue;
+				}
+
+				// this swap has two advantages:
+				//   1) reduces the number of cases below from 4 to 3
+				//   2) satisfied literal tends to be in front,
+				//      making above check slightly cheaper (lazy '||')
+				if (assign[ws[wi].lit().neg()])
+					ws[wi] = Watch(ws[wi].lit2(), ws[wi].lit());
+
+				if (assign[ws[wi].lit().neg()])
+				{
+					if (assign[ws[wi].lit2().neg()])
+					{
+						// lit = lit2 = false -> conflict
+						sat.stats.nTernaryConfls += 1;
+						conflict = true;
+						assert(conflictClause.empty());
+						conflictClause.push_back(y.neg());
+						conflictClause.push_back(ws[wi].lit());
+						conflictClause.push_back(ws[wi].lit2());
+						return; // stop propagating immediately
+					}
+					else
+					{
+						// lit = false, lit2 = undef
+						assert(false); // cant happen
+					}
+				}
+				else
+				{
+					if (assign[ws[wi].lit2().neg()])
+					{
+						// lit = undef, lit2 = false -> propagate
+						sat.stats.nTernaryProps += 1;
+						Reason r2 = Reason(y.neg(), ws[wi].lit2());
+
+						// lazy hyper-binary resolution
+						if (sat.stats.lhbr)
+							if (Lit dom = analyzeBin(r2.lit(), r2.lit2());
+							    dom != Lit::undef())
+							{
+								sat.stats.nLhbr += 1;
+
+								// learn new binary clause and use it
+								assert(assign[dom.neg()]);
+								r2 = addLearntClause(ws[wi].lit(), dom);
+							}
+
+						propagateBinary(ws[wi].lit(), r2);
+						if (conflict)
+							return;
+					}
+					else
+					{
+						// lit == lit2 == undef -> do nothing
+						sat.stats.nTernaryNoops += 1;
+					}
+				}
+				continue;
+			}
+
+			assert(ws[wi].isLong());
+
+			// blocking literal satisfied -> do nothing
+			// (Hopefully, this is the most common case. This does not need
+			//  to access the clause itself, saving on cache-misses)
+			if (assign[ws[wi].lit2()])
+			{
+				sat.stats.nLongBlocked += 1;
+				continue;
+			}
+
+			CRef ci = ws[wi].cref();
 			Clause &c = sat.clauses[ci];
 			sat.stats.clauseSizeHistogram.add((int)c.size());
 
@@ -113,9 +201,10 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				std::swap(c[0], c[1]);
 			assert(c[1] == y.neg());
 
-			// other watched lit is satisfied -> do nothing
+			// other watched lit is satisfied -> do nothing (+ update blocked)
 			if (assign[c[0]])
 			{
+				ws[wi].lit2() = c[0]; // update blocked literal
 				sat.stats.nLongSatisfied += 1;
 				continue;
 			}
@@ -127,7 +216,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				{
 					sat.stats.nLongShifts += 1;
 					std::swap(c[1], c[i]);
-					watches[c[1]].push_back(ws[wi]);
+					watches[c[1]].push_back(Watch(ws[wi].cref(), c[0]));
 
 					ws[wi] = ws.back();
 					--wi;
@@ -147,6 +236,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			}
 			else
 			{
+				ws[wi].lit2() = c[0]; // update blocked literal
 				sat.stats.nLongProps += 1;
 				Reason r2 = Reason(ci);
 
@@ -201,10 +291,20 @@ Reason PropEngine::addLearntClause(const std::vector<Lit> &cl, uint8_t glue)
 	case 2:
 		sat.addBinary(cl[0], cl[1]);
 		return Reason(cl[1]);
+	case 3:
+	{
+		CRef cref = sat.addLong(cl, false);
+		watches[cl[0]].push_back(Watch(cl[1], cl[2]));
+		watches[cl[1]].push_back(Watch(cl[2], cl[0]));
+		watches[cl[2]].push_back(Watch(cl[0], cl[1]));
+		assert(2 <= glue && glue <= cl.size());
+		sat.clauses[cref].glue = glue;
+		return Reason(cl[1], cl[2]);
+	}
 	default:
 		CRef cref = sat.addLong(cl, false);
-		watches[cl[0]].push_back(cref);
-		watches[cl[1]].push_back(cref);
+		watches[cl[0]].push_back(Watch(cref, cl[1]));
+		watches[cl[1]].push_back(Watch(cref, cl[0]));
 		assert(2 <= glue && glue <= cl.size());
 		sat.clauses[cref].glue = glue;
 		return Reason(cref);
@@ -287,6 +387,11 @@ Lit PropEngine::analyzeBin(util::span<const Lit> tail)
 	}
 }
 
+Lit PropEngine::analyzeBin(Lit a, Lit b)
+{
+	return analyzeBin(std::array<Lit, 2>{a, b});
+}
+
 // helper for OTF strengthening
 bool PropEngine::isRedundant(Lit lit)
 {
@@ -299,10 +404,23 @@ bool PropEngine::isRedundant(Lit lit)
 
 	if (r.isBinary())
 	{
-		return seen[r.lit().var()] ||
-		       (sat.stats.otf >= 2 && isRedundant(r.lit()));
+		if (!seen[r.lit().var()] &&
+		    !(sat.stats.otf >= 2 && isRedundant(r.lit())))
+			return false;
+		seen[lit.var()] = true; // shortcut other calls to isRedundant
+		return true;
 	}
-
+	if (r.isTernary())
+	{
+		if (!seen[r.lit().var()] &&
+		    !(sat.stats.otf >= 2 && isRedundant(r.lit())))
+			return false;
+		if (!seen[r.lit2().var()] &&
+		    !(sat.stats.otf >= 2 && isRedundant(r.lit2())))
+			return false;
+		seen[lit.var()] = true; // shortcut other calls to isRedundant
+		return true;
+	}
 	assert(r.isLong());
 	{
 		Clause &cl = sat.clauses[r.cref()];

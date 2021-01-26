@@ -26,7 +26,7 @@
 * data-structures
   - [x] two-watch scheme
   - [x] implicit binary clauses
-  - [ ] implicit ternary clauses (and blocking literal)
+  - [x] implicit ternary clauses and blocking literal
   - [x] packed long clauses with 32-bit references
   - [x] small-vector optimization for binaries and watches
 * other
