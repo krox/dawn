@@ -19,6 +19,16 @@ void printBinaryStats(Sat const &sat);
 /** remove redundant binary clauses */
 void runBinaryReduction(Sat &sat);
 
+/**
+ * Computes a 'topological order' of all literals, i.e., an order such that
+ * all binary implications go 'from left to right'.
+ *
+ * If there are cycles:
+ *   - '.valid()' will return false
+ *   - no strict topological order exists, but the computed order is still some
+ *     approximation thereof so it might still be useful heuristically
+ *   - you can use 'runSCC()' to remove cycles (may need repetition)
+ */
 class TopOrder
 {
 	Sat const &sat_;

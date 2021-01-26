@@ -5,6 +5,8 @@
 int probe(Sat &sat, int maxTries)
 {
 	StopwatchGuard swg(sat.stats.swProbing);
+	Stopwatch sw;
+	sw.start();
 
 	PropEngine p(sat);
 	if (p.conflict)
@@ -55,13 +57,16 @@ int probe(Sat &sat, int maxTries)
 
 			// UNSAT encountered
 			if (p.conflict)
-				return 1;
+				break;
 		}
 		else // no fail -> do nothing
 		{
 			p.unroll(0);
 		}
 	}
+
+	fmt::print("c FLP ({}) found {} failing literals in {:.2}s\n",
+	           maxTries == 0 ? "full" : "limited", nFails, sw.secs());
 
 	return nFails;
 }

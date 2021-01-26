@@ -298,25 +298,14 @@ void inprocess(Sat &sat)
 	// 0 = none
 	// 1 = only run while very successful
 	// 2 = run until everything is found
-	if (sat.stats.probing == 1)
+	if (sat.stats.probing > 0)
 		while (!sat.stats.interrupt)
 		{
-			int nFound = probe(sat, 10000);
-			fmt::print("c FLP (partial) found {} failing literals\n", nFound);
-			if (nFound == 0)
+			if (probe(sat, sat.stats.probing >= 2 ? 0 : 10000) == 0)
 				break;
-			if (inprocessCheap(sat) < 10000)
+			int fixed_vars = inprocessCheap(sat);
+			if (sat.stats.probing <= 1 && fixed_vars < 10000)
 				break;
-		}
-
-	if (sat.stats.probing >= 2)
-		while (!sat.stats.interrupt)
-		{
-			int nFound = probe(sat, 0);
-			fmt::print("c FLP (full) found {} failing literals\n", nFound);
-			if (nFound == 0)
-				break;
-			inprocessCheap(sat);
 		}
 
 	// maybe-not-so-cheap preprocessing: subsumption+SSR
