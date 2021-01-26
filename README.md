@@ -8,7 +8,7 @@
   * branching heuristic
     - [x] VSIDS
     - [x] polarity saving
-    - [ ] dominating-literal branching
+    - [x] dominating-literal branching (default=off)
   * clause-cleaning heuristic
     - [x] size
     - [x] glue

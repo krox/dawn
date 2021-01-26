@@ -187,8 +187,30 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 			return buildSolution(p);
 		}
 
+		Lit branchLit = Lit(branch, sat.polarity[branch]);
+
+		if (sat.stats.branchDom >= 1)
+		{
+			// NOTE: the counter avoids infinite loop due to equivalent vars
+			// TODO: think again about the order of binary clauses. That has an
+			//       influence here
+			int counter = 0;
+		again:
+			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
+				if (!p.assign[l])
+					if (sat.stats.branchDom >= 2 ||
+					    sat.polarity[l.var()] == l.neg().sign())
+					{
+						branchLit = l.neg();
+						if (++counter < 5)
+							goto again;
+						else
+							break;
+					}
+		}
+
 		// propagate branch
-		p.branch(Lit(branch, sat.polarity[branch]));
+		p.branch(branchLit);
 		for (Lit x : p.trail(p.level()))
 			sat.polarity[x.var()] = x.sign();
 	}

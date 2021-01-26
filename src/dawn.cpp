@@ -35,6 +35,9 @@ int main(int argc, char *argv[])
 	app.add_option("--otf", sat.stats.otf,
 	               "on-the-fly strengthening of learnt clauses"
 	               "(0=off, 1=basic, 2=recursive=default)");
+	app.add_option("--branch-dominating", sat.stats.branchDom,
+	               "branch on dominating literal instead of chosen one itself"
+	               "0=off, 1=matching polarity only, 2=always");
 	app.add_option("--subsume", sat.stats.subsume,
 	               "subsumption and self-subsuming resolution"
 	               "(0=off, 1=binary, 2=full=default)");
