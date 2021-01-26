@@ -166,6 +166,8 @@ void parseCnf(std::string filename, Sat &sat)
 			varCount = parser.parseInt();
 			parser.skipWhite();
 			clauseCount = parser.parseInt();
+			while (sat.varCount() < varCount)
+				sat.addVarOuter();
 			continue;
 		}
 
@@ -194,9 +196,13 @@ void parseCnf(std::string filename, Sat &sat)
 
 	enforce(clause.empty(), "incomplete clause at end of file");
 	enforce(varCount == -1 || varCount == sat.varCount(),
-	        "wrong number of vars in header");
-	enforce(clauseCount == -1 || clauseCount == (int64_t)sat.clauseCount(),
-	        "wrong number of clauses in header");
+	        fmt::format(
+	            "wrong number of variables: header said {}, actually got {}",
+	            varCount, sat.varCount()));
+	enforce(
+	    clauseCount == -1 || clauseCount == (int64_t)sat.clauseCount(),
+	    fmt::format("wrong number of clauses: header said {}, actually got {}",
+	                clauseCount, sat.clauseCount()));
 
 	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount()
 	          << " clauses" << std::endl;
