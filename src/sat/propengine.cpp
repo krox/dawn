@@ -357,3 +357,161 @@ void PropEngine::printTrail() const
 		}
 	}
 }
+
+PropEngineLight::PropEngineLight(Sat &sat)
+    : sat(sat), watches(sat.varCount() * 2), assign(sat.varCount() * 2)
+{
+	// empty clause -> don't bother doing anything
+	if (sat.contradiction)
+	{
+		conflict = true;
+		return;
+	}
+
+	// attach long clauses
+	for (auto [i, c] : sat.clauses)
+	{
+		assert(c.size() >= 3);
+		watches[c[0]].push_back(i);
+		watches[c[1]].push_back(i);
+	}
+
+	// propagate unary clauses
+	for (auto l : sat.units)
+	{
+		if (assign[l])
+			continue;
+		if (assign[l.neg()])
+		{
+			conflict = true;
+			return;
+		}
+		propagate(l);
+		if (conflict)
+			return;
+	}
+}
+
+void PropEngineLight::propagate(Lit x)
+{
+	assert(!conflict);
+	assert(x.proper());
+
+	// propagating an already-assigned variable is allowed (and does nothing)
+	if (assign[x])
+		return;
+
+	if (assign[x.neg()])
+	{
+		conflict = true;
+		return;
+	}
+
+	size_t pos = trail_.size();
+	assign[x] = true;
+	trail_.push_back(x);
+
+	while (pos != trail_.size())
+	{
+		Lit y = trail_[pos++];
+
+		// propagate binary clauses
+		for (Lit z : sat.bins[y.neg()])
+		{
+			if (assign[z]) // already assigned true -> do nothing
+				continue;
+
+			if (assign[z.neg()]) // already assigned false -> conflict
+			{
+				conflict = true;
+				return;
+			}
+
+			// else -> propagate
+			assign[z] = true;
+			trail_.push_back(z);
+		}
+
+		// propagate long clauses
+		auto &ws = watches[y.neg()];
+		for (size_t wi = 0; wi < ws.size(); ++wi)
+		{
+			CRef ci = ws[wi];
+			Clause &c = sat.clauses[ci];
+
+			// move y to c[1] (so that c[0] is the potentially propagated one)
+			if (c[0] == y.neg())
+				std::swap(c[0], c[1]);
+			assert(c[1] == y.neg());
+
+			// other watched lit is satisfied -> do nothing
+			if (assign[c[0]])
+				continue;
+
+			// check the tail of the clause
+			for (size_t i = 2; i < c.size(); ++i)
+				if (!assign[c[i].neg()]) // literal satisfied or undef -> move
+				                         // watch
+				{
+					std::swap(c[1], c[i]);
+					watches[c[1]].push_back(ws[wi]);
+
+					ws[wi] = ws.back();
+					--wi;
+					ws.pop_back();
+					goto next_watch;
+				}
+
+			// tail is all assigned false -> propagate or conflict
+			if (assign[c[0].neg()])
+			{
+				conflict = true;
+				return;
+			}
+			else
+			{
+				assign[c[0]] = true;
+				trail_.push_back(c[0]);
+			}
+
+		next_watch:;
+		}
+	}
+}
+
+void PropEngineLight::mark()
+{
+	assert(!conflict);
+	mark_.push_back(trail_.size());
+}
+
+int PropEngineLight::level() const { return (int)mark_.size(); }
+
+void PropEngineLight::unroll()
+{
+	assert(!mark_.empty());
+	conflict = false;
+	while ((int)trail_.size() > mark_.back())
+	{
+		Lit lit = trail_.back();
+		trail_.pop_back();
+		assign[lit] = false;
+	}
+	mark_.pop_back();
+}
+
+util::span<const Lit> PropEngineLight::trail() const { return trail_; }
+
+util::span<const Lit> PropEngineLight::trail(int l) const
+{
+	assert(0 <= l && l <= level());
+	auto t = trail();
+	if (l == 0 && level() == 0)
+		return t;
+	else if (l == 0)
+		return t.slice(0, mark_[0]);
+	else if (l == level())
+		return t.slice(mark_[l - 1], t.size());
+	else
+		return t.slice(mark_[l - 1], mark_[l]);
+}

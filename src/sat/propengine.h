@@ -334,4 +334,43 @@ inline int PropEngine::analyzeConflictFull(std::vector<Lit> &learnt, F f)
 	return i + 1;
 }
 
+/**
+ * Unit propagation without any conflict analysis.
+ * This can just check if there is a conflict and then backtrack.
+ * Also does not keep statistics on propagations.
+ */
+class PropEngineLight
+{
+  public:
+	Sat &sat;
+
+  private:
+	std::vector<Lit> trail_; // assigned variables
+	std::vector<int> mark_;  // indices into trail
+
+  public:
+	using watches_t = std::vector<util::small_vector<CRef, 6>>;
+	watches_t watches;
+
+  public:
+	std::vector<bool> assign;
+	bool conflict = false;
+
+	/** constructor */
+	PropEngineLight(Sat &sat);
+
+	/** assign literal and do unit propagation */
+	void propagate(Lit x);
+
+	/** create a new level */
+	void mark();
+
+	/** unrolls one level */
+	void unroll();
+
+	int level() const;
+	util::span<const Lit> trail() const;
+	util::span<const Lit> trail(int l) const;
+};
+
 #endif

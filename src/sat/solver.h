@@ -13,4 +13,6 @@
  */
 int solve(Sat &sat, Solution &sol);
 
+int inprocessCheap(Sat &sat);
+
 #endif
