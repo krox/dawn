@@ -334,10 +334,15 @@ void inprocess(Sat &sat)
 	// maybe-not-so-cheap preprocessing: subsumption+SSR
 	if (sat.stats.subsume >= 1 && !sat.stats.interrupt)
 	{
-		subsumeBinary(sat);
-		if (sat.stats.subsume >= 2)
-			subsumeLong(sat);
-		inprocessCheap(sat);
+		bool changeA = subsumeBinary(sat);
+		bool changeB = (sat.stats.subsume >= 2) && subsumeLong(sat);
+		if (changeA || changeB)
+		{
+			if (sat.stats.subsume >= 3)
+				return inprocess(sat);
+			else
+				inprocessCheap(sat);
+		}
 	}
 
 	// cleanup

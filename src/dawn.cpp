@@ -40,7 +40,7 @@ int main(int argc, char *argv[])
 	               "0=off, 1=matching polarity only, 2=always");
 	app.add_option("--subsume", sat.stats.subsume,
 	               "subsumption and self-subsuming resolution"
-	               "(0=off, 1=binary, 2=full=default)");
+	               "(0=off, 1=binary, 2=full=default, 3=full until fixpoint)");
 	app.add_option("--probing", sat.stats.probing,
 	               "failed-literal probing"
 	               "(0=off, 1=limited, 2=full)");

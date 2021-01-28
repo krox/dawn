@@ -6,27 +6,39 @@
 
 namespace {
 
+/**
+ * Try to subsume b using a. This can either:
+ *    - do nothing (return false)
+ *    - shorten b (return true, b.isRemoved()=false)
+ *    - remove b (return true, b.isRemoved()=true)
+ * In the last case, a can become irreducible if b was before.
+ * NOTE: this method assumes that the lits in both clauses are sorted. If they
+ *       are not, it just produces some false-negatives. This means some
+ *       possible subsumptions will stay undetected, but nothing will break.
+ */
 bool trySubsume(Clause &a, Clause &b)
 {
 	if (a.size() > b.size())
 		return false;
 
 	Lit x = Lit::undef();
-	for (int i = 0; i < a.size(); ++i)
+	for (int i = 0, j = 0; i < a.size(); ++i, ++j)
 	{
-		for (int j = 0; j < b.size(); ++j)
+		while (j < b.size() && b[j].var() < a[i].var())
+			++j;
+		if (j == b.size())
+			return false;
+
+		if (a[i] == b[j]) // exact match
+			continue;
+		else if (a[i] == b[j].neg()) // same variable, different sign
 		{
-			if (a[i] == b[j])
-				goto next;
-			if (a[i] == b[j].neg())
-			{
-				if (x != Lit::undef())
-					return false;
-				x = b[j];
-			}
+			if (x != Lit::undef())
+				return false;
+			x = b[j];
 		}
-		return false;
-	next:;
+		else
+			return false;
 	}
 
 	if (x == Lit::undef())
@@ -156,40 +168,64 @@ bool subsumeLong(Sat &sat)
 	Stopwatch sw;
 	sw.start();
 
-	// create occurence-lists per variable
+	// NOTE: Clauses can only subsume clauses of the same or larger size and
+	//       subsumption between clauses of the same size is symmetric.
+	//       Therefore we iterate through the clauses from long to short
+	//       and only add a clause to the occ-list after it has been used
+	//       for subsumption itself.
+	// TODO: same-size subsumption only consists of cases where both clauses
+	//       have the same variables (with eihter zero or one sign-difference).
+	//       These cases could be handled completely separately and faster.
+	//       This would help problems with a lot of clauses of the same size.
+	// TODO: We should really introduce some cutoff. Trying to subsume each
+	//       and every worthless learnt clause is probably not really useful...
+
+	// sort variables in clauses (to simplify 'trySubsume()')
+	// and list clauses by size
+	std::array<std::vector<CRef>, 128> clauses;
 	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.varCount());
 	for (auto [ci, cl] : sat.clauses)
-		for (Lit a : cl.lits())
-			occs[a.var()].push_back(ci);
+	{
+		std::sort(cl.lits().begin(), cl.lits().end());
+		clauses[cl.size() < 128 ? cl.size() : 127].push_back(ci);
+	}
 
 	int64_t nRemovedClsLong = 0;
 	int64_t nRemovedLitsLong = 0;
 
-	// subsume clauses using cl
-	for (auto [i, cl] : sat.clauses)
+	for (int size = 127; size >= 3; --size)
 	{
-		// skip already removed
-		if (cl.isRemoved())
-			continue;
-
-		// choose variable with shortest occ list
-		int pivot = cl[0].var();
-		for (Lit lit : cl.lits())
-			if (occs[lit.var()].size() < occs[pivot].size())
-				pivot = lit.var();
-
-		// use occ-list of pivot variable as candidates for subsumption
-		for (CRef j : occs[pivot])
+		for (CRef i : clauses[size])
 		{
-			if (i == j) // dont subsume clauses with itself
-				continue;
-			if (trySubsume(cl, sat.clauses[j]))
+			Clause &cl = sat.clauses[i];
+			if (cl.isRemoved())
+				continue; // can this happen at all here?
+
+			// choose variable in cl with shortest occ-list
+			int pivot = cl[0].var();
+			for (Lit lit : cl.lits())
+				if (occs[lit.var()].size() < occs[pivot].size())
+					pivot = lit.var();
+
+			// use occ-list of pivot variable as candidates for subsumption
+			for (CRef j : occs[pivot])
 			{
+				if (i == j)   // dont subsume clauses with itself
+					continue; // can this happen here at all?
 				if (sat.clauses[j].isRemoved())
-					nRemovedClsLong += 1;
-				else
-					nRemovedLitsLong += 1;
+					continue; // already removed by different subsumption
+				if (trySubsume(cl, sat.clauses[j]))
+				{
+					if (sat.clauses[j].isRemoved())
+						nRemovedClsLong += 1;
+					else
+						nRemovedLitsLong += 1;
+				}
 			}
+
+			// add vlause to occ-lists
+			for (Lit a : sat.clauses[i].lits())
+				occs[a.var()].push_back(i);
 		}
 	}
 
