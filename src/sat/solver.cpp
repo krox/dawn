@@ -221,9 +221,7 @@ int unitPropagation(Sat &sat)
 	if (sat.contradiction || sat.unaryCount() == 0)
 		return 0;
 
-	// TODO: a "light" version of PropEngine would be sufficient here,
-	//       withouth any conflict-analysis and such
-	auto p = PropEngine(sat);
+	auto p = PropEngineLight(sat);
 	int nFound;
 	if (p.conflict)
 	{
@@ -292,6 +290,9 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 // Very cheap preprocessing: unit-propagation and SCC
 int inprocessCheap(Sat &sat)
 {
+	Stopwatch sw;
+	sw.start();
+
 	int totalUP = 0;
 	int totalSCC = 0;
 	int iter = 0;
@@ -305,8 +306,8 @@ int inprocessCheap(Sat &sat)
 			break;
 	}
 
-	fmt::print("c UP+SCC ({} iterations) removed {} + {} variables\n", iter,
-	           totalUP, totalSCC);
+	fmt::print("c UP+SCC ({} iterations) removed {} + {} variables in {:.2f}\n",
+	           iter, totalUP, totalSCC, sw.secs());
 	return totalUP + totalSCC;
 }
 

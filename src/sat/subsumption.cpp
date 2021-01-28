@@ -153,6 +153,8 @@ bool subsumeBinary(Sat &sat)
 bool subsumeLong(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swSubsumeLong);
+	Stopwatch sw;
+	sw.start();
 
 	// create occurence-lists per variable
 	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.varCount());
@@ -191,7 +193,8 @@ bool subsumeLong(Sat &sat)
 		}
 	}
 
-	fmt::print("c long-long subsumption removed {} clauses and {} lits\n",
-	           nRemovedClsLong, nRemovedLitsLong);
+	fmt::print(
+	    "c long-long subsumption removed {} clauses and {} lits in {:.2}s\n",
+	    nRemovedClsLong, nRemovedLitsLong, sw.secs());
 	return nRemovedClsLong || nRemovedLitsLong;
 }
