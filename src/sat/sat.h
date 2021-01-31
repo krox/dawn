@@ -228,7 +228,7 @@ inline size_t Sat::longCountRed() const
 
 inline size_t Sat::clauseCount() const
 {
-	return unaryCount() + binaryCount() + longCount();
+	return unaryCount() + binaryCount() + longCount() + contradiction;
 }
 
 inline void Sat::bumpVariableActivity(int i) { activity[i] += activityInc; }
@@ -245,5 +245,7 @@ inline void Sat::decayVariableActivity()
 			activity[i] /= 1e100;
 	}
 }
+
+void dumpOuter(std::string const &filename, Sat const &sat);
 
 #endif

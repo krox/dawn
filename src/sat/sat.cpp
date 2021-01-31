@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <cassert>
 #include <fmt/format.h>
+#include <fmt/os.h>
 #include <iostream>
 #include <random>
 
@@ -216,4 +217,65 @@ void shuffleVariables(Sat &sat)
 		std::swap(trans[i], trans[j]);
 	}
 	sat.renumber(trans, sat.varCount());
+}
+
+void dumpOuter(std::string const &filename, Sat const &sat)
+{
+	// get inner->outer translation and list removed outer vars
+	std::vector<Lit> fixed_lits; // outer vars that are fixed
+	std::vector<std::pair<Lit, Lit>> equ_lits;
+	auto innerToOuter = std::vector<Lit>(sat.varCount(), Lit::undef());
+	for (int i = 0; i < sat.varCountOuter(); ++i)
+	{
+		Lit a = sat.outerToInner(Lit(i, false));
+		assert(a.fixed() || a.proper());
+		if (a.fixed())
+			fixed_lits.push_back(Lit(i, a.sign()));
+		else if (innerToOuter[a.var()] == Lit::undef())
+			innerToOuter[a.var()] = Lit(i, a.sign());
+		else
+			equ_lits.push_back({innerToOuter[a.var()], Lit(i, a.sign())});
+	}
+
+	auto file = fmt::output_file(filename);
+	file.print("p cnf {} {}\n", sat.varCountOuter(),
+	           sat.clauseCount() + fixed_lits.size() + 2 * equ_lits.size());
+
+	// consistency check
+	for (Lit a : innerToOuter)
+		assert(a.proper());
+
+	// write empty clause
+	if (sat.contradiction)
+		file.print("0\n");
+
+	// write unit clauses
+	for (Lit a : fixed_lits)
+		file.print("{} 0\n", a.toDimacs());
+	for (Lit a : sat.units)
+		file.print("{} 0\n", (innerToOuter[a.var()] ^ a.sign()).toDimacs());
+
+	// write binary clauses
+	for (auto [a, b] : equ_lits)
+	{
+		file.print("{} {} 0\n", a.toDimacs(), b.neg().toDimacs());
+		file.print("{} {} 0\n", b.toDimacs(), a.neg().toDimacs());
+	}
+	for (int i = 0; i < sat.varCount() * 2; ++i)
+		for (Lit b : sat.bins[i])
+		{
+			Lit a = Lit(i);
+			a = innerToOuter[a.var()] ^ a.sign();
+			b = innerToOuter[b.var()] ^ b.sign();
+			file.print("{} {}\n", a.toDimacs(), b.toDimacs());
+		}
+
+	// write long clauses
+	for (auto [ci, cl] : sat.clauses)
+	{
+		(void)ci;
+		for (Lit a : cl.lits())
+			file.print("{} ", (innerToOuter[a.var()] ^ a.sign()).toDimacs());
+		file.print("0\n");
+	}
 }
