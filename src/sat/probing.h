@@ -11,4 +11,11 @@
  */
 int probe(Sat &sat, int maxTries);
 
+/**
+ * Probe for binaries. Quite expensive and probably not woth it for most
+ * problems. The naive version is especially slow and just for debugging.
+ */
+int probeBinaryNaive(Sat &sat);
+int probeBinary(Sat &sat);
+
 #endif

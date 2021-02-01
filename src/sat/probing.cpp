@@ -1,5 +1,6 @@
 #include "sat/probing.h"
 
+#include "sat/binary.h"
 #include "sat/propengine.h"
 
 int probe(Sat &sat, int maxTries)
@@ -67,6 +68,121 @@ int probe(Sat &sat, int maxTries)
 
 	fmt::print("c FLP ({}) found {} failing literals in {:.2}s\n",
 	           maxTries == 0 ? "full" : "limited", nFails, sw.secs());
+
+	return nFails;
+}
+
+int probeBinary(Sat &sat)
+{
+	/*
+	Idea: Propagate two literals a and b. If a conflict arises, we can learn
+	      the binary clause (-a,-b). Some optimizations arise:
+	1) If a conflict arises, dont just learn (-a,-b). Instead do conflict
+	   analysis and potentially learn an even stronger clause.
+	2) If no conflict arises when propagating b and b implies b', then no
+	   conflict can arise when propagating b' instead of b. No need to check.
+	3) To maximize the effect of (1) and (2), we probe literals in (approximate)
+	   topological order.
+	 */
+	StopwatchGuard swg(sat.stats.swProbing);
+	Stopwatch sw;
+	sw.start();
+
+	PropEngine p(sat);
+	if (p.conflict)
+		return 0;
+
+	auto top = TopOrder(sat);
+	auto seenA = util::bitset(sat.varCount() * 2);
+	auto seenB = util::bitset(sat.varCount() * 2);
+	std::vector<Lit> buf;
+	int nFails = 0;
+
+	auto backtrack = [&p, &buf, &nFails]() {
+		int back = p.analyzeConflict(buf);
+		p.unroll(back);
+		auto reason = p.addLearntClause(buf, 2); // dont care about glue here
+		p.propagateFull(buf[0], reason);
+		buf.resize(0);
+	};
+
+	for (Lit a : top.lits())
+	{
+		seenB.clear();
+
+	use_this_a:
+
+		if (p.assign[a] || p.assign[a.neg()] || seenA[a])
+			continue;
+		seenA[a] = true;
+		p.branch(a);
+		assert(p.level() == 1);
+
+		// failed literal -> analyze and learn unit
+		if (p.conflict)
+		{
+			// nFailsUnary += 1;
+			backtrack();
+
+			if (p.conflict) // still conflict -> UNSAT
+				break;
+			else // conflict resolved -> next literal
+				continue;
+		}
+
+		// propagating a worked fine -> probe all possible b
+		assert(p.level() == 1);
+
+		for (Lit b : top.lits())
+		{
+			if (p.assign[b] || p.assign[b.neg()] || seenB[b])
+				continue;
+			p.branch(b);
+
+			if (p.conflict)
+			{
+				nFails += 1;
+				while (p.conflict)
+					if (p.level() == 0) // level 0 conflict -> UNSAT
+						return 1;
+					else
+						backtrack();
+
+				if (p.level() == 0)
+					goto next_a;
+				else if (p.level() == 1)
+					continue;
+				else
+					assert(false);
+			}
+			else
+			{
+				// no conflict -> mark everything propagated as seen
+				assert(p.level() == 2);
+				for (Lit c : p.trail(2))
+					seenB[c] = true;
+				p.unroll(1);
+			}
+		}
+		p.unroll(0);
+
+		if (nFails > 1000)
+			break;
+
+		// for this a, all b were probed. Try to get a weaker a next
+		// in order to reuse the 'seenB' array
+		for (Lit a2 : p.sat.bins[a.neg()])
+			if (!(p.assign[a2] || p.assign[a2.neg()] || seenA[a2]))
+			{
+				a = a2;
+				goto use_this_a;
+			}
+
+	next_a:;
+	}
+
+	fmt::print("c Binary-Probing found {} failing bins in {:.2}s\n", nFails,
+	           sw.secs());
 
 	return nFails;
 }
