@@ -11,7 +11,8 @@
     - [x] dominating-literal branching (default=off)
   * clause-cleaning heuristic
     - [x] size
-    - [x] glue
+    - [x] glue (computed once when learning)
+    - [ ] glue (dynamicically adjusted during propagation)
     - [ ] activity
 * preprocessing / inprocessing
   - [x] subsumption / self-subsuming resolution

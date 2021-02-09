@@ -50,7 +50,7 @@ static void printLine(Sat &sat)
 	    sat.varCount(), unaryCount, binaryCount, longCount,
 	    (double)longLits / longCount, learntCount,
 	    (double)learntLits / learntCount, (double)learntGlue / learntCount,
-	    sat.clauses.memory_usage() / 1024. / 1024.);
+	    sat.memory_usage() / 1024. / 1024.);
 }
 
 Solution buildSolution(const PropEngine &p)
@@ -81,26 +81,27 @@ Solution buildSolution(const PropEngine &p)
 
 /** returns solution if found, or std::nullopt if limits reached or
  * contradiction */
-std::optional<Solution> search(Sat &sat, int64_t maxConfl)
+std::optional<Solution> search(Sat &sat, int64_t maxConfl,
+                               SolverConfig const &config)
 {
 	StopwatchGuard _(sat.stats.swSearch);
 
 	printHeader();
 
-	PropEngine p(sat);
 	ActivityHeap activityHeap(sat);
 	for (int i = 0; i < sat.varCount(); ++i)
 		activityHeap.push(i);
+
+	PropEngine p(sat);
+	p.config.otf = config.otf;
+	p.config.lhbr = config.lhbr;
+	p.config.full_resolution = config.full_resolution;
+	p.activity_heap = &activityHeap;
 
 	int64_t nConfl = 0;
 	int64_t lastPrint = INT64_MIN;
 
 	std::vector<Lit> buf;
-
-	auto callback = [&](Lit l) {
-		sat.bumpVariableActivity(l.var());
-		activityHeap.update(l.var());
-	};
 
 	while (true)
 	{
@@ -126,24 +127,21 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 			// analyze conflict
 			int backLevel;
 			uint8_t glue;
-			if (sat.stats.fullResolution)
+			backLevel = p.analyzeConflict(buf);
+			if (config.full_resolution)
 			{
-				backLevel = p.analyzeConflictFull(buf, callback);
 				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
 				assert(glue == p.calcGlue(buf));
 			}
 			else
-			{
-				backLevel = p.analyzeConflict(buf, callback);
 				glue = p.calcGlue(buf);
-			}
 
 			sat.decayVariableActivity();
 			sat.stats.nLearnt += 1;
 			sat.stats.nLitsLearnt += buf.size();
 
 			// unroll to apropriate level and propagate new learnt clause
-			p.unroll_and_activate(backLevel, activityHeap);
+			p.unroll(backLevel);
 			Reason r = p.addLearntClause(buf, glue);
 			p.propagateFull(buf[0], r);
 			for (Lit x : p.trail(p.level()))
@@ -153,10 +151,10 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		}
 
 		/** maxConfl reached -> unroll and exit */
-		if (nConfl > maxConfl || sat.stats.interrupt)
+		if (nConfl > maxConfl || interrupt)
 		{
 			if (p.level() > 0)
-				p.unroll_and_activate(0, activityHeap);
+				p.unroll(0);
 			printLine(sat);
 			return std::nullopt;
 		}
@@ -189,7 +187,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 
 		Lit branchLit = Lit(branch, sat.polarity[branch]);
 
-		if (sat.stats.branchDom >= 1)
+		if (config.branch_dom >= 1)
 		{
 			// NOTE: the counter avoids infinite loop due to equivalent vars
 			// TODO: think again about the order of binary clauses. That has an
@@ -198,7 +196,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl)
 		again:
 			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
 				if (!p.assign[l])
-					if (sat.stats.branchDom >= 2 ||
+					if (config.branch_dom >= 2 ||
 					    sat.polarity[l.var()] == l.neg().sign())
 					{
 						branchLit = l.neg();
@@ -311,8 +309,8 @@ int inprocessCheap(Sat &sat)
 	return totalUP + totalSCC;
 }
 
-/** run the full inprocessing, as configured in sat.stats */
-void inprocess(Sat &sat)
+/** run the full inprocessing */
+void inprocess(Sat &sat, SolverConfig const &config)
 {
 	// printBinaryStats(sat);
 	inprocessCheap(sat);
@@ -321,25 +319,29 @@ void inprocess(Sat &sat)
 	// 0 = none
 	// 1 = only run while very successful
 	// 2 = run until everything is found
-	if (sat.stats.probing > 0)
-		while (!sat.stats.interrupt)
+	// 3 = also run binary probing
+	if (config.probing > 0)
+		while (!interrupt)
 		{
-			if (probe(sat, sat.stats.probing >= 2 ? 0 : 10000) == 0)
+			if (probe(sat, config.probing >= 2 ? 0 : 10000) == 0)
 				break;
 			int fixed_vars = inprocessCheap(sat);
-			if (sat.stats.probing <= 1 && fixed_vars < 10000)
+			if (config.probing <= 1 && fixed_vars < 10000)
 				break;
 		}
 
+	if (config.probing >= 3)
+		probeBinary(sat);
+
 	// maybe-not-so-cheap preprocessing: subsumption+SSR
-	if (sat.stats.subsume >= 1 && !sat.stats.interrupt)
+	if (config.subsume >= 1 && !interrupt)
 	{
 		bool changeA = subsumeBinary(sat);
-		bool changeB = (sat.stats.subsume >= 2) && subsumeLong(sat);
+		bool changeB = (config.subsume >= 2) && subsumeLong(sat);
 		if (changeA || changeB)
 		{
-			if (sat.stats.subsume >= 3)
-				return inprocess(sat);
+			if (config.subsume >= 3)
+				return inprocess(sat, config);
 			else
 				inprocessCheap(sat);
 		}
@@ -347,15 +349,15 @@ void inprocess(Sat &sat)
 
 	// cleanup
 	// (do this last, because it cant lead to anything new for the other passes)
-	if (sat.stats.tbr > 0)
+	if (config.tbr > 0)
 		runBinaryReduction(sat);
 }
 
-int solve(Sat &sat, Solution &sol)
+int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 {
 	StopwatchGuard _(sat.stats.swTotal);
 
-	inprocess(sat);
+	inprocess(sat, config);
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
@@ -364,14 +366,14 @@ int solve(Sat &sat, Solution &sol)
 	for (int iter = 1;; ++iter)
 	{
 		// check limit
-		if (sat.stats.nConfls() >= sat.stats.maxConfls)
+		if (sat.stats.nConfls() >= config.max_confls)
 		{
 			fmt::print("c conflict limit reached. abort solver.\n");
 			return 30;
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = search(sat, 2000 * iter); tmp)
+		if (auto tmp = search(sat, 2000 * iter, config); tmp)
 		{
 			assert(!sat.contradiction);
 			sol = *tmp;
@@ -381,7 +383,7 @@ int solve(Sat &sat, Solution &sol)
 		if (sat.contradiction)
 			return 20;
 
-		if (sat.stats.interrupt)
+		if (interrupt)
 		{
 			fmt::print("c interrupted. abort solver.\n");
 			return 30;
@@ -389,9 +391,9 @@ int solve(Sat &sat, Solution &sol)
 
 		// inprocessing
 		std::cout << "c cleanup" << std::endl;
-		inprocess(sat);
+		inprocess(sat, config);
 
-		if (sat.stats.interrupt)
+		if (interrupt)
 		{
 			fmt::print("c interrupted. abort solver.\n");
 			return 30;
@@ -403,21 +405,21 @@ int solve(Sat &sat, Solution &sol)
 			(void)ci;
 			if (cl.irred())
 				continue;
-			if (cl.size() > sat.stats.maxLearntSize ||
-			    cl.glue > sat.stats.maxLearntGlue)
+			if (cl.size() > config.max_learnt_size ||
+			    cl.glue > config.max_learnt_glue)
 				cl.remove();
 		}
-		if ((int64_t)sat.longCountRed() > sat.stats.maxLearnt)
+		if ((int64_t)sat.longCountRed() > config.max_learnt)
 		{
-			if (sat.stats.useGlue)
-				cleanClausesGlue(sat.clauses, sat.stats.maxLearnt);
+			if (config.use_glue)
+				cleanClausesGlue(sat.clauses, config.max_learnt);
 			else
-				cleanClausesSize(sat.clauses, sat.stats.maxLearnt);
+				cleanClausesSize(sat.clauses, config.max_learnt);
 			sat.cleanup();
 		}
 		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
 		{
-			if (sat.stats.useGlue)
+			if (config.use_glue)
 				cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
 			else
 				cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);

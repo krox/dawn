@@ -24,7 +24,7 @@ int probe(Sat &sat, int maxTries)
 			continue;
 		candidates.push_back(l);
 	}
-	std::shuffle(candidates.begin(), candidates.end(), sat.stats.rng);
+	std::shuffle(candidates.begin(), candidates.end(), sat.rng);
 	if (maxTries && (int)candidates.size() > maxTries)
 		candidates.resize(maxTries);
 
@@ -96,6 +96,7 @@ int probeBinary(Sat &sat)
 	auto seenA = util::bitset(sat.varCount() * 2);
 	auto seenB = util::bitset(sat.varCount() * 2);
 	std::vector<Lit> buf;
+	int nTries = 0;
 	int nFails = 0;
 
 	auto backtrack = [&p, &buf, &nFails]() {
@@ -137,7 +138,10 @@ int probeBinary(Sat &sat)
 		{
 			if (p.assign[b] || p.assign[b.neg()] || seenB[b])
 				continue;
+			if ((int)b > (int)a)
+				continue;
 			p.branch(b);
+			nTries += 1;
 
 			if (p.conflict)
 			{
@@ -181,8 +185,9 @@ int probeBinary(Sat &sat)
 	next_a:;
 	}
 
-	fmt::print("c Binary-Probing found {} failing bins in {:.2}s\n", nFails,
-	           sw.secs());
+	fmt::print(
+	    "c Binary-Probing found {} failing bins after {} tries in {:.2f}s\n",
+	    nFails, nTries, sw.secs());
 
 	return nFails;
 }

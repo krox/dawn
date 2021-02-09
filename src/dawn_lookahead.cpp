@@ -12,7 +12,7 @@ static Sat sat;
 
 extern "C" void interruptHandler(int)
 {
-	sat.stats.interrupt.store(true);
+	interrupt.store(true);
 	signal(SIGINT, SIG_DFL); // remove the handler so that a second SIGINT will
 	                         // abort the program
 }
@@ -63,7 +63,7 @@ int main(int argc, char *argv[])
 
 	if (seed == -1)
 		seed = std::random_device()();
-	sat.stats.rng.seed(seed);
+	sat.rng.seed(seed);
 	if (shuffle)
 		shuffleVariables(sat);
 

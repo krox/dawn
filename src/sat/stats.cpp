@@ -15,7 +15,7 @@ static void dumpHistogram(const util::IntHistogram &h)
 
 void Stats::dump()
 {
-	if (watchStats)
+	if (watch_stats)
 	{
 		fmt::print("c ======================= binlist size histogram "
 		           "=======================\n");

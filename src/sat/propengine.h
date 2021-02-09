@@ -61,6 +61,19 @@ class PropEngine
   public:
 	Sat &sat;
 
+	// if this is != null,
+	//   - variables are activated during .unroll()
+	//   - variable-activity is bumped during conflict analysis
+	ActivityHeap *activity_heap = nullptr;
+
+	struct Config
+	{
+		int otf = 2;      // on-the-fly strengthening of learnt clauses
+		                  // (0=off, 1=basic, 2=recursive)
+		bool lhbr = true; // lazy hyper-binary resolution
+		bool full_resolution = false; // learn by full resolution instead of UIP
+	} config;
+
   private:
 	util::bitset seen;         // temporary during conflict analysis
 	bool isRedundant(Lit lit); // helper for OTF strengthening
@@ -108,22 +121,24 @@ class PropEngine
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
-	int level() const;                               /** current level */
-	void unroll(int l);                              /** unroll assignments */
-	void unroll_and_activate(int l, ActivityHeap &); /** re-add vars to heap */
+	int level() const; /** current level */
 
 	/**
-	 *  - analyze conflict up to UIP
-	 *  - calls f on all involved literals (intended for activity bumping)
-	 *  - performs otf minimization if enabled in config
+	 * unroll assignments
+	 *   - after unrolling, level() == l
+	 *   - re-add freed vars to activity-heap (if activity_heap != null)
 	 */
-	template <typename F> int analyzeConflict(std::vector<Lit> &learnt, F f);
-	int analyzeConflict(std::vector<Lit> &learnt);
+	void unroll(int l);
 
-	/** same, but analyze up to one variable per level */
-	template <typename F>
-	int analyzeConflictFull(std::vector<Lit> &learnt, F f);
-	int analyzeConflictFull(std::vector<Lit> &learnt);
+	/**
+	 * analyze conflict up to UIP, outputs learnt clause, does NOT unroll
+	 *  - bumps activity of all involved variables (if activity_heap != null)
+	 *  - performs otf minimization (if enabled in configuration)
+	 *  - learnt clause is ordered by level, such that learnt[0] is the UIP
+	 *  - returns level of learnt[1] (or 0 if learnt is unit). This is the
+	 *    appropriate level to jump back to
+	 */
+	int analyzeConflict(std::vector<Lit> &learnt);
 
 	/** compute glue, i.e. number of distinct decision levels of clause */
 	uint8_t calcGlue(util::span<const Lit> cl) const;
@@ -146,192 +161,6 @@ inline util::span<const Lit> PropEngine::trail(int l) const
 		return t.slice(mark_[l - 1], t.size());
 	else
 		return t.slice(mark_[l - 1], mark_[l]);
-}
-
-inline int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
-{
-	auto callback = [](Lit) {};
-	return analyzeConflict<decltype(callback)>(learnt, callback);
-}
-
-template <typename F>
-inline int PropEngine::analyzeConflict(std::vector<Lit> &learnt, F f)
-{
-	assert(learnt.empty());
-	assert(conflict);
-	assert(!conflictClause.empty());
-	assert(level() > 0);
-	seen.clear();
-
-	std::priority_queue<std::pair<int, Lit>> todo;
-
-	for (Lit l : conflictClause)
-	{
-		// assert(assign[l.neg()]);
-		seen[l.var()] = true;
-		todo.emplace(trailPos[l.var()], l);
-	}
-
-	while (!todo.empty())
-	{
-		// next literal
-		Lit l = todo.top().second;
-		todo.pop();
-		// assert(assign[l.neg()]);
-
-		// remove duplicates from queue
-		while (!todo.empty() && todo.top().second == l)
-			todo.pop();
-
-		// callback (probably for tracking variable activity)
-		f(l);
-
-		// next one is reason side
-		//   -> this one is reason side or UIP
-		//   -> add this one to learnt clause
-		if (todo.empty() || todo.top().first < mark_.back())
-		{
-			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
-				learnt.push_back(l);
-		}
-		else // otherwise resolve
-		{
-			Reason r = reason[l.var()];
-			if (r.isBinary())
-			{
-				todo.emplace(trailPos[r.lit().var()], r.lit());
-				seen[r.lit().var()] = true;
-			}
-			else if (r.isLong())
-			{
-				const Clause &cl = sat.clauses[r.cref()];
-				// assert(cl[0] == l.neg());
-				for (int i = 1; i < cl.size(); ++i)
-				{
-					todo.emplace(trailPos[cl[i].var()], cl[i]);
-					seen[cl[i].var()] = true;
-				}
-			}
-			else
-				assert(false);
-		}
-	}
-
-	// NOTE: at this point, resolution is done and the learnt clause is
-	// ordered by decreasing trailPos. In particular, learnt[0] is the UIP
-
-	// strengthen the conflict clause using the reason clauses
-	// (NOTE: keep the order of remaining literals the same)
-	if (sat.stats.otf >= 1)
-	{
-		int j = 1;
-		for (int i = 1; i < (int)learnt.size(); ++i)
-			if (isRedundant(learnt[i]))
-				sat.stats.nLitsOtfRemoved += 1;
-			else
-				learnt[j++] = learnt[i];
-		learnt.resize(j);
-	}
-
-	// determine backtrack level ( = level of learnt[1])
-	assert(!learnt.empty());
-	if (learnt.size() == 1)
-		return 0;
-	int i = level() - 1;
-	while (mark_[i] > trailPos[learnt[1].var()])
-		i -= 1;
-
-	return i + 1;
-}
-
-inline int PropEngine::analyzeConflictFull(std::vector<Lit> &learnt)
-{
-	auto callback = [](Lit) {};
-	return analyzeConflictFull<decltype(callback)>(learnt, callback);
-}
-
-template <typename F>
-inline int PropEngine::analyzeConflictFull(std::vector<Lit> &learnt, F f)
-{
-	assert(learnt.empty());
-	assert(conflict);
-	assert(!conflictClause.empty());
-	assert(level() > 0);
-	seen.clear();
-
-	std::priority_queue<std::pair<int, Lit>> todo;
-
-	for (Lit l : conflictClause)
-	{
-		// assert(assign[l.neg()]);
-		seen[l.var()] = true;
-		todo.emplace(trailPos[l.var()], l);
-	}
-	int lev = (int)mark_.size() - 1;
-	while (!todo.empty())
-	{
-		// next literal
-		Lit l = todo.top().second;
-		todo.pop();
-		// assert(assign[l.neg()]);
-
-		// remove duplicates from queue
-		while (!todo.empty() && todo.top().second == l)
-			todo.pop();
-
-		// callback (probably for tracking variable activity)
-		f(l);
-
-		// next one is a level up
-		//   -> this one is the last of its level
-		//   -> add this one to learnt clause
-		if (todo.empty() || todo.top().first < mark_[lev])
-		{
-			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
-			{
-				learnt.push_back(l);
-				while (!todo.empty() && todo.top().first < mark_[lev])
-					lev--;
-			}
-		}
-		else // otherwise resolve
-		{
-			Reason r = reason[l.var()];
-			if (r.isBinary())
-			{
-				todo.emplace(trailPos[r.lit().var()], r.lit());
-				seen[r.lit().var()] = true;
-			}
-			else if (r.isLong())
-			{
-				const Clause &cl = sat.clauses[r.cref()];
-				// assert(cl[0] == l.neg());
-				for (int i = 1; i < cl.size(); ++i)
-				{
-					todo.emplace(trailPos[cl[i].var()], cl[i]);
-					seen[cl[i].var()] = true;
-				}
-			}
-			else
-				assert(false);
-		}
-	}
-
-	// NOTE: at this point, resolution is done and the learnt clause is
-	// ordered by decreasing trailPos. In particular, learnt[0] is the UIP
-
-	// NOTE: we should have only one literal per level,
-	//       so otf-strengthening is impossible
-
-	// determine backtrack level ( = level of learnt[1])
-	assert(!learnt.empty());
-	if (learnt.size() == 1)
-		return 0;
-	int i = level() - 1;
-	while (mark_[i] > trailPos[learnt[1].var()])
-		i -= 1;
-
-	return i + 1;
 }
 
 /**

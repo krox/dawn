@@ -21,6 +21,7 @@ class Sat
 
   public:
 	Stats stats;
+	util::xoshiro256 rng;
 
 	/** storage of clauses */
 	bool contradiction = false;
@@ -84,6 +85,8 @@ class Sat
 	double activityInc = 1.0;
 	void bumpVariableActivity(int i);
 	void decayVariableActivity();
+
+	size_t memory_usage() const;
 
 	friend std::ostream &operator<<(std::ostream &stream, const Sat &cs);
 };
@@ -203,7 +206,7 @@ inline size_t Sat::binaryCount() const
 inline size_t Sat::longCount() const
 {
 	size_t r = 0;
-	for (auto _ [[maybe_unused]] : clauses)
+	for (auto _[[maybe_unused]] : clauses)
 		++r;
 	return r;
 }

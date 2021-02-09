@@ -8,6 +8,7 @@
  *   - only tries at roots of implication graph
  *   - does UIP analysis in case something is found
  *   - does not use or modify polarity/activity of variables
+ *   - always does LHBR
  */
 int probe(Sat &sat, int maxTries);
 

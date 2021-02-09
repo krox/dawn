@@ -185,6 +185,17 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 	clauses.compactify();
 }
 
+size_t Sat::memory_usage() const
+{
+	size_t r = 0;
+	r += outerToInner_.capacity() * sizeof(Lit);
+	r += units.capacity() * sizeof(Lit);
+	for (int i = 0; i < varCount() * 2; ++i)
+		r += bins[i].capacity() * sizeof(Lit);
+	r += clauses.memory_usage();
+	return r;
+}
+
 std::ostream &operator<<(std::ostream &stream, const Sat &sat)
 {
 	// empty clause
@@ -212,8 +223,8 @@ void shuffleVariables(Sat &sat)
 	auto trans = std::vector<Lit>(sat.varCount());
 	for (int i = 0; i < sat.varCount(); ++i)
 	{
-		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.stats.rng));
-		int j = std::uniform_int_distribution<int>(0, i)(sat.stats.rng);
+		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.rng));
+		int j = std::uniform_int_distribution<int>(0, i)(sat.rng);
 		std::swap(trans[i], trans[j]);
 	}
 	sat.renumber(trans, sat.varCount());
