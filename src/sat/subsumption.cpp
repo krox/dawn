@@ -212,14 +212,27 @@ bool subsumeLong(Sat &sat)
 			{
 				if (i == j)   // dont subsume clauses with itself
 					continue; // can this happen here at all?
-				if (sat.clauses[j].isRemoved())
+				Clause &cl2 = sat.clauses[j];
+				if (cl2.isRemoved())
 					continue; // already removed by different subsumption
-				if (trySubsume(cl, sat.clauses[j]))
+				if (trySubsume(cl, cl2))
 				{
-					if (sat.clauses[j].isRemoved())
+					if (cl2.isRemoved())
 						nRemovedClsLong += 1;
 					else
+					{
 						nRemovedLitsLong += 1;
+						if (cl2.size() <= 2)
+						{
+							if (cl2.size() == 0)
+								sat.addEmpty(); // dont think this can happen
+							else if (cl2.size() == 1)
+								sat.addUnary(cl2[0]);
+							else if (cl2.size() == 2)
+								sat.addBinary(cl2[0], cl2[1]);
+							cl2.remove();
+						}
+					}
 				}
 			}
 

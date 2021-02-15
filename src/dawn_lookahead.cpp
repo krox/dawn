@@ -79,6 +79,7 @@ int main(int argc, char *argv[])
 	// solve
 	auto p = PropEngineLight(sat);
 	std::vector<Lit> branches;
+	size_t counter = 0;
 	while (true)
 	{
 	again:
@@ -100,10 +101,13 @@ int main(int argc, char *argv[])
 			p.propagate(a.neg());
 		}
 
-		fmt::print("c ({})", p.trail(0).size());
-		for (int l = 1; l <= p.level(); ++l)
-			fmt::print(" ({})", p.trail(l).size());
-		fmt::print("\n");
+		if (counter++ % 64 == 0)
+		{
+			fmt::print("c ({})", p.trail(0).size());
+			for (int l = 1; l <= p.level(); ++l)
+				fmt::print(" ({})", p.trail(l).size());
+			fmt::print("\n");
+		}
 
 		// probe everything and select best branching variable
 		int branch = -1;
