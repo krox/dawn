@@ -216,25 +216,43 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl,
 
 int unitPropagation(Sat &sat)
 {
-	if (sat.contradiction || sat.unaryCount() == 0)
+	// early out if no units
+	if (!sat.contradiction && sat.units.empty())
 		return 0;
 
 	auto p = PropEngineLight(sat);
-	int nFound;
+
+	// conflict -> add empty clause and remove everything else
 	if (p.conflict)
 	{
-		nFound = 1;
 		sat.addEmpty();
-	}
-	else
-	{
-		sat.units.assign(p.trail().begin(), p.trail().end());
-		nFound = (int)sat.units.size();
+		sat.units.resize(0);
+		for (int i = 0; i < sat.varCount() * 2; ++i)
+			sat.bins[i].resize(0);
+		sat.clauses.clear();
+		return 1;
 	}
 
-	sat.cleanup();
-	assert(sat.unaryCount() == 0);
-	return nFound;
+	assert(p.trail().size() != 0);
+
+	auto trans = std::vector<Lit>(sat.varCount(), Lit::undef());
+	for (Lit u : p.trail())
+	{
+		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
+		trans[u.var()] = Lit::fixed(u.sign());
+	}
+	int newVarCount = 0;
+	for (int i = 0; i < sat.varCount(); ++i)
+	{
+		if (trans[i] == Lit::undef())
+			trans[i] = Lit(newVarCount++, false);
+	}
+
+	// NOTE: this renumber() changes sat and thus invalidates p
+	sat.renumber(trans, newVarCount);
+	assert(sat.units.empty());
+
+	return (int)p.trail().size();
 }
 
 void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
@@ -415,7 +433,7 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 				cleanClausesGlue(sat.clauses, config.max_learnt);
 			else
 				cleanClausesSize(sat.clauses, config.max_learnt);
-			sat.cleanup();
+			sat.clauses.compactify();
 		}
 		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
 		{
@@ -423,7 +441,7 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 				cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
 			else
 				cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
-			sat.cleanup();
+			sat.clauses.compactify();
 		}
 	}
 }

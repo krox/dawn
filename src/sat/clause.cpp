@@ -64,3 +64,9 @@ void ClauseStorage::compactify()
 	clauses.resize(ii);
 	store.resize(pos);
 }
+
+void ClauseStorage::clear()
+{
+	clauses.resize(0);
+	store.resize(0);
+}

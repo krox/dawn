@@ -7,57 +7,10 @@
 #include <iostream>
 #include <random>
 
-void Sat::cleanup()
+void Sat::renumber(span<const Lit> trans, int newVarCount)
 {
 	StopwatchGuard swg(stats.swCleanup);
 
-	// empty clause -> remove everything
-	if (contradiction)
-	{
-		units.resize(0);
-		for (int i = 0; i < 2 * varCount(); ++i)
-			bins[i].resize(0);
-		for (auto [ci, cl] : clauses)
-		{
-			(void)ci;
-			cl.remove();
-		}
-		return;
-	}
-
-	// if there are units -> renumber
-	if (!units.empty())
-	{
-		auto trans = std::vector<Lit>(varCount(), Lit::undef());
-		for (Lit u : units)
-		{
-			assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
-			trans[u.var()] = Lit::fixed(u.sign());
-		}
-		int newVarCount = 0;
-		for (int i = 0; i < varCount(); ++i)
-		{
-			if (trans[i] == Lit::undef())
-				trans[i] = Lit(newVarCount++, false);
-		}
-		renumber(trans, newVarCount);
-	}
-
-	// remove duplicate unary clauses
-	std::sort(units.begin(), units.end());
-	units.erase(std::unique(units.begin(), units.end()), units.end());
-
-	// remove duplicate binary clauses
-	for (int i = 0; i < 2 * varCount(); ++i)
-	{
-		auto &v = bins[Lit(i)];
-		std::sort(v.begin(), v.end());
-		v.erase(std::unique(v.begin(), v.end()), v.end());
-	}
-}
-
-void Sat::renumber(span<const Lit> trans, int newVarCount)
-{
 	// check input
 	assert(trans.size() == (size_t)varCount());
 	for (Lit l : trans)
@@ -103,15 +56,15 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 				Lit c = trans[a.var()] ^ a.sign();
 				Lit d = trans[b.var()] ^ b.sign();
 
-				// tautologies -> remove clause
+				// (true, x), (x, -x) -> tautology
 				if (c == Lit::one() || d == Lit::one() || c == d.neg())
 					continue;
 
-				// false false clause -> add
+				// (false, false) -> ()
 				else if (c == Lit::zero() && d == Lit::zero())
 					addEmpty();
 
-				// unit claus
+				// (false, x), (x, x) -> (x)
 				else if (c == Lit::zero())
 					addUnary(d);
 				else if (d == Lit::zero())
@@ -124,6 +77,13 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 					addBinary(c, d);
 			}
 		}
+	}
+
+	for (auto [ci, cl] : clauses)
+	{
+		(void)ci;
+		assert(!cl.isRemoved());
+		assert(cl.size() >= 3);
 	}
 
 	// renumber long clauses
@@ -144,7 +104,12 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 		if (cl.size() <= 2)
 			cl.remove();
 	}
-
+	for (auto [ci, cl] : clauses)
+	{
+		(void)ci;
+		assert(!cl.isRemoved());
+		assert(cl.size() >= 3);
+	}
 	// renumber activity array
 	{
 		std::vector<double> activityOld(newVarCount, 0.0);
@@ -180,9 +145,6 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 		if (outerToInner_[i].proper())
 			outerToInner_[i] =
 			    trans[outerToInner_[i].var()] ^ outerToInner_[i].sign();
-
-	// compactify storage of long clauses
-	clauses.compactify();
 }
 
 size_t Sat::memory_usage() const

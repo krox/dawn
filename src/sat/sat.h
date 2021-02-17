@@ -67,15 +67,9 @@ class Sat
 	size_t longCountRed() const;
 
 	/**
-	 * - Remove fixed variables from clauses (keeps unit clauses itself)
-	 * - Remove (some) duplicate clauses
+	 * - renumber variables allowing for fixed and equivalent vars
 	 * - invalidates all CRefs
-	 */
-	void cleanup();
-
-	/**
-	 * - Renumber variables allowing for fixed and equivalent vars
-	 * - invalidates all CRefs
+	 * - suggested to call clauses.compacitfy() afterwards
 	 */
 	void renumber(span<const Lit> trans, int newVarCount);
 
@@ -206,7 +200,7 @@ inline size_t Sat::binaryCount() const
 inline size_t Sat::longCount() const
 {
 	size_t r = 0;
-	for (auto _[[maybe_unused]] : clauses)
+	for (auto _ [[maybe_unused]] : clauses)
 		++r;
 	return r;
 }

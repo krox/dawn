@@ -149,7 +149,10 @@ class Clause
 	}
 };
 
-/** Reference to a clause inside a ClauseStorage object. */
+/**
+ * Reference to a clause inside a ClauseStorage object.
+ * Technically just a (31 bit) index into an array.
+ */
 class CRef
 {
 	// NOTE: highest bit is used for bit-packing in 'Watch' and 'Reason'
@@ -213,30 +216,30 @@ class ClauseStorage
 
 	struct iterator
 	{
-		ClauseStorage &cs;
-		std::vector<CRef>::iterator it;
+		ClauseStorage &cs_;
+		std::vector<CRef>::iterator it_;
 
 	  public:
 		iterator(ClauseStorage &cs, std::vector<CRef>::iterator it)
-		    : cs(cs), it(it)
+		    : cs_(cs), it_(it)
 		{
-			while (it != cs.clauses.end() && cs[*it].isRemoved())
-				++it;
+			while (it_ != cs.clauses.end() && cs[*it_].isRemoved())
+				++it_;
 		}
 
 		std::tuple<CRef, Clause &> operator*()
 		{
-			return std::make_tuple(*it, std::ref(cs[*it]));
+			return std::make_tuple(*it_, std::ref(cs_[*it_]));
 		}
 
 		void operator++()
 		{
-			++it;
-			while (it != cs.clauses.end() && cs[*it].isRemoved())
-				++it;
+			++it_;
+			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
+				++it_;
 		}
 
-		bool operator!=(const iterator &r) const { return it != r.it; }
+		bool operator!=(const iterator &r) const { return it_ != r.it_; }
 	};
 
 	iterator begin() { return iterator(*this, clauses.begin()); }
@@ -245,31 +248,31 @@ class ClauseStorage
 
 	struct const_iterator
 	{
-		const ClauseStorage &cs;
-		std::vector<CRef>::const_iterator it;
+		const ClauseStorage &cs_;
+		std::vector<CRef>::const_iterator it_;
 
 	  public:
 		const_iterator(const ClauseStorage &cs,
 		               std::vector<CRef>::const_iterator it)
-		    : cs(cs), it(it)
+		    : cs_(cs), it_(it)
 		{
-			while (it != cs.clauses.end() && cs[*it].isRemoved())
-				++it;
+			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
+				++it_;
 		}
 
 		std::tuple<CRef, const Clause &> operator*()
 		{
-			return std::make_tuple(*it, std::ref(cs[*it]));
+			return std::make_tuple(*it_, std::ref(cs_[*it_]));
 		}
 
 		void operator++()
 		{
-			++it;
-			while (it != cs.clauses.end() && cs[*it].isRemoved())
-				++it;
+			++it_;
+			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
+				++it_;
 		}
 
-		bool operator!=(const const_iterator &r) const { return it != r.it; }
+		bool operator!=(const const_iterator &r) const { return it_ != r.it_; }
 	};
 
 	const_iterator begin() const
@@ -285,7 +288,16 @@ class ClauseStorage
 		       clauses.capacity() * sizeof(CRef);
 	}
 
+	/**
+	 * Actually remove clauses that are marked as such by moving all remaining
+	 * clauses closer together. Invalidates all CRef's.
+	 */
 	void compactify();
+
+	/**
+	 * Remove all clauses (but keep allocated memory). Invalidates all CRef's.
+	 */
+	void clear();
 };
 
 static_assert(sizeof(Lit) == 4);
