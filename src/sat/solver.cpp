@@ -5,6 +5,7 @@
 #include "sat/probing.h"
 #include "sat/propengine.h"
 #include "sat/subsumption.h"
+#include "sat/vivification.h"
 
 static void printHeader()
 {
@@ -363,6 +364,12 @@ void inprocess(Sat &sat, SolverConfig const &config)
 			else
 				inprocessCheap(sat);
 		}
+	}
+
+	if (config.vivify)
+	{
+		if (run_vivification(sat))
+			return inprocess(sat, config);
 	}
 
 	// cleanup

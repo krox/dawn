@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
 	app.add_option("--tbr", config.tbr,
 	               "transitive reduction for binaries"
 	               "(0=off, 2=full)");
+	app.add_option("--vivify", config.vivify, "clause vivification");
 
 	// other options
 	app.add_flag("--watch-stats", watch_stats, "print watchlist statistics");
