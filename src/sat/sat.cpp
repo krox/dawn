@@ -14,11 +14,8 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 	// check input
 	assert(trans.size() == (size_t)varCount());
 	for (Lit l : trans)
-		if (!l.fixed())
-		{
-			assert(l.proper());
-			assert(l.var() < newVarCount);
-		}
+		assert(l.fixed() || l == Lit::elim() ||
+		       (l.proper() && l.var() < newVarCount));
 
 	// renumber units
 	{
@@ -32,8 +29,10 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 				continue;
 			else if (a == Lit::zero())
 				addEmpty();
-			else
+			else if (a.proper())
 				addUnary(a);
+			else
+				assert(false); // disallows elim
 		}
 	}
 
@@ -79,13 +78,6 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 		}
 	}
 
-	for (auto [ci, cl] : clauses)
-	{
-		(void)ci;
-		assert(!cl.isRemoved());
-		assert(cl.size() >= 3);
-	}
-
 	// renumber long clauses
 	for (auto [_, cl] : clauses)
 	{
@@ -104,12 +96,7 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 		if (cl.size() <= 2)
 			cl.remove();
 	}
-	for (auto [ci, cl] : clauses)
-	{
-		(void)ci;
-		assert(!cl.isRemoved());
-		assert(cl.size() >= 3);
-	}
+
 	// renumber activity array
 	{
 		std::vector<double> activityOld(newVarCount, 0.0);
@@ -140,21 +127,60 @@ void Sat::renumber(span<const Lit> trans, int newVarCount)
 			}
 	}
 
-	// renumber translation array
-	for (int i = 0; i < (int)varCountOuter(); ++i)
-		if (outerToInner_[i].proper())
-			outerToInner_[i] =
-			    trans[outerToInner_[i].var()] ^ outerToInner_[i].sign();
+	// renumber translation arrays
+	for (int outer = 0; outer < (int)varCountOuter(); ++outer)
+	{
+		Lit inner = outer_to_inner_[outer];
+
+		// outer was already elim/fixed -> do nothing
+		if (!inner.proper())
+			continue;
+
+		// variable is to be removed right now
+		if (trans[inner.var()] == Lit::elim())
+		{
+			// if outer was previously removed by equivalence
+			if (inner_to_outer_[inner.var()].var() != outer)
+			{
+				Lit outer2 = inner_to_outer_[inner.var()] ^ inner.sign();
+				extension_clauses.addBinary(Lit(outer, false), outer2.neg());
+				extension_clauses.addBinary(Lit(outer, true), outer2);
+			}
+
+			outer_to_inner_[outer] = Lit::elim();
+			continue;
+		}
+
+		// variable is to be fixed or still active
+		assert(trans[inner.var()].proper() || trans[inner.var()].fixed());
+		outer_to_inner_[outer] = trans[inner.var()] ^ inner.sign();
+	}
+
+	inner_to_outer_.resize(0);
+	inner_to_outer_.resize(newVarCount, Lit::undef());
+	for (int outer = 0; outer < (int)varCountOuter(); ++outer)
+	{
+		Lit inner = outer_to_inner_[outer];
+		if (!inner.proper())
+			continue;
+		if (inner_to_outer_[inner.var()] != Lit::undef())
+			continue;
+		inner_to_outer_[inner.var()] = Lit(outer, inner.sign());
+	}
+	for (Lit a : inner_to_outer_)
+		assert(a.proper());
 }
 
 size_t Sat::memory_usage() const
 {
 	size_t r = 0;
-	r += outerToInner_.capacity() * sizeof(Lit);
+	r += outer_to_inner_.capacity() * sizeof(Lit);
 	r += units.capacity() * sizeof(Lit);
 	for (int i = 0; i < varCount() * 2; ++i)
 		r += bins[i].capacity() * sizeof(Lit);
 	r += clauses.memory_usage();
+	r += extension_clauses.memory_usage();
+	r += removed_vars.capacity() * sizeof(int);
 	return r;
 }
 
@@ -201,6 +227,8 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 	for (int i = 0; i < sat.varCountOuter(); ++i)
 	{
 		Lit a = sat.outerToInner(Lit(i, false));
+		if (a == Lit::elim())
+			continue;
 		assert(a.fixed() || a.proper());
 		if (a.fixed())
 			fixed_lits.push_back(Lit(i, a.sign()));
@@ -212,7 +240,8 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 
 	auto file = fmt::output_file(filename);
 	file.print("p cnf {} {}\n", sat.varCountOuter(),
-	           sat.clauseCount() + fixed_lits.size() + 2 * equ_lits.size());
+	           sat.clauseCount() + fixed_lits.size() + 2 * equ_lits.size() +
+	               sat.extension_clauses.count());
 
 	// consistency check
 	for (Lit a : innerToOuter)
@@ -249,6 +278,15 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 		(void)ci;
 		for (Lit a : cl.lits())
 			file.print("{} ", (innerToOuter[a.var()] ^ a.sign()).toDimacs());
+		file.print("0\n");
+	}
+
+	// write extension clauses (can be of any size)
+	for (auto [ci, cl] : sat.extension_clauses)
+	{
+		(void)ci;
+		for (Lit a : cl.lits())
+			file.print("{} ", a.toDimacs());
 		file.print("0\n");
 	}
 }

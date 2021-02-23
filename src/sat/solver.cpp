@@ -2,6 +2,7 @@
 
 #include "fmt/format.h"
 #include "sat/binary.h"
+#include "sat/elimination.h"
 #include "sat/probing.h"
 #include "sat/propengine.h"
 #include "sat/subsumption.h"
@@ -56,26 +57,32 @@ static void printLine(Sat &sat)
 
 Solution buildSolution(const PropEngine &p)
 {
-	auto sol = Solution(p.sat.varCountOuter());
-	for (int i = 0; i < p.sat.varCountOuter(); ++i)
+	assert(!p.conflict);
+	auto outer = Sat(p.sat.varCountOuter());
+	for (auto [ci, cl] : p.sat.extension_clauses)
 	{
-		auto a = Lit(p.sat.outerToInner(Lit(i, false)));
-		if (a.fixed())
-		{
-			sol.set(Lit(i, a.sign()));
-		}
-		else
-		{
-			assert(a.proper() && a.var() < p.sat.varCount());
-
-			assert(p.assign[a] || p.assign[a.neg()]);
-			assert(!(p.assign[a] && p.assign[a.neg()]));
-			if (p.assign[a])
-				sol.set(Lit(i, false));
-			if (p.assign[a.neg()])
-				sol.set(Lit(i, true));
-		}
+		(void)ci;
+		outer.addClauseOuter(cl.lits());
 	}
+
+	auto outerProp = PropEngineLight(outer);
+	assert(!outerProp.conflict);
+	for (Lit a : p.trail())
+	{
+		outerProp.propagate(p.sat.innerToOuter(a));
+		assert(!outerProp.conflict);
+	}
+
+	for (size_t i = p.sat.removed_vars.size(); i--;)
+	{
+		Lit a = Lit(p.sat.removed_vars[i], false);
+		if (outerProp.assign[a] || outerProp.assign[a.neg()])
+			continue;
+		outerProp.propagate(a);
+		assert(!outerProp.conflict);
+	}
+
+	auto sol = Solution(outerProp.assign);
 	assert(sol.valid());
 	return sol;
 }
@@ -383,6 +390,14 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 	StopwatchGuard _(sat.stats.swTotal);
 
 	inprocess(sat, config);
+
+	if (config.bve > 0)
+	{
+		int nRemoved = run_variable_elimination(sat);
+		fmt::print("c BVE removed {} variables\n", nRemoved);
+		if (nRemoved)
+			inprocess(sat, config);
+	}
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());

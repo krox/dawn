@@ -32,7 +32,8 @@ struct SolverConfig
 	                 // (0=off, 1=limited, 2=full)
 	int tbr = 2;     // transitive binary reduction
 	                 // (0=off, 2=full)
-	int vivify = 0;
+	int vivify = 0;  // clause vivification
+	int bve = 1;     // bounded variable elimination
 
 	// other
 	int64_t max_confls = INT64_MAX; // stop solving
@@ -67,7 +68,7 @@ struct Stats
 	util::Stopwatch swSCC, swCleanup, swProbing;
 	util::Stopwatch swSearch, swSearchInit;
 	util::Stopwatch swSubsumeBin, swSubsumeLong;
-	util::Stopwatch swVivification;
+	util::Stopwatch swVivification, swBVE;
 
 	// Write stats to stdout. Usually called once at the end of solving
 	void dump();

@@ -16,6 +16,10 @@ std::ostream &operator<<(std::ostream &stream, Lit l)
 		stream << "false";
 	else if (l == Lit::elim())
 		stream << "elim";
+	else if (l == Lit::elim().neg())
+		stream << "-elim"; // should never exist, just for debugging
+	else if (l == Lit::undef().neg())
+		stream << "-undef"; // ditto
 	else
 		assert(false);
 	return stream;

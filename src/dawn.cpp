@@ -71,6 +71,7 @@ int main(int argc, char *argv[])
 	               "transitive reduction for binaries"
 	               "(0=off, 2=full)");
 	app.add_option("--vivify", config.vivify, "clause vivification");
+	app.add_option("--bve", config.bve, "bounded variable elimination");
 
 	// other options
 	app.add_flag("--watch-stats", watch_stats, "print watchlist statistics");

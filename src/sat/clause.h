@@ -30,8 +30,8 @@ class Lit
 	/** special values of Lit */
 	static constexpr Lit zero() { return Lit{(uint32_t)-1}; }
 	static constexpr Lit one() { return Lit{(uint32_t)-2}; }
-	static constexpr Lit undef() { return Lit{(uint32_t)-3}; }
-	static constexpr Lit elim() { return Lit{(uint32_t)-4}; }
+	static constexpr Lit undef() { return Lit{(uint32_t)-4}; }
+	static constexpr Lit elim() { return Lit{(uint32_t)-6}; }
 	static constexpr Lit fixed(bool sign) { return one() ^ sign; }
 
 	/** basic accesors and properties */
@@ -71,7 +71,7 @@ inline int normalizeClause(span<Lit> lits)
 		if (lits[i] == Lit::zero()) // literal false -> remove lit
 			goto next;
 
-		assert(lits[i].proper());
+		assert(lits[i].proper()); // disallow Lit::undef()/Lit::elim()
 
 		for (int k = 0; k < i; ++k)
 		{
@@ -82,7 +82,6 @@ inline int normalizeClause(span<Lit> lits)
 		}
 
 		// no special case -> keep the literal
-		assert(lits[i].proper());
 		lits[j++] = lits[i];
 
 	next:;
@@ -133,6 +132,23 @@ class Clause
 				size_ -= 1;
 				return true;
 			}
+		return false;
+	}
+
+	/** check if this clause contains some literal */
+	bool contains(Lit a) const
+	{
+		for (Lit b : lits())
+			if (a == b)
+				return true;
+		return false;
+	}
+
+	bool contains_variable(int v) const
+	{
+		for (Lit b : lits())
+			if (b.var() == v)
+				return true;
 		return false;
 	}
 
@@ -210,6 +226,11 @@ class ClauseStorage
 		return r;
 	}
 
+	CRef addBinary(Lit a, Lit b)
+	{
+		return addClause(std::array<Lit, 2>{a, b}, true);
+	}
+
 	Clause &operator[](CRef i) { return *(Clause *)&store[i]; }
 
 	const Clause &operator[](CRef i) const { return *(Clause *)&store[i]; }
@@ -281,6 +302,15 @@ class ClauseStorage
 	}
 
 	const_iterator end() const { return const_iterator(*this, clauses.end()); }
+
+	/** number of (non-removed) clauses */
+	size_t count() const
+	{
+		size_t r = 0;
+		for (auto _ [[maybe_unused]] : clauses)
+			++r;
+		return r;
+	}
 
 	size_t memory_usage() const
 	{

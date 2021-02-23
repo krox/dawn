@@ -1,5 +1,4 @@
-#ifndef SAT_SAT_H
-#define SAT_SAT_H
+#pragma once
 
 #include "sat/clause.h"
 #include "sat/stats.h"
@@ -16,19 +15,30 @@
 class Sat
 {
   private:
-	std::vector<Lit> outerToInner_; // outer variable -> inner literal
-	std::vector<Lit> buf_;          // temporary
+	std::vector<Lit> outer_to_inner_; // outer variable -> inner literal
+	std::vector<Lit> inner_to_outer_;
+
+	std::vector<Lit> buf_; // temporary
 
   public:
 	Stats stats;
 	util::xoshiro256 rng;
 
-	/** storage of clauses */
+	/** storage of clauses ('inner' variable numbers) */
 	bool contradiction = false;
 	std::vector<Lit> units;
 	using bins_t = std::vector<util::small_vector<Lit, 6>>;
 	bins_t bins;
 	ClauseStorage clauses;
+
+	/**
+	 * clauses needed to extend solution to full problem if variable
+	 * elimination was performed
+	 *   - 'outer' variable numbering
+	 *   - can contain small clauses (i.e. no implicit binaries)
+	 */
+	ClauseStorage extension_clauses;
+	std::vector<int> removed_vars; // consider in reverse when extending sol
 
 	/** constructor */
 	Sat();
@@ -39,6 +49,7 @@ class Sat
 
 	/** translate outer to inner (can return Lit::zero()/Lit::one() for fixed)*/
 	Lit outerToInner(Lit a) const;
+	Lit innerToOuter(Lit a) const;
 
 	/** add/count variables in the 'inner' problem */
 	int addVar();
@@ -53,7 +64,7 @@ class Sat
 	void addUnary(Lit a);
 	void addBinary(Lit a, Lit b);
 	CRef addLong(span<const Lit> lits, bool irred);
-	void addClause(span<const Lit> lits, bool irred);
+	CRef addClause(span<const Lit> lits, bool irred);
 
 	/** add clause ('outer' numbering, normalizes clause) */
 	void addClauseOuter(span<const Lit> lits);
@@ -70,6 +81,7 @@ class Sat
 	 * - renumber variables allowing for fixed and equivalent vars
 	 * - invalidates all CRefs
 	 * - suggested to call clauses.compacitfy() afterwards
+	 * - if trans[v] is Lit::elim(), the variable v may not appear in any clause
 	 */
 	void renumber(span<const Lit> trans, int newVarCount);
 
@@ -90,10 +102,14 @@ void shuffleVariables(Sat &sat);
 inline Sat::Sat() {}
 
 inline Sat::Sat(int n)
-    : outerToInner_(n), bins(2 * n), activity(n, 0.0), polarity(n, false)
+    : outer_to_inner_(n), inner_to_outer_(n), bins(2 * n), activity(n, 0.0),
+      polarity(n, false)
 {
 	for (int i = 0; i < n; ++i)
-		outerToInner_[i] = Lit(i, false);
+	{
+		outer_to_inner_[i] = Lit(i, false);
+		inner_to_outer_[i] = Lit(i, false);
+	}
 }
 
 inline Lit Sat::outerToInner(Lit a) const
@@ -101,29 +117,40 @@ inline Lit Sat::outerToInner(Lit a) const
 	if (!a.proper())
 		return a;
 	assert(a.var() < varCountOuter());
-	return outerToInner_[a.var()] ^ a.sign();
+	if (outer_to_inner_[a.var()] == Lit::elim())
+		return Lit::elim();
+	return outer_to_inner_[a.var()] ^ a.sign();
 }
+
+inline Lit Sat::innerToOuter(Lit a) const
+{
+	if (!a.proper())
+		return a;
+	assert(a.var() < varCount());
+	return inner_to_outer_[a.var()] ^ a.sign();
+}
+
+inline int Sat::varCount() const { return (int)inner_to_outer_.size(); }
+inline int Sat::varCountOuter() const { return (int)outer_to_inner_.size(); }
 
 inline int Sat::addVar()
 {
-	auto i = varCount();
+	int inner = varCount();
+	int outer = varCountOuter();
 	bins.emplace_back();
 	bins.emplace_back();
 	activity.push_back(0.0);
 	polarity.push_back(false);
-	return i;
+	outer_to_inner_.push_back(Lit(inner, false));
+	inner_to_outer_.push_back(Lit(outer, false));
+	return inner;
 }
-
-inline int Sat::varCount() const { return (int)bins.size() / 2; }
 
 inline int Sat::addVarOuter()
 {
-	auto i = varCountOuter();
-	outerToInner_.push_back(Lit(addVar(), false));
-	return i;
+	int i = addVar();
+	return inner_to_outer_[i].var();
 }
-
-inline int Sat::varCountOuter() const { return (uint32_t)outerToInner_.size(); }
 
 inline void Sat::addEmpty() { contradiction = true; }
 
@@ -157,12 +184,16 @@ inline CRef Sat::addLong(span<const Lit> lits, bool irred)
 	for (size_t i = 0; i < lits.size(); ++i)
 		for (size_t j = 0; j < i; ++j)
 			assert(lits[i].var() != lits[j].var());
+	assert(lits.size() >= 3);
 
 	return clauses.addClause(lits, irred);
 }
 
-inline void Sat::addClause(span<const Lit> lits, bool irred)
+inline CRef Sat::addClause(span<const Lit> lits, bool irred)
 {
+	if (lits.size() >= 3)
+		return addLong(lits, irred);
+
 	if (lits.size() == 0)
 		addEmpty();
 	else if (lits.size() == 1)
@@ -170,14 +201,19 @@ inline void Sat::addClause(span<const Lit> lits, bool irred)
 	else if (lits.size() == 2)
 		addBinary(lits[0], lits[1]);
 	else
-		addLong(lits, irred);
+		assert(false);
+	return CRef::undef();
 }
 
 inline void Sat::addClauseOuter(span<const Lit> lits)
 {
 	assert(buf_.size() == 0);
 	for (auto a : lits)
-		buf_.push_back(outerToInner(a));
+	{
+		auto b = outerToInner(a);
+		assert(b.proper() || b.fixed());
+		buf_.push_back(b);
+	}
 	int s = normalizeClause(buf_);
 	if (s != -1)
 	{
@@ -197,13 +233,7 @@ inline size_t Sat::binaryCount() const
 	return r / 2;
 }
 
-inline size_t Sat::longCount() const
-{
-	size_t r = 0;
-	for (auto _ [[maybe_unused]] : clauses)
-		++r;
-	return r;
-}
+inline size_t Sat::longCount() const { return clauses.count(); }
 
 inline size_t Sat::longCountIrred() const
 {
@@ -244,5 +274,3 @@ inline void Sat::decayVariableActivity()
 }
 
 void dumpOuter(std::string const &filename, Sat const &sat);
-
-#endif
