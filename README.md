@@ -14,14 +14,19 @@
     - [x] glue (computed once when learning)
     - [ ] glue (dynamicically adjusted during propagation)
     - [ ] activity
+  * restart heuristic
+    - [x] linear
+    - [ ] geometric
+    - [ ] luby
+    - [ ] dynamic
 * preprocessing / inprocessing
-  - [x] subsumption / self-subsuming resolution
-  - [ ] vivification
+  - [x] subsumption / self-subsuming resolution (includes HTE)
+  - [x] vivification (default=off)
   - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components
   - [ ] blocked-clause elimination
-  - [ ] bounded variable elimination
+  - [x] bounded variable elimination (preprocessing only)
   - [ ] bounded variable addition (at least some?)
   - [ ] xor discovery and gaussian elimination
 * data-structures
