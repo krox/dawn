@@ -139,6 +139,7 @@ void parseCnf(std::string filename, Sat &sat)
 
 	int varCount = -1;
 	int64_t clauseCount = -1;
+	int64_t clauseCounter = 0;
 	std::vector<Lit> clause;
 	while (true)
 	{
@@ -177,7 +178,8 @@ void parseCnf(std::string filename, Sat &sat)
 			auto x = parser.parseInt();
 			if (x == 0)
 			{
-				sat.addClause(clause, true);
+				clauseCounter++;
+				sat.addClauseOuter(clause);
 				clause.resize(0);
 			}
 			else
@@ -200,9 +202,9 @@ void parseCnf(std::string filename, Sat &sat)
 	            "wrong number of variables: header said {}, actually got {}",
 	            varCount, sat.varCount()));
 	enforce(
-	    clauseCount == -1 || clauseCount == (int64_t)sat.clauseCount(),
+	    clauseCount == -1 || clauseCount == clauseCounter,
 	    fmt::format("wrong number of clauses: header said {}, actually got {}",
-	                clauseCount, sat.clauseCount()));
+	                clauseCount, clauseCounter));
 
 	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount()
 	          << " clauses" << std::endl;
