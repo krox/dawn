@@ -1,5 +1,6 @@
 #include "sat/dimacs.h"
 
+#include "util/stopwatch.h"
 #include <cctype>
 #include <climits>
 #include <cstdio>
@@ -130,6 +131,8 @@ class Parser
 void parseCnf(std::string filename, Sat &sat)
 {
 	StopwatchGuard(sat.stats.swParsing);
+	Stopwatch sw;
+	sw.start();
 
 	if (filename != "")
 		std::cout << "c reading " << filename << std::endl;
@@ -206,10 +209,9 @@ void parseCnf(std::string filename, Sat &sat)
 	    fmt::format("wrong number of clauses: header said {}, actually got {}",
 	                clauseCount, clauseCounter));
 
-	std::cout << "c " << sat.varCount() << " vars and " << sat.clauseCount()
-	          << " clauses" << std::endl;
+	fmt::print("c [parser       {:#6.2f}] read {} vars and {} clauses\n",
+	           sw.secs(), sat.varCount(), sat.clauseCount());
 }
-
 void parseSolution(std::string filename, Solution &sol)
 {
 	auto parser = Parser(filename);

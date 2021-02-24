@@ -345,8 +345,8 @@ int inprocessCheap(Sat &sat)
 			break;
 	}
 
-	fmt::print("c UP+SCC ({} iterations) removed {} + {} variables in {:.2f}\n",
-	           iter, totalUP, totalSCC, sw.secs());
+	fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
+	           sw.secs(), totalUP, totalSCC);
 	return totalUP + totalSCC;
 }
 
@@ -408,9 +408,7 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 
 	if (config.bve > 0)
 	{
-		int nRemoved = run_variable_elimination(sat);
-		fmt::print("c BVE removed {} variables\n", nRemoved);
-		if (nRemoved)
+		if (run_variable_elimination(sat))
 			inprocess(sat, config);
 	}
 

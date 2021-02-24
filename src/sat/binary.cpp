@@ -193,6 +193,9 @@ void printBinaryStats(Sat const &sat)
 
 void runBinaryReduction(Sat &sat)
 {
+	Stopwatch sw;
+	sw.start();
+
 	auto top = TopOrder(sat);
 	if (!top.valid()) // require acyclic
 		throw std::runtime_error("tried to run TBR without SCC first");
@@ -263,6 +266,7 @@ void runBinaryReduction(Sat &sat)
 		}
 	}
 	assert(nFound % 2 == 0);
-	fmt::print("c TBR found {} redundant binaries (while using {} props)\n",
-	           nFound / 2, propCount);
+	fmt::print("c [TBR          {:#6.2f}] removed {} redundant binaries (using "
+	           "{:.2f}M props)\n",
+	           sw.secs(), nFound / 2, propCount / 1024. / 1024.);
 }

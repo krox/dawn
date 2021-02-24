@@ -407,10 +407,16 @@ struct BVE
 
 int run_variable_elimination(Sat &sat)
 {
-	StopwatchGuard swg(sat.stats.swBVE);
 	if (sat.contradiction)
 		return 0;
 
+	StopwatchGuard swg(sat.stats.swBVE);
+	Stopwatch sw;
+	sw.start();
+
 	auto bve = BVE(sat);
-	return bve.run();
+	int nFound = bve.run();
+	fmt::print("c [BVE          {:#6.2f}] removed {} vars\n", sw.secs(),
+	           nFound);
+	return nFound;
 }

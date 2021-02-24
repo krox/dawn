@@ -84,9 +84,8 @@ bool run_vivification(Sat &sat)
 		(void)ci;
 		sat.addClause(cl.lits(), cl.irred());
 	}
-
-	fmt::print("c vivification shortened {} clauses in {:.2f}s\n", nFound,
-	           sw.secs());
+	fmt::print("c [vivification {:#6.2f}] removed {} lits\n", sw.secs(),
+	           nFound);
 
 	return nFound;
 }

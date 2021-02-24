@@ -66,9 +66,8 @@ int probe(Sat &sat, int maxTries)
 		}
 	}
 
-	fmt::print("c FLP ({}) found {} failing literals in {:.2}s\n",
-	           maxTries == 0 ? "full" : "limited", nFails, sw.secs());
-
+	fmt::print("c [probing      {:#6.2f}] found {} failing literals\n",
+	           sw.secs(), nFails);
 	return nFails;
 }
 
