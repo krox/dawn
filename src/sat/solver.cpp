@@ -67,9 +67,24 @@ Solution buildSolution(const PropEngine &p)
 
 	auto outerProp = PropEngineLight(outer);
 	assert(!outerProp.conflict);
-	for (Lit a : p.trail())
+	for (int i = 0; i < p.sat.varCountOuter(); ++i)
 	{
-		outerProp.propagate(p.sat.innerToOuter(a));
+		Lit inner = p.sat.outerToInner(Lit(i, false));
+		if (inner.fixed())
+			outerProp.propagate(Lit(i, inner.sign()));
+		else if (inner.proper())
+		{
+			if (p.assign[inner])
+				outerProp.propagate(Lit(i, false));
+			else if (p.assign[inner.neg()])
+				outerProp.propagate(Lit(i, true));
+			else
+				assert(false);
+		}
+		else if (inner == Lit::elim())
+		{}
+		else
+			assert(false);
 		assert(!outerProp.conflict);
 	}
 
@@ -376,7 +391,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 	if (config.vivify)
 	{
 		if (run_vivification(sat))
-			return inprocess(sat, config);
+			inprocessCheap(sat);
 	}
 
 	// cleanup

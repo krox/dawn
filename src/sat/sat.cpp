@@ -269,7 +269,7 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 			Lit a = Lit(i);
 			a = innerToOuter[a.var()] ^ a.sign();
 			b = innerToOuter[b.var()] ^ b.sign();
-			file.print("{} {}\n", a.toDimacs(), b.toDimacs());
+			file.print("{} {} 0\n", a.toDimacs(), b.toDimacs());
 		}
 
 	// write long clauses
