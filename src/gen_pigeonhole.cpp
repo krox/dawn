@@ -4,6 +4,8 @@
 #include <random>
 #include <string>
 
+using namespace dawn;
+
 int main(int argc, char *argv[])
 {
 	if (argc != 2)

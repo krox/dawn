@@ -5,6 +5,8 @@
 #include "sat/sat.h"
 #include "sat/solver.h"
 
+using namespace dawn;
+
 int main(int argc, char *argv[])
 {
 	// command line arguments

@@ -5,6 +5,8 @@
 #include <queue>
 #include <vector>
 
+namespace dawn {
+
 namespace {
 
 /**
@@ -346,19 +348,21 @@ struct BVE
 			{
 				// prune occ-lists
 				auto &oPos = occs[Lit(j, false)];
-				erase_if(oPos, [this](CRef ci) {
+				util::erase_if(oPos, [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
 				auto &oNeg = occs[Lit(j, true)];
-				erase_if(oNeg, [this](CRef ci) {
+				util::erase_if(oNeg, [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
 
 				// prune implicit binaries
 				auto &bPos = sat.bins[Lit(j, false)];
-				erase_if(bPos, [v](Lit other) { return other.var() == v; });
+				util::erase_if(bPos,
+				               [v](Lit other) { return other.var() == v; });
 				auto &bNeg = sat.bins[Lit(j, true)];
-				erase_if(bNeg, [v](Lit other) { return other.var() == v; });
+				util::erase_if(bNeg,
+				               [v](Lit other) { return other.var() == v; });
 
 				seen[j] = false;
 				score[j] = compute_score(j);
@@ -410,8 +414,8 @@ int run_variable_elimination(Sat &sat)
 	if (sat.contradiction)
 		return 0;
 
-	StopwatchGuard swg(sat.stats.swBVE);
-	Stopwatch sw;
+	util::StopwatchGuard swg(sat.stats.swBVE);
+	util::Stopwatch sw;
 	sw.start();
 
 	auto bve = BVE(sat);
@@ -420,3 +424,5 @@ int run_variable_elimination(Sat &sat)
 	           nFound);
 	return nFound;
 }
+
+} // namespace dawn

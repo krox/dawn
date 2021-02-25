@@ -11,6 +11,8 @@
 #include <string>
 #include <vector>
 
+namespace dawn {
+
 static void panic(std::string msg)
 {
 	std::cout << "PARSE ERROR: " << msg << std::endl;
@@ -130,8 +132,8 @@ class Parser
 
 void parseCnf(std::string filename, Sat &sat)
 {
-	StopwatchGuard(sat.stats.swParsing);
-	Stopwatch sw;
+	util::StopwatchGuard(sat.stats.swParsing);
+	util::Stopwatch sw;
 	sw.start();
 
 	if (filename != "")
@@ -261,3 +263,5 @@ void parseSolution(std::string filename, Solution &sol)
 
 	enforce(sol.valid(), "invalid/incomplete solution");
 }
+
+} // namespace dawn

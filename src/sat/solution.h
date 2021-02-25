@@ -1,8 +1,9 @@
-#ifndef SAT_SOLUTION_H
-#define SAT_SOLUTION_H
+#pragma once
 
 #include "clause.h"
 #include <vector>
+
+namespace dawn {
 
 class Solution
 {
@@ -30,7 +31,7 @@ class Solution
 	bool satisfied(Lit a) const;
 	bool satisfied(Lit a, Lit b) const;
 	bool satisfied(Lit a, Lit b, Lit c) const;
-	bool satisfied(span<const Lit> cl) const;
+	bool satisfied(util::span<const Lit> cl) const;
 	bool satisfied(const Clause &cl) const;
 
 	/** output in dimacs format */
@@ -65,7 +66,7 @@ inline bool Solution::satisfied(Lit a, Lit b, Lit c) const
 	return assign[a] || assign[b] || assign[c];
 }
 
-inline bool Solution::satisfied(span<const Lit> cl) const
+inline bool Solution::satisfied(util::span<const Lit> cl) const
 {
 	for (Lit lit : cl)
 		if (assign[lit])
@@ -88,4 +89,4 @@ inline std::ostream &operator<<(std::ostream &stream, const Solution &sol)
 	return stream;
 }
 
-#endif
+} // namespace dawn

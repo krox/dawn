@@ -1,7 +1,8 @@
-#ifndef SAT_ACTIVITY_HEAP_H
-#define SAT_ACTIVITY_HEAP_H
+#pragma once
 
 #include "sat/sat.h"
+
+namespace dawn {
 
 /** heap of variables with quick access to the most 'active' one */
 class ActivityHeap
@@ -108,4 +109,4 @@ class ActivityHeap
 	}
 };
 
-#endif
+} // namespace dawn

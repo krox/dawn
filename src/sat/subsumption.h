@@ -1,7 +1,8 @@
-#ifndef SAT_SUBSUMPTION_H
-#define SAT_SUBSUMPTION_H
+#pragma once
 
 #include "sat/sat.h"
+
+namespace dawn {
 
 /**
  * Perform subsumption and self-subsuming resolution.
@@ -10,4 +11,4 @@
 bool subsumeBinary(Sat &sat); // binary -> long
 bool subsumeLong(Sat &sat);   // long -> long
 
-#endif
+} // namespace dawn

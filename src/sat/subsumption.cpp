@@ -4,6 +4,8 @@
 #include "util/bitset.h"
 #include "util/span.h"
 
+namespace dawn {
+
 namespace {
 
 /**
@@ -152,7 +154,7 @@ class Subsumption
 bool subsumeBinary(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swSubsumeBin);
-	Stopwatch sw;
+	util::Stopwatch sw;
 	sw.start();
 
 	Subsumption sub(sat);
@@ -168,7 +170,7 @@ bool subsumeBinary(Sat &sat)
 bool subsumeLong(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swSubsumeLong);
-	Stopwatch sw;
+	util::Stopwatch sw;
 	sw.start();
 
 	// NOTE: Clauses can only subsume clauses of the same or larger size and
@@ -249,3 +251,5 @@ bool subsumeLong(Sat &sat)
 	    sw.secs(), nRemovedClsLong, nRemovedLitsLong);
 	return nRemovedClsLong || nRemovedLitsLong;
 }
+
+} // namespace dawn

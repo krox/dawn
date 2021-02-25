@@ -8,6 +8,8 @@
 #include <random>
 #include <unistd.h>
 
+using namespace dawn;
+
 static Sat sat;
 
 extern "C" void interruptHandler(int)

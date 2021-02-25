@@ -1,5 +1,4 @@
-#ifndef SAT_PROPENGINE_H
-#define SAT_PROPENGINE_H
+#pragma once
 
 #include "sat.h"
 #include "sat/activity_heap.h"
@@ -7,6 +6,8 @@
 #include <cassert>
 #include <queue>
 #include <vector>
+
+namespace dawn {
 
 struct Reason
 {
@@ -202,4 +203,4 @@ class PropEngineLight
 	util::span<const Lit> trail(int l) const;
 };
 
-#endif
+} // namespace dawn

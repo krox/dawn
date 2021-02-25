@@ -2,6 +2,8 @@
 
 #include "sat/propengine.h"
 
+namespace dawn {
+
 namespace {
 /**
  * try vifify a single clause
@@ -55,7 +57,7 @@ bool vivify_clause(PropEngineLight &p, std::vector<Lit> &cl)
 bool run_vivification(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swVivification);
-	Stopwatch sw;
+	util::Stopwatch sw;
 	sw.start();
 
 	auto p = PropEngineLight(sat);
@@ -89,3 +91,5 @@ bool run_vivification(Sat &sat)
 
 	return nFound;
 }
+
+} // namespace dawn

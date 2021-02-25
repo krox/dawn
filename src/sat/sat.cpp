@@ -7,9 +7,11 @@
 #include <iostream>
 #include <random>
 
-void Sat::renumber(span<const Lit> trans, int newVarCount)
+namespace dawn {
+
+void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 {
-	StopwatchGuard swg(stats.swCleanup);
+	util::StopwatchGuard swg(stats.swCleanup);
 
 	// check input
 	assert(trans.size() == (size_t)varCount());
@@ -290,3 +292,5 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 		file.print("0\n");
 	}
 }
+
+} // namespace dawn

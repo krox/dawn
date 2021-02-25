@@ -1,8 +1,8 @@
 /**
  * Basic definitions and Clause Storage.
  */
-#ifndef SAT_CLAUSE_H
-#define SAT_CLAUSE_H
+
+#pragma once
 
 #include "util/span.h"
 #include <cstdint>
@@ -11,7 +11,7 @@
 #include <tuple>
 #include <vector>
 
-using namespace util;
+namespace dawn {
 
 /**
  * A literal is a variable number + sign. Also there are some special lits:
@@ -61,7 +61,7 @@ class Lit
  * - returns -1 for tautologies and Lit::one()
  * - otherwiese, returns new size
  */
-inline int normalizeClause(span<Lit> lits)
+inline int normalizeClause(util::span<Lit> lits)
 {
 	int j = 0;
 	for (int i = 0; i < (int)lits.size(); ++i)
@@ -108,10 +108,10 @@ class Clause
 	uint16_t size() const { return size_; }
 	Lit &operator[](size_t i) { return lits()[i]; }
 	const Lit &operator[](size_t i) const { return lits()[i]; }
-	span<Lit> lits() { return span<Lit>{(Lit *)(this + 1), size_}; }
-	span<const Lit> lits() const
+	util::span<Lit> lits() { return util::span<Lit>{(Lit *)(this + 1), size_}; }
+	util::span<const Lit> lits() const
 	{
-		return span<const Lit>{(Lit *)(this + 1), size_};
+		return util::span<const Lit>{(Lit *)(this + 1), size_};
 	}
 
 	/** flags */
@@ -195,7 +195,7 @@ class ClauseStorage
 
   public:
 	/** add a new clause, no checking of lits done */
-	CRef addClause(span<const Lit> lits, bool irred)
+	CRef addClause(util::span<const Lit> lits, bool irred)
 	{
 		if (lits.size() > UINT16_MAX)
 		{
@@ -336,4 +336,4 @@ static_assert(sizeof(Clause) == 4);
 std::ostream &operator<<(std::ostream &stream, const Clause &clause);
 std::ostream &operator<<(std::ostream &stream, const ClauseStorage &clauses);
 
-#endif
+} // namespace dawn

@@ -7,6 +7,8 @@
 #include <iostream>
 #include <vector>
 
+namespace dawn {
+
 /**
  * Sat problem in conjunctive normal form, i.e. a set of clauses.
  *   - Empty/Unary/Binary clauses are stored seprately from long clauses.
@@ -63,11 +65,11 @@ class Sat
 	void addEmpty();
 	void addUnary(Lit a);
 	void addBinary(Lit a, Lit b);
-	CRef addLong(span<const Lit> lits, bool irred);
-	CRef addClause(span<const Lit> lits, bool irred);
+	CRef addLong(util::span<const Lit> lits, bool irred);
+	CRef addClause(util::span<const Lit> lits, bool irred);
 
 	/** add clause ('outer' numbering, normalizes clause) */
-	void addClauseOuter(span<const Lit> lits);
+	void addClauseOuter(util::span<const Lit> lits);
 
 	/** number of clauses */
 	size_t unaryCount() const;
@@ -83,7 +85,7 @@ class Sat
 	 * - suggested to call clauses.compacitfy() afterwards
 	 * - if trans[v] is Lit::elim(), the variable v may not appear in any clause
 	 */
-	void renumber(span<const Lit> trans, int newVarCount);
+	void renumber(util::span<const Lit> trans, int newVarCount);
 
 	/** tracking of variable activity and polarity */
 	std::vector<double> activity;
@@ -174,7 +176,7 @@ inline void Sat::addBinary(Lit a, Lit b)
 	bins[b].push_back(a);
 }
 
-inline CRef Sat::addLong(span<const Lit> lits, bool irred)
+inline CRef Sat::addLong(util::span<const Lit> lits, bool irred)
 {
 	for (size_t i = 0; i < lits.size(); ++i)
 	{
@@ -189,7 +191,7 @@ inline CRef Sat::addLong(span<const Lit> lits, bool irred)
 	return clauses.addClause(lits, irred);
 }
 
-inline CRef Sat::addClause(span<const Lit> lits, bool irred)
+inline CRef Sat::addClause(util::span<const Lit> lits, bool irred)
 {
 	if (lits.size() >= 3)
 		return addLong(lits, irred);
@@ -205,7 +207,7 @@ inline CRef Sat::addClause(span<const Lit> lits, bool irred)
 	return CRef::undef();
 }
 
-inline void Sat::addClauseOuter(span<const Lit> lits)
+inline void Sat::addClauseOuter(util::span<const Lit> lits)
 {
 	assert(buf_.size() == 0);
 	for (auto a : lits)
@@ -274,3 +276,5 @@ inline void Sat::decayVariableActivity()
 }
 
 void dumpOuter(std::string const &filename, Sat const &sat);
+
+} // namespace dawn

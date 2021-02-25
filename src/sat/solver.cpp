@@ -8,6 +8,8 @@
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
 
+namespace dawn {
+
 static void printHeader()
 {
 	fmt::print(
@@ -107,7 +109,7 @@ Solution buildSolution(const PropEngine &p)
 std::optional<Solution> search(Sat &sat, int64_t maxConfl,
                                SolverConfig const &config)
 {
-	StopwatchGuard _(sat.stats.swSearch);
+	util::StopwatchGuard _(sat.stats.swSearch);
 
 	printHeader();
 
@@ -329,7 +331,7 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 // Very cheap preprocessing: unit-propagation and SCC
 int inprocessCheap(Sat &sat)
 {
-	Stopwatch sw;
+	util::Stopwatch sw;
 	sw.start();
 
 	int totalUP = 0;
@@ -402,7 +404,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 
 int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 {
-	StopwatchGuard _(sat.stats.swTotal);
+	util::StopwatchGuard _(sat.stats.swTotal);
 
 	inprocess(sat, config);
 
@@ -480,3 +482,5 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 		}
 	}
 }
+
+} // namespace dawn

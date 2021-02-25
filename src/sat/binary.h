@@ -1,9 +1,10 @@
-#ifndef SAT_BINARY_H
-#define SAT_BINARY_H
+#pragma once
 
 #include "sat/sat.h"
 #include "util/bitset.h"
 #include <vector>
+
+namespace dawn {
 
 /**
  * explicit solving of the two-sat sub-problem. I.e. looking for equivalent
@@ -80,4 +81,4 @@ class TopOrder
 	bool valid() const { return valid_; }
 };
 
-#endif
+} // namespace dawn

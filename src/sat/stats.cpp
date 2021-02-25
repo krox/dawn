@@ -2,6 +2,8 @@
 
 #include "fmt/format.h"
 
+namespace dawn {
+
 static void dumpHistogram(const util::IntHistogram &h)
 {
 	if (h.underflow())
@@ -75,3 +77,5 @@ void Stats::dump()
 	           100. * swSearch.secs() / swTotal.secs());
 	fmt::print("c total        {:#6.2f} s\n", swTotal.secs());
 }
+
+} // namespace dawn

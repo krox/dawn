@@ -1,10 +1,11 @@
-#ifndef SAT_STATS_H
-#define SAT_STATS_H
+#pragma once
 
 #include "util/random.h"
 #include "util/stats.h"
 #include "util/stopwatch.h"
 #include <atomic>
+
+namespace dawn {
 
 /** set by 'SIGINT' interrupt handler to indicate solving should stop ASAP */
 inline std::atomic_bool interrupt = false;
@@ -74,4 +75,4 @@ struct Stats
 	void dump();
 };
 
-#endif
+} // namespace dawn

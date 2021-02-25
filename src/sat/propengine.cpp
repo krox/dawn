@@ -5,12 +5,14 @@
 #include <iostream>
 #include <queue>
 
+namespace dawn {
+
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
       reason(sat.varCount()), binDom(sat.varCount()), trailPos(sat.varCount()),
       assign(sat.varCount() * 2)
 {
-	StopwatchGuard swg(sat.stats.swSearchInit);
+	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
 	// empty clause -> don't bother doing anything
 	if (sat.contradiction)
@@ -609,3 +611,5 @@ util::span<const Lit> PropEngineLight::trail(int l) const
 	else
 		return t.slice(mark_[l - 1], mark_[l]);
 }
+
+} // namespace dawn

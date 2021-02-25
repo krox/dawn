@@ -4,6 +4,8 @@
 #include <cstring>
 #include <iostream>
 
+namespace dawn {
+
 std::ostream &operator<<(std::ostream &stream, Lit l)
 {
 	if (l.proper())
@@ -74,3 +76,5 @@ void ClauseStorage::clear()
 	clauses.resize(0);
 	store.resize(0);
 }
+
+} // namespace dawn

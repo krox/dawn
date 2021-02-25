@@ -3,6 +3,8 @@
 #include "sat/solver.h"
 #include <iostream>
 
+using namespace dawn;
+
 bool check(const Sat &sat, const Solution &sol)
 {
 	if (sat.contradiction)

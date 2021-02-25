@@ -1,7 +1,8 @@
-#ifndef SAT_PROBING_H
-#define SAT_PROBING_H
+#pragma once
 
 #include "sat/sat.h"
+
+namespace dawn {
 
 /**
  * Do one sweep of failed literal probing
@@ -19,4 +20,4 @@ int probe(Sat &sat, int maxTries);
 int probeBinaryNaive(Sat &sat);
 int probeBinary(Sat &sat);
 
-#endif
+} // namespace dawn

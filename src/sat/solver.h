@@ -1,10 +1,11 @@
-#ifndef SAT_SOLVER_H
-#define SAT_SOLVER_H
+#pragma once
 
 #include "sat/propengine.h"
 #include "sat/solution.h"
 #include <cassert>
 #include <vector>
+
+namespace dawn {
 
 /**
  * Solves a SAT problem.
@@ -15,4 +16,4 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config);
 
 int inprocessCheap(Sat &sat);
 
-#endif
+} // namespace dawn

@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <vector>
 
+namespace dawn {
+
 namespace {
 
 class Tarjan
@@ -81,7 +83,7 @@ class Tarjan
 
 int runSCC(Sat &sat)
 {
-	StopwatchGuard swg(sat.stats.swSCC);
+	util::StopwatchGuard swg(sat.stats.swSCC);
 
 	if (sat.contradiction)
 		return 0;
@@ -149,7 +151,7 @@ void printBinaryStats(Sat const &sat)
 	    "c non-trivial nodes: 2 x {} ({:.2f} GiB for transitive closure)\n",
 	    nFrom, (double)nFrom * nFrom / 8 / 1024 / 1024 / 1024);
 
-	auto uf = UnionFind(sat.varCount());
+	auto uf = util::UnionFind(sat.varCount());
 	for (int i = 0; i < 2 * sat.varCount(); ++i)
 	{
 		Lit a = Lit(i);
@@ -193,7 +195,7 @@ void printBinaryStats(Sat const &sat)
 
 void runBinaryReduction(Sat &sat)
 {
-	Stopwatch sw;
+	util::Stopwatch sw;
 	sw.start();
 
 	auto top = TopOrder(sat);
@@ -270,3 +272,5 @@ void runBinaryReduction(Sat &sat)
 	           "{:.2f}M props)\n",
 	           sw.secs(), nFound / 2, propCount / 1024. / 1024.);
 }
+
+} // namespace dawn

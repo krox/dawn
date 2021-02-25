@@ -3,10 +3,12 @@
 #include "sat/binary.h"
 #include "sat/propengine.h"
 
+namespace dawn {
+
 int probe(Sat &sat, int maxTries)
 {
-	StopwatchGuard swg(sat.stats.swProbing);
-	Stopwatch sw;
+	util::StopwatchGuard swg(sat.stats.swProbing);
+	util::Stopwatch sw;
 	sw.start();
 
 	PropEngine p(sat);
@@ -83,8 +85,8 @@ int probeBinary(Sat &sat)
 	3) To maximize the effect of (1) and (2), we probe literals in (approximate)
 	   topological order.
 	 */
-	StopwatchGuard swg(sat.stats.swProbing);
-	Stopwatch sw;
+	util::StopwatchGuard swg(sat.stats.swProbing);
+	util::Stopwatch sw;
 	sw.start();
 
 	PropEngine p(sat);
@@ -190,3 +192,5 @@ int probeBinary(Sat &sat)
 
 	return nFails;
 }
+
+} // namespace dawn
