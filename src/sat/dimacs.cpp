@@ -5,8 +5,6 @@
 #include <climits>
 #include <cstdio>
 #include <cstring>
-#include <fstream>
-#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
@@ -15,7 +13,7 @@ namespace dawn {
 
 static void panic(std::string msg)
 {
-	std::cout << "PARSE ERROR: " << msg << std::endl;
+	fmt::print("PARSE ERROR: {}\n", msg);
 	exit(-1);
 }
 
@@ -136,9 +134,9 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 	sw.start();
 
 	if (filename != "")
-		std::cout << "c reading " << filename << std::endl;
+		fmt::print("c reading {}\n", filename);
 	else
-		std::cout << "c reading from stdin" << std::endl;
+		fmt::print("c reading from stdin\n");
 	auto parser = Parser(filename);
 	ClauseStorage clauses;
 

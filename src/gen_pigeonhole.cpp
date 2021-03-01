@@ -1,6 +1,6 @@
 #include "sat/dimacs.h"
+#include "sat/sat.h"
 #include "sat/solution.h"
-#include <iostream>
 #include <random>
 #include <string>
 
@@ -10,7 +10,7 @@ int main(int argc, char *argv[])
 {
 	if (argc != 2)
 	{
-		std::cerr << "usage: gen_pigeonhole <var-count>" << std::endl;
+		fmt::print("usage: gen_pigeonhole <var-count>\n");
 		return -1;
 	}
 
@@ -40,7 +40,6 @@ int main(int argc, char *argv[])
 		for (int h1 = 0; h1 < n; ++h1)
 			for (int h2 = h1 + 1; h2 < n; ++h2)
 				sat.addBinary(Lit(p * n + h1, true), Lit(p * n + h2, true));
-	std::cout << "p cnf " << sat.varCount() << " " << sat.clauseCount()
-	          << std::endl;
-	std::cout << sat;
+
+	dump(sat);
 }

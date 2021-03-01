@@ -445,7 +445,7 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 		}
 
 		// inprocessing
-		std::cout << "c cleanup" << std::endl;
+		fmt::print("c cleanup\n");
 		inprocess(sat, config);
 
 		if (interrupt)

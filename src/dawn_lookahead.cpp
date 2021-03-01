@@ -4,13 +4,10 @@
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include <csignal>
-#include <iostream>
 #include <random>
 #include <unistd.h>
 
 using namespace dawn;
-
-static Sat sat;
 
 extern "C" void interruptHandler(int)
 {
@@ -61,7 +58,8 @@ int main(int argc, char *argv[])
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin
-	parseCnf(cnfFile, sat);
+	auto [clauses, varCount] = parseCnf(cnfFile);
+	auto sat = Sat(varCount, std::move(clauses));
 
 	if (seed == -1)
 		seed = std::random_device()();

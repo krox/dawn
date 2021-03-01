@@ -7,7 +7,6 @@
 #include "util/span.h"
 #include <cstdint>
 #include <functional>
-#include <iostream>
 #include <tuple>
 #include <vector>
 
@@ -47,7 +46,6 @@ class Lit
 		return Lit(x > 0 ? 2 * x - 2 : -2 * x - 1);
 	}
 	constexpr int toDimacs() const { return sign() ? -var() - 1 : var() + 1; }
-	friend std::ostream &operator<<(std::ostream &stream, Lit l);
 
 	/** misc */
 	constexpr bool operator==(Lit b) const { return val_ == b.val_; }
@@ -207,7 +205,7 @@ class ClauseStorage
 	{
 		if (lits.size() > UINT16_MAX)
 		{
-			std::cerr << "ERROR: clause to long for storage" << std::endl;
+			fmt::print("ERROR: clause to long for storage\n");
 			exit(-1);
 		}
 
@@ -221,7 +219,7 @@ class ClauseStorage
 		auto index = store.size();
 		if (index > CREF_MAX)
 		{
-			std::cerr << "ERROR: clause storage full" << std::endl;
+			fmt::print("ERROR: clause storage full\n");
 			exit(-1);
 		}
 
@@ -341,7 +339,45 @@ class ClauseStorage
 static_assert(sizeof(Lit) == 4);
 static_assert(sizeof(Clause) == 4);
 
-std::ostream &operator<<(std::ostream &stream, const Clause &clause);
-std::ostream &operator<<(std::ostream &stream, const ClauseStorage &clauses);
-
 } // namespace dawn
+
+template <> struct fmt::formatter<dawn::Lit>
+{
+	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+	template <typename FormatContext>
+	auto format(dawn::Lit a, FormatContext &ctx)
+	{
+		// NOTE: '-elim' and '-undef' should never happen, just for debugging
+		if (a.proper())
+			return format_to(ctx.out(), "{}", a.toDimacs());
+		else if (a == dawn::Lit::undef())
+			return format_to(ctx.out(), "undef");
+		else if (a == dawn::Lit::one())
+			return format_to(ctx.out(), "true");
+		else if (a == dawn::Lit::zero())
+			return format_to(ctx.out(), "false");
+		else if (a == dawn::Lit::elim())
+			return format_to(ctx.out(), "elim");
+		else if (a == dawn::Lit::elim().neg())
+			return format_to(ctx.out(), "-elim");
+		else if (a == dawn::Lit::undef().neg())
+			return format_to(ctx.out(), "-undef");
+		else
+			assert(false);
+	}
+};
+
+template <> struct fmt::formatter<dawn::Clause>
+{
+	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+	template <typename FormatContext>
+	auto format(dawn::Clause const &cl, FormatContext &ctx)
+	{
+		auto it = ctx.out();
+		for (size_t i = 0; i < cl.size(); ++i)
+			it = format_to(it, i == 0 ? "{}" : " {}", cl[i]);
+		return it;
+	}
+};

@@ -2,7 +2,6 @@
 
 #include "fmt/format.h"
 #include <cassert>
-#include <iostream>
 #include <queue>
 
 namespace dawn {
@@ -434,20 +433,19 @@ void PropEngine::printTrail() const
 {
 	for (int l = 0; l <= level(); ++l)
 	{
-		std::cout << "=== level " << l << " ===" << std::endl;
+		fmt::print("=== level {} ===\n", l);
 		int low = l == 0 ? 0 : mark_[l - 1];
 		int high = l == (int)mark_.size() ? (int)trail_.size() : mark_[l];
 		for (int i = low; i < high; ++i)
 		{
-			std::cout << trail_[i] << " <= ";
+			fmt::print("{} <= ", trail_[i]);
 			Reason r = reason[trail_[i].var()];
 			if (r == Reason::undef())
-				std::cout << "()" << std::endl;
+				fmt::print("()\n");
 			else if (r.isBinary())
-				std::cout << "bin (" << r.lit() << ")" << std::endl;
+				fmt::print("bin ({})\n", r.lit());
 			else if (r.isLong())
-				std::cout << "long (" << sat.clauses[r.cref()] << ")"
-				          << std::endl;
+				fmt::print("long ({})\n", sat.clauses[r.cref()]);
 			else
 				assert(false);
 		}

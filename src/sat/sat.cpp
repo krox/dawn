@@ -1,10 +1,9 @@
 #include "sat/sat.h"
 
+#include "fmt/format.h"
+#include "fmt/os.h"
 #include <algorithm>
 #include <cassert>
-#include <fmt/format.h>
-#include <fmt/os.h>
-#include <iostream>
 #include <random>
 
 namespace dawn {
@@ -186,28 +185,6 @@ size_t Sat::memory_usage() const
 	return r;
 }
 
-std::ostream &operator<<(std::ostream &stream, const Sat &sat)
-{
-	// empty clause
-	if (sat.contradiction)
-		stream << "0\n";
-
-	// unary clauses
-	for (auto a : sat.units)
-		stream << a << " 0\n";
-
-	// binary clauses
-	for (int l = 0; l < 2 * sat.varCount(); ++l)
-		for (auto b : sat.bins[l])
-			if (l <= b)
-				stream << Lit(l) << " " << b << " 0\n";
-
-	// long clauses
-	stream << sat.clauses;
-
-	return stream;
-}
-
 void shuffleVariables(Sat &sat)
 {
 	auto trans = std::vector<Lit>(sat.varCount());
@@ -218,6 +195,32 @@ void shuffleVariables(Sat &sat)
 		std::swap(trans[i], trans[j]);
 	}
 	sat.renumber(trans, sat.varCount());
+}
+
+void dump(Sat const &sat)
+{
+	fmt::print("p cnf {} {}\n", sat.varCount(), sat.clauseCount());
+
+	// empty clause
+	if (sat.contradiction)
+		fmt::print("0\n");
+
+	// unary clauses
+	for (auto a : sat.units)
+		fmt::print("{} 0\n", a);
+
+	// binary clauses
+	for (int l = 0; l < 2 * sat.varCount(); ++l)
+		for (auto b : sat.bins[l])
+			if (l <= b)
+				fmt::print("{} {} 0\n", Lit(l), b);
+
+	// long clauses
+	for (auto [ci, cl] : sat.clauses)
+	{
+		(void)ci;
+		fmt::print("{} 0\n", cl);
+	}
 }
 
 void dumpOuter(std::string const &filename, Sat const &sat)

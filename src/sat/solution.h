@@ -1,15 +1,16 @@
 #pragma once
 
 #include "clause.h"
+#include "fmt/format.h"
+#include "fmt/os.h"
 #include <vector>
 
 namespace dawn {
 
-class Solution
+struct Solution
 {
 	std::vector<bool> assign;
 
-  public:
 	Solution() : assign(0) {}
 
 	explicit Solution(int n) : assign(2 * n) {}
@@ -33,9 +34,6 @@ class Solution
 	bool satisfied(Lit a, Lit b, Lit c) const;
 	bool satisfied(util::span<const Lit> cl) const;
 	bool satisfied(ClauseStorage const &cls) const;
-
-	/** output in dimacs format */
-	friend std::ostream &operator<<(std::ostream &stream, const Solution &sol);
 };
 
 inline bool Solution::empty() const { return assign.empty(); }
@@ -83,16 +81,6 @@ inline bool Solution::satisfied(ClauseStorage const &cls) const
 			return false;
 	}
 	return true;
-}
-
-inline std::ostream &operator<<(std::ostream &stream, const Solution &sol)
-{
-	stream << "v";
-	for (int i = 0; i < (int)sol.assign.size(); ++i)
-		if (sol.assign[i])
-			stream << " " << Lit(i);
-	stream << " 0" << std::endl;
-	return stream;
 }
 
 } // namespace dawn

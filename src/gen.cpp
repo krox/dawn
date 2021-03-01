@@ -1,7 +1,7 @@
+#include "fmt/format.h"
 #include "sat/dimacs.h"
 #include "sat/sat.h"
 #include "sat/solution.h"
-#include <iostream>
 #include <random>
 #include <string>
 
@@ -11,7 +11,7 @@ int main(int argc, char *argv[])
 {
 	if (argc != 3)
 	{
-		std::cerr << "usage: gen <var-count> <clause-count>" << std::endl;
+		fmt::print("usage: gen <var-count> <clause-count>\n");
 		return -1;
 	}
 
@@ -52,6 +52,5 @@ int main(int argc, char *argv[])
 
 		cl.resize(0);
 	}
-	std::cout << "p cnf " << varCount << " " << clauseCount << std::endl;
-	std::cout << sat;
+	dump(sat);
 }

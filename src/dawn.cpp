@@ -5,7 +5,6 @@
 #include "sat/solver.h"
 #include <csignal>
 #include <cstdio>
-#include <iostream>
 #include <random>
 #include <unistd.h>
 
@@ -115,7 +114,7 @@ int main(int argc, char *argv[])
 		// print to stdout
 		if (result == 10)
 		{
-			std::cout << "s SATISFIABLE" << std::endl;
+			fmt::print("s SATISFIABLE\n");
 			if (sol.satisfied(originalClauses))
 				std::cout << "s solution checked" << std::endl;
 			else
@@ -125,25 +124,30 @@ int main(int argc, char *argv[])
 			}
 		}
 		else if (result == 20)
-			std::cout << "s UNSATISFIABLE" << std::endl;
+			fmt::print("s UNSATISFIABLE\n");
 		else if (result == 30)
-			std::cout << "s UNKNOWN" << std::endl;
+			fmt::print("s UNKNOWN\n");
 		else
 			assert(false);
 
 		// print to file
 		if (solFile != "")
 		{
-			std::ofstream f(solFile, std::ofstream::out);
+			auto file = fmt::output_file(solFile);
 			if (result == 10)
 			{
-				f << "s SATISFIABLE" << std::endl;
-				f << sol << std::endl;
+				file.print("s SATISFIABLE\n");
+
+				file.print("v");
+				for (int i = 0; i < (int)sol.assign.size(); ++i)
+					if (sol.assign[i])
+						file.print(" {}", Lit(i));
+				file.print(" 0\n");
 			}
 			else if (result == 20)
-				f << "s UNSATISFIABLE" << std::endl;
+				file.print("s UNSATISFIABLE\n");
 			else if (result == 30)
-				f << "s UNKNOWN" << std::endl;
+				file.print("s UNKNOWN\n");
 			else
 				assert(false);
 		}

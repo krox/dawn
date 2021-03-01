@@ -4,7 +4,6 @@
 #include "sat/stats.h"
 #include "util/small_vector.h"
 #include <cassert>
-#include <iostream>
 #include <vector>
 
 namespace dawn {
@@ -95,8 +94,6 @@ class Sat
 	void decayVariableActivity();
 
 	size_t memory_usage() const;
-
-	friend std::ostream &operator<<(std::ostream &stream, const Sat &cs);
 };
 
 void shuffleVariables(Sat &sat);
@@ -292,6 +289,7 @@ inline void Sat::decayVariableActivity()
 	}
 }
 
+void dump(Sat const &sat);
 void dumpOuter(std::string const &filename, Sat const &sat);
 
 } // namespace dawn
