@@ -130,9 +130,8 @@ class Parser
 	}
 };
 
-void parseCnf(std::string filename, Sat &sat)
+std::pair<ClauseStorage, int> parseCnf(std::string filename)
 {
-	util::StopwatchGuard(sat.stats.swParsing);
 	util::Stopwatch sw;
 	sw.start();
 
@@ -141,10 +140,12 @@ void parseCnf(std::string filename, Sat &sat)
 	else
 		std::cout << "c reading from stdin" << std::endl;
 	auto parser = Parser(filename);
+	ClauseStorage clauses;
 
-	int varCount = -1;
-	int64_t clauseCount = -1;
-	int64_t clauseCounter = 0;
+	int headerVarCount = -1;
+	int headerClauseCount = -1;
+	int varCount = 0;
+	int clauseCount = 0;
 	std::vector<Lit> clause;
 	while (true)
 	{
@@ -167,13 +168,12 @@ void parseCnf(std::string filename, Sat &sat)
 			++parser;
 			parser.skipWhite();
 			enforce(parser.parseString() == "cnf", "invalid 'p' line");
-			enforce(varCount == -1 && clauseCount == -1, "duplicate 'p' line");
+			enforce(headerVarCount == -1 && headerClauseCount == -1,
+			        "duplicate 'p' line");
 			parser.skipWhite();
-			varCount = parser.parseInt();
+			headerVarCount = parser.parseInt();
 			parser.skipWhite();
-			clauseCount = parser.parseInt();
-			while (sat.varCount() < varCount)
-				sat.addVarOuter();
+			headerClauseCount = parser.parseInt();
 			continue;
 		}
 
@@ -183,15 +183,14 @@ void parseCnf(std::string filename, Sat &sat)
 			auto x = parser.parseInt();
 			if (x == 0)
 			{
-				clauseCounter++;
-				sat.addClauseOuter(clause);
+				clauseCount++;
+				clauses.addClause(clause, true);
 				clause.resize(0);
 			}
 			else
 			{
 				auto lit = Lit::fromDimacs(x);
-				while (sat.varCount() <= lit.var())
-					sat.addVarOuter();
+				varCount = std::max(varCount, lit.var() + 1);
 				clause.push_back(lit);
 			}
 			continue;
@@ -202,17 +201,24 @@ void parseCnf(std::string filename, Sat &sat)
 	}
 
 	enforce(clause.empty(), "incomplete clause at end of file");
-	enforce(varCount == -1 || varCount == sat.varCount(),
+
+	// there might be unused variables. In that case, respect the header
+	if (headerVarCount > varCount)
+		varCount = headerVarCount;
+
+	enforce(headerVarCount == -1 || headerVarCount == varCount,
 	        fmt::format(
 	            "wrong number of variables: header said {}, actually got {}",
-	            varCount, sat.varCount()));
+	            headerVarCount, varCount));
 	enforce(
-	    clauseCount == -1 || clauseCount == clauseCounter,
+	    headerClauseCount == -1 || headerClauseCount == clauseCount,
 	    fmt::format("wrong number of clauses: header said {}, actually got {}",
-	                clauseCount, clauseCounter));
+	                headerClauseCount, clauseCount));
 
 	fmt::print("c [parser       {:#6.2f}] read {} vars and {} clauses\n",
-	           sw.secs(), sat.varCount(), sat.clauseCount());
+	           sw.secs(), varCount, clauseCount);
+
+	return {clauses, varCount};
 }
 void parseSolution(std::string filename, Solution &sol)
 {

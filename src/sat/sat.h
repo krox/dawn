@@ -44,7 +44,7 @@ class Sat
 
 	/** constructor */
 	Sat();
-	explicit Sat(int n);
+	explicit Sat(int n, ClauseStorage clauses_ = {});
 
 	Sat(const Sat &) = delete;
 	Sat(const Sat &&) = delete;
@@ -103,14 +103,31 @@ void shuffleVariables(Sat &sat);
 
 inline Sat::Sat() {}
 
-inline Sat::Sat(int n)
-    : outer_to_inner_(n), inner_to_outer_(n), bins(2 * n), activity(n, 0.0),
-      polarity(n, false)
+inline Sat::Sat(int n, ClauseStorage clauses_)
+    : outer_to_inner_(n), inner_to_outer_(n), bins(2 * n),
+      clauses(std::move(clauses_)), activity(n, 0.0), polarity(n, false)
 {
 	for (int i = 0; i < n; ++i)
 	{
 		outer_to_inner_[i] = Lit(i, false);
 		inner_to_outer_[i] = Lit(i, false);
+	}
+
+	for (auto [ci, cl] : clauses)
+	{
+		(void)ci;
+		cl.normalize();
+		if (cl.size() >= 3)
+			continue;
+		if (cl.size() == 0)
+			addEmpty();
+		else if (cl.size() == 1)
+			addUnary(cl[0]);
+		else if (cl.size() == 2)
+			addBinary(cl[0], cl[1]);
+		else
+			assert(false);
+		cl.remove();
 	}
 }
 

@@ -4,13 +4,12 @@
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include <csignal>
+#include <cstdio>
 #include <iostream>
 #include <random>
 #include <unistd.h>
 
 using namespace dawn;
-
-static Sat sat;
 
 extern "C" void interruptHandler(int)
 {
@@ -85,7 +84,12 @@ int main(int argc, char *argv[])
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin
-	parseCnf(cnfFile, sat);
+	util::Stopwatch sw;
+	sw.start();
+	auto [originalClauses, varCount] = parseCnf(cnfFile);
+	sw.stop();
+	Sat sat = Sat(varCount, originalClauses); // clauses are copied here!
+	sat.stats.swParsing = sw;
 
 	if (seed == -1)
 		seed = std::random_device()();
@@ -112,8 +116,13 @@ int main(int argc, char *argv[])
 		if (result == 10)
 		{
 			std::cout << "s SATISFIABLE" << std::endl;
-			if (solFile == "")
-				std::cout << sol << std::endl;
+			if (sol.satisfied(originalClauses))
+				std::cout << "s solution checked" << std::endl;
+			else
+			{
+				std::cout << "s SOLUTION CHECK FAILED" << std::endl;
+				return -1;
+			}
 		}
 		else if (result == 20)
 			std::cout << "s UNSATISFIABLE" << std::endl;

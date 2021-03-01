@@ -105,14 +105,22 @@ class Clause
 	Clause(const Clause &) = delete;
 
 	/** array-like access to literals */
-	uint16_t size() const { return size_; }
-	Lit &operator[](size_t i) { return lits()[i]; }
-	const Lit &operator[](size_t i) const { return lits()[i]; }
 	util::span<Lit> lits() { return util::span<Lit>{(Lit *)(this + 1), size_}; }
 	util::span<const Lit> lits() const
 	{
 		return util::span<const Lit>{(Lit *)(this + 1), size_};
 	}
+
+	/** make Clause usable as span<Lit> without calling '.lits()' explicitly */
+	uint16_t size() const { return size_; }
+	Lit &operator[](size_t i) { return lits()[i]; }
+	const Lit &operator[](size_t i) const { return lits()[i]; }
+	operator util::span<Lit>() { return lits(); }
+	operator util::span<const Lit>() const { return lits(); }
+	auto begin() { return lits().begin(); }
+	auto begin() const { return lits().begin(); }
+	auto end() { return lits().end(); }
+	auto end() const { return lits().end(); }
 
 	/** flags */
 	bool isRemoved() const { return (flags_ & 1) != 0; }
@@ -307,7 +315,7 @@ class ClauseStorage
 	size_t count() const
 	{
 		size_t r = 0;
-		for (auto _ [[maybe_unused]] : clauses)
+		for (auto _[[maybe_unused]] : clauses)
 			++r;
 		return r;
 	}

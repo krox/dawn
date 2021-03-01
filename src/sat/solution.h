@@ -32,7 +32,7 @@ class Solution
 	bool satisfied(Lit a, Lit b) const;
 	bool satisfied(Lit a, Lit b, Lit c) const;
 	bool satisfied(util::span<const Lit> cl) const;
-	bool satisfied(const Clause &cl) const;
+	bool satisfied(ClauseStorage const &cls) const;
 
 	/** output in dimacs format */
 	friend std::ostream &operator<<(std::ostream &stream, const Solution &sol);
@@ -74,9 +74,15 @@ inline bool Solution::satisfied(util::span<const Lit> cl) const
 	return false;
 }
 
-inline bool Solution::satisfied(const Clause &cl) const
+inline bool Solution::satisfied(ClauseStorage const &cls) const
 {
-	return satisfied(cl.lits());
+	for (auto [ci, cl] : cls)
+	{
+		(void)ci;
+		if (!satisfied(cl))
+			return false;
+	}
+	return true;
 }
 
 inline std::ostream &operator<<(std::ostream &stream, const Solution &sol)

@@ -1,4 +1,5 @@
 #include "sat/dimacs.h"
+#include "sat/sat.h"
 #include "sat/solution.h"
 #include <iostream>
 #include <random>
