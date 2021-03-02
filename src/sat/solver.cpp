@@ -346,60 +346,77 @@ int inprocessCheap(Sat &sat)
 		else
 			break;
 	}
-
-	fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
-	           sw.secs(), totalUP, totalSCC);
+	if (totalUP + totalSCC == 0)
+		fmt::print("c [UP/SCC x{:2}   {:#6.2f}] -\n", iter, sw.secs(), totalUP,
+		           totalSCC);
+	else
+		fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
+		           sw.secs(), totalUP, totalSCC);
 	return totalUP + totalSCC;
 }
 
 /** run the full inprocessing */
 void inprocess(Sat &sat, SolverConfig const &config)
 {
+
 	// printBinaryStats(sat);
 	inprocessCheap(sat);
 
-	// failed literal probing settings:
-	// 0 = none
-	// 1 = only run while very successful
-	// 2 = run until everything is found
-	// 3 = also run binary probing
-	if (config.probing > 0)
-		while (!interrupt)
-		{
-			if (probe(sat, config.probing >= 2 ? 0 : 10000) == 0)
-				break;
-			int fixed_vars = inprocessCheap(sat);
-			if (config.probing <= 1 && fixed_vars < 10000)
-				break;
-		}
-
-	if (config.probing >= 3)
-		probeBinary(sat);
-
-	// maybe-not-so-cheap preprocessing: subsumption+SSR
-	if (config.subsume >= 1 && !interrupt)
+	for (int iter = 0;
+	     config.inprocessIters == 0 || iter < config.inprocessIters; ++iter)
 	{
-		bool changeA = subsumeBinary(sat);
-		bool changeB = (config.subsume >= 2) && subsumeLong(sat);
-		if (changeA || changeB)
-		{
-			if (config.subsume >= 3)
-				return inprocess(sat, config);
-			else
+		bool change = false;
+		// failed literal probing settings:
+		// 0 = none
+		// 1 = only run while very successful
+		// 2 = run until everything is found
+		// 3 = also run binary probing
+		if (config.probing > 0)
+			if (probe(sat, config.probing >= 2 ? 0 : 10000))
+			{
+				change = true;
 				inprocessCheap(sat);
+			}
+
+		if (config.probing >= 3)
+			if (probeBinary(sat))
+			{
+				change = true;
+				inprocessCheap(sat);
+			}
+
+		if (config.subsume >= 1)
+			if (subsumeBinary(sat))
+			{
+				change = true;
+				inprocessCheap(sat);
+			}
+
+		if (config.subsume >= 2)
+			if (subsumeLong(sat))
+			{
+				change = true;
+				inprocessCheap(sat);
+			}
+
+		if (config.vivify >= 1)
+		{
+			if (runVivification(sat, config.vivify >= 2))
+			{
+				change = true;
+				inprocessCheap(sat);
+			}
 		}
-	}
 
-	if (config.vivify)
-	{
-		if (run_vivification(sat))
-			inprocessCheap(sat);
-	}
+		// cleanup
+		// (do this last, because it cant lead to anything new for the other
+		// passes)
+		if (config.tbr > 0)
+			runBinaryReduction(sat);
 
-	// cleanup
-	// (do this last, because it cant lead to anything new for the other passes)
-	if (config.tbr > 0)
-		runBinaryReduction(sat);
+		if (!change)
+			break;
+	}
 }
 
 int solve(Sat &sat, Solution &sol, SolverConfig const &config)

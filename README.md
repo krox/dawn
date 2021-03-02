@@ -21,7 +21,7 @@
     - [ ] dynamic
 * preprocessing / inprocessing
   - [x] subsumption / self-subsuming resolution (includes HTE)
-  - [x] vivification (default=off)
+  - [x] vivification
   - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components

@@ -66,12 +66,17 @@ int main(int argc, char *argv[])
 	               "(0=off, 1=limited=default, 2=full, 3=full+binary)");
 	app.add_option("--subsume", config.subsume,
 	               "subsumption and self-subsuming resolution"
-	               "(0=off, 1=binary, 2=full=default, 3=full until fixpoint)");
+	               "(0=off, 1=binary, 2=full=default)");
 	app.add_option("--tbr", config.tbr,
 	               "transitive reduction for binaries"
 	               "(0=off, 2=full)");
-	app.add_option("--vivify", config.vivify, "clause vivification");
+	app.add_option("--vivify", config.vivify,
+	               "clause vivification"
+	               "(0=off, 1=normal, 2=also binary strengthen)");
 	app.add_option("--bve", config.bve, "bounded variable elimination");
+	app.add_option("--inprocess-iters", config.inprocessIters,
+	               "immediately repeat inprocessing if anything was found "
+	               "(default = 1 = probably enough)");
 
 	// other options
 	app.add_flag("--watch-stats", watch_stats, "print watchlist statistics");
