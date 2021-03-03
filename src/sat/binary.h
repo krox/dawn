@@ -1,7 +1,7 @@
 #pragma once
 
 #include "sat/sat.h"
-#include "util/bitset.h"
+#include "util/bit_vector.h"
 #include <vector>
 
 namespace dawn {
@@ -35,8 +35,8 @@ class TopOrder
 	Sat const &sat_;
 
 	// temporary during construction
-	util::bitset visited_;
-	util::bitset visitedTemp_;
+	util::bit_vector visited_;
+	util::bit_vector visitedTemp_;
 
 	// result of compution
 	std::vector<Lit> lits_;  // literals in order

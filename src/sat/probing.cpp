@@ -97,8 +97,8 @@ int probeBinary(Sat &sat)
 		return 0;
 
 	auto top = TopOrder(sat);
-	auto seenA = util::bitset(sat.varCount() * 2);
-	auto seenB = util::bitset(sat.varCount() * 2);
+	auto seenA = util::bit_vector(sat.varCount() * 2);
+	auto seenB = util::bit_vector(sat.varCount() * 2);
 	std::vector<Lit> buf;
 	int nTries = 0;
 	int nFails = 0;

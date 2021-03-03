@@ -12,7 +12,7 @@ class Tarjan
 {
   public:
 	Sat &sat;
-	std::vector<bool> visited;
+	util::bit_vector visited;
 	std::vector<int> back;
 	std::vector<Lit> stack;
 	int cnt = 0;
@@ -21,8 +21,8 @@ class Tarjan
 	int nComps = 0; // number of SCC's
 
 	Tarjan(Sat &sat)
-	    : sat(sat), visited(sat.varCount() * 2, false),
-	      back(sat.varCount() * 2, 0), equ(sat.varCount(), Lit::undef())
+	    : sat(sat), visited(sat.varCount() * 2), back(sat.varCount() * 2, 0),
+	      equ(sat.varCount(), Lit::undef())
 	{}
 
 	void dfs(Lit v)
@@ -222,7 +222,7 @@ void runBinaryReduction(Sat &sat)
 	}
 
 	// start transitive reduction from pretty much all places
-	auto seen = util::bitset(2 * sat.varCount());
+	auto seen = util::bit_vector(2 * sat.varCount());
 	auto stack = std::vector<Lit>{};
 	int nFound = 0;
 	int64_t propCount = 0;

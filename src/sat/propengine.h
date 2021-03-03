@@ -2,7 +2,7 @@
 
 #include "sat.h"
 #include "sat/activity_heap.h"
-#include "util/bitset.h"
+#include "util/bit_vector.h"
 #include <cassert>
 #include <queue>
 #include <vector>
@@ -76,7 +76,7 @@ class PropEngine
 	} config;
 
   private:
-	util::bitset seen;         // temporary during conflict analysis
+	util::bit_vector seen;     // temporary during conflict analysis
 	bool isRedundant(Lit lit); // helper for OTF strengthening
 
 	std::vector<Lit> trail_; // assigned variables
@@ -98,7 +98,7 @@ class PropEngine
 	Lit analyzeBin(util::span<const Lit> reason); // helper for LHBR
 
   public:
-	std::vector<bool> assign;
+	util::bit_vector assign;
 	bool conflict = false;
 
 	/** constructor */
@@ -183,7 +183,7 @@ class PropEngineLight
 	watches_t watches;
 
   public:
-	std::vector<bool> assign;
+	util::bit_vector assign;
 	bool conflict = false;
 
 	/** constructor */

@@ -2,6 +2,7 @@
 
 #include "sat/clause.h"
 #include "sat/stats.h"
+#include "util/bit_vector.h"
 #include "util/small_vector.h"
 #include <cassert>
 #include <vector>
@@ -88,7 +89,7 @@ class Sat
 
 	/** tracking of variable activity and polarity */
 	std::vector<double> activity;
-	std::vector<bool> polarity;
+	util::bit_vector polarity;
 	double activityInc = 1.0;
 	void bumpVariableActivity(int i);
 	void decayVariableActivity();
@@ -102,7 +103,7 @@ inline Sat::Sat() {}
 
 inline Sat::Sat(int n, ClauseStorage clauses_)
     : outer_to_inner_(n), inner_to_outer_(n), bins(2 * n),
-      clauses(std::move(clauses_)), activity(n, 0.0), polarity(n, false)
+      clauses(std::move(clauses_)), activity(n, 0.0), polarity(n)
 {
 	for (int i = 0; i < n; ++i)
 	{

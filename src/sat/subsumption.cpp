@@ -1,7 +1,7 @@
 #include "sat/subsumption.h"
 
 #include "fmt/format.h"
-#include "util/bitset.h"
+#include "util/bit_vector.h"
 #include "util/span.h"
 
 namespace dawn {
@@ -61,7 +61,7 @@ class Subsumption
   public:
 	Sat &sat;
 	std::vector<util::small_vector<CRef, 6>> occs;
-	util::bitset seen;
+	util::bit_vector seen;
 
 	// statistics
 	size_t nRemovedClsBin = 0, nRemovedLitsBin = 0;

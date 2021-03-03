@@ -1,6 +1,6 @@
 #include "sat/elimination.h"
 
-#include "util/bitset.h"
+#include "util/bit_vector.h"
 #include <algorithm>
 #include <queue>
 #include <vector>
@@ -110,7 +110,7 @@ struct BVE
 	Sat &sat;
 	using occs_t = std::vector<std::vector<CRef>>;
 	occs_t occs;
-	util::bitset eliminated;
+	util::bit_vector eliminated;
 
 	BVE(Sat &sat_)
 	    : sat(sat_), occs(2 * sat_.varCount()), eliminated(sat_.varCount())
@@ -303,7 +303,7 @@ struct BVE
 
 		// temporaries
 		std::vector<int> todo;
-		auto seen = util::bitset(sat.varCount());
+		auto seen = util::bit_vector(sat.varCount());
 
 		while (!queue.empty())
 		{

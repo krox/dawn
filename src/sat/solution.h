@@ -3,22 +3,22 @@
 #include "clause.h"
 #include "fmt/format.h"
 #include "fmt/os.h"
+#include "util/bit_vector.h"
 #include <vector>
 
 namespace dawn {
 
 struct Solution
 {
-	std::vector<bool> assign;
+	util::bit_vector assign;
 
 	Solution() : assign(0) {}
 
 	explicit Solution(int n) : assign(2 * n) {}
 
-	Solution(std::vector<bool> assign) : assign(std::move(assign)) {}
+	Solution(util::bit_vector assign) : assign(std::move(assign)) {}
 
 	/** get/set varCount */
-	bool empty() const;
 	int varCount() const;
 	void varCount(int n);
 
@@ -35,8 +35,6 @@ struct Solution
 	bool satisfied(util::span<const Lit> cl) const;
 	bool satisfied(ClauseStorage const &cls) const;
 };
-
-inline bool Solution::empty() const { return assign.empty(); }
 
 inline int Solution::varCount() const { return (int)(assign.size() / 2); }
 

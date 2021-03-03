@@ -118,7 +118,7 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 	{
 		// when multiple old variables are mapped to a single new one, take
 		// arbitrary polarity (should be the same in most cases anyway)
-		std::vector<bool> polarityOld(newVarCount, false);
+		util::bit_vector polarityOld(newVarCount);
 		std::swap(polarity, polarityOld);
 		for (int i = 0; i < (int)polarityOld.size(); ++i)
 			if (trans[i].proper())
