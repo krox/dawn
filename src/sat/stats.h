@@ -10,6 +10,14 @@ namespace dawn {
 /** set by 'SIGINT' interrupt handler to indicate solving should stop ASAP */
 inline std::atomic_bool interrupt = false;
 
+enum class RestartType
+{
+	constant,
+	linear,
+	geometric,
+	luby
+};
+
 struct SolverConfig
 {
 	// main searcher (CDLC)
@@ -25,6 +33,11 @@ struct SolverConfig
 	int max_learnt_size = 100;
 	int max_learnt_glue = 100;
 	int64_t max_learnt = INT64_MAX;
+
+	// restarts
+	RestartType restart_type = RestartType::luby;
+	int restart_base = 100;
+	int restart_mult = 1.1; // only for geometric
 
 	// pre-/inprocessing
 	int inprocessIters = 1; // maximum number of iterations of inprocessing

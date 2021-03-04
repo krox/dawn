@@ -57,6 +57,33 @@ static void printLine(Sat &sat)
 	    sat.memory_usage() / 1024. / 1024.);
 }
 
+int luby(int i)
+{
+	assert(i > 0);
+	if (__builtin_popcount(i + 1) == 1)
+		return (i + 1) / 2;
+	else
+		return luby(i - (1 << (31 - __builtin_clz(i))) + 1);
+}
+
+int restartSize(int iter, SolverConfig const &config)
+{
+	assert(iter >= 1);
+	switch (config.restart_type)
+	{
+	case RestartType::constant:
+		return config.restart_base;
+	case RestartType::linear:
+		return iter * config.restart_base;
+	case RestartType::geometric:
+		return std::pow(config.restart_mult, iter - 1) * config.restart_base;
+	case RestartType::luby:
+		return luby(iter) * config.restart_base;
+	default:
+		assert(false);
+	}
+}
+
 Solution buildSolution(const PropEngine &p)
 {
 	assert(!p.conflict);
@@ -106,36 +133,28 @@ Solution buildSolution(const PropEngine &p)
 
 /** returns solution if found, or std::nullopt if limits reached or
  * contradiction */
-std::optional<Solution> search(Sat &sat, int64_t maxConfl,
+std::optional<Solution> search(PropEngine &p, int64_t maxConfl,
                                SolverConfig const &config)
 {
-	util::StopwatchGuard _(sat.stats.swSearch);
+	Sat &sat = p.sat;
 
-	printHeader();
+	util::StopwatchGuard _(sat.stats.swSearch);
 
 	ActivityHeap activityHeap(sat);
 	for (int i = 0; i < sat.varCount(); ++i)
 		activityHeap.push(i);
 
-	PropEngine p(sat);
 	p.config.otf = config.otf;
 	p.config.lhbr = config.lhbr;
 	p.config.full_resolution = config.full_resolution;
 	p.activity_heap = &activityHeap;
 
 	int64_t nConfl = 0;
-	int64_t lastPrint = INT64_MIN;
 
 	std::vector<Lit> buf;
 
 	while (true)
 	{
-		if (nConfl >= lastPrint + 1000)
-		{
-			lastPrint = nConfl;
-			printLine(sat);
-		}
-
 		// handle conflicts
 		while (p.conflict)
 		{
@@ -145,7 +164,6 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl,
 			if (p.level() == 0)
 			{
 				sat.addEmpty();
-				printLine(sat);
 				return std::nullopt;
 			}
 
@@ -180,7 +198,6 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl,
 		{
 			if (p.level() > 0)
 				p.unroll(0);
-			printLine(sat);
 			return std::nullopt;
 		}
 
@@ -205,10 +222,7 @@ std::optional<Solution> search(Sat &sat, int64_t maxConfl,
 
 		// no unassigned left -> solution is found
 		if (branch == -1)
-		{
-			printLine(sat);
 			return buildSolution(p);
-		}
 
 		Lit branchLit = Lit(branch, sat.polarity[branch]);
 
@@ -423,8 +437,10 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 {
 	util::StopwatchGuard _(sat.stats.swTotal);
 
+	int64_t lastInprocess = sat.stats.nConfls();
 	inprocess(sat, config);
-
+	// run BVE only once at the beginning, not at every inprocessing
+	// (it ignores and removes learnt clauses, so can be very harmful)
 	if (config.bve > 0)
 	{
 		if (run_variable_elimination(sat))
@@ -433,6 +449,13 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
 	           sat.varCount(), sat.clauseCount());
+
+	printHeader();
+	int64_t lastPrint = sat.stats.nConfls();
+
+	// it is kinda expensive to reconstruct the PropEngine at every restart,
+	// so we keep it and only reconstruct after inprocessing or cleaning has run
+	std::unique_ptr<PropEngine> propEngine = nullptr;
 
 	// main solver loop
 	for (int iter = 1;; ++iter)
@@ -444,8 +467,13 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 			return 30;
 		}
 
+		if (propEngine == nullptr)
+			propEngine = std::make_unique<PropEngine>(sat);
+
 		// search for a number of conflicts
-		if (auto tmp = search(sat, 2000 * iter, config); tmp)
+		if (auto tmp =
+		        search(*propEngine.get(), restartSize(iter, config), config);
+		    tmp)
 		{
 			assert(!sat.contradiction);
 			sol = *tmp;
@@ -460,42 +488,50 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 			fmt::print("c interrupted. abort solver.\n");
 			return 30;
 		}
+		bool needInprocess = sat.stats.nConfls() > lastInprocess + 10000;
+
+		if (needInprocess || sat.stats.nConfls() > lastPrint + 1000)
+		{
+			printLine(sat);
+			lastPrint = sat.stats.nConfls();
+		}
 
 		// inprocessing
-		fmt::print("c cleanup\n");
-		inprocess(sat, config);
+		if (needInprocess)
+		{
+			propEngine.reset();
+			lastInprocess = sat.stats.nConfls();
+			inprocess(sat, config);
 
-		if (interrupt)
-		{
-			fmt::print("c interrupted. abort solver.\n");
-			return 30;
-		}
+			// clause cleaning
+			for (auto [ci, cl] : sat.clauses)
+			{
+				(void)ci;
+				if (cl.irred())
+					continue;
+				if (cl.size() > config.max_learnt_size ||
+				    cl.glue > config.max_learnt_glue)
+					cl.remove();
+			}
+			if ((int64_t)sat.longCountRed() > config.max_learnt)
+			{
+				if (config.use_glue)
+					cleanClausesGlue(sat.clauses, config.max_learnt);
+				else
+					cleanClausesSize(sat.clauses, config.max_learnt);
+				sat.clauses.compactify();
+			}
+			if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
+			{
+				if (config.use_glue)
+					cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
+				else
+					cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
+				sat.clauses.compactify();
+			}
 
-		// clause cleaning
-		for (auto [ci, cl] : sat.clauses)
-		{
-			(void)ci;
-			if (cl.irred())
-				continue;
-			if (cl.size() > config.max_learnt_size ||
-			    cl.glue > config.max_learnt_glue)
-				cl.remove();
-		}
-		if ((int64_t)sat.longCountRed() > config.max_learnt)
-		{
-			if (config.use_glue)
-				cleanClausesGlue(sat.clauses, config.max_learnt);
-			else
-				cleanClausesSize(sat.clauses, config.max_learnt);
-			sat.clauses.compactify();
-		}
-		if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
-		{
-			if (config.use_glue)
-				cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
-			else
-				cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
-			sat.clauses.compactify();
+			printHeader();
+			printLine(sat);
 		}
 	}
 }

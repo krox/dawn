@@ -60,6 +60,14 @@ int main(int argc, char *argv[])
 	app.add_flag("--use-glue", config.use_glue,
 	             "use glue for clause-cleaning (default=true)");
 
+	// restarts
+	app.add_option("--restart-type", config.restart_type,
+	               "constant, linear, geometric, luby");
+	app.add_option("--restart-base", config.restart_base,
+	               "base multiplier (default=100)");
+	app.add_option("--restart-mult", config.restart_mult,
+	               "multiplier for geometric restart (default=1.1)");
+
 	// inprocessing options
 	app.add_option("--probing", config.probing,
 	               "failed-literal probing"
