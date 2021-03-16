@@ -115,7 +115,7 @@ inline Sat::Sat(int n, ClauseStorage clauses_)
 	{
 		(void)ci;
 		cl.normalize();
-		if (cl.size() >= 3)
+		if (cl.isRemoved() || cl.size() >= 3)
 			continue;
 		if (cl.size() == 0)
 			addEmpty();
