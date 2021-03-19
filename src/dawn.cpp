@@ -82,6 +82,7 @@ int main(int argc, char *argv[])
 	               "clause vivification"
 	               "(0=off, 1=normal, 2=also binary strengthen)");
 	app.add_option("--bve", config.bve, "bounded variable elimination");
+	app.add_option("--bva", config.bva, "bounded variable addition");
 	app.add_option("--inprocess-iters", config.inprocessIters,
 	               "immediately repeat inprocessing if anything was found "
 	               "(default = 1 = probably enough)");

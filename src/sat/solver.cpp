@@ -2,6 +2,7 @@
 
 #include "fmt/format.h"
 #include "sat/binary.h"
+#include "sat/disjunction.h"
 #include "sat/elimination.h"
 #include "sat/probing.h"
 #include "sat/propengine.h"
@@ -412,6 +413,15 @@ void inprocess(Sat &sat, SolverConfig const &config)
 				change = true;
 				inprocessCheap(sat);
 			}
+
+		if (config.bva >= 1)
+		{
+			if (makeDisjunctions(sat))
+			{
+				change = true;
+				inprocessCheap(sat);
+			}
+		}
 
 		if (config.vivify >= 1)
 		{

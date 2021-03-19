@@ -141,6 +141,34 @@ class Clause
 		return false;
 	}
 
+	/** remove two literals from this clause, only if both are found */
+	bool removeLitarals(Lit a, Lit b)
+	{
+		if (!contains(a) || !contains(b))
+			return false;
+		int i = 0;
+		for (int j = 0; j < size_; ++j)
+		{
+			if (lits()[j] == a || lits()[j] == b)
+				continue;
+			lits()[i++] = lits()[j];
+		}
+		assert(i == size_ - 2);
+		size_ -= 2;
+		return true;
+	}
+
+	/**
+	 * Add a literal to the clause.
+	 * NOTE: this is unsafe, because the clause does not know its own capacity.
+	 *       only use right after succesfully removing another literal.
+	 */
+	void addLiteralUnchecked(Lit a)
+	{
+		size_ += 1;
+		lits()[size_ - 1] = a;
+	}
+
 	/** check if this clause contains some literal */
 	bool contains(Lit a) const
 	{
@@ -212,8 +240,8 @@ class ClauseStorage
 		Clause header;
 		header.size_ = (uint16_t)lits.size();
 		header.flags_ = 0;
-		header.glue =
-		    (uint8_t)std::min((size_t)255, lits.size()); // may decrease later
+		header.glue = (uint8_t)std::min((size_t)255,
+		                                lits.size()); // may decrease later
 		if (irred)
 			header.makeIrred();
 		auto index = store.size();
@@ -313,7 +341,7 @@ class ClauseStorage
 	size_t count() const
 	{
 		size_t r = 0;
-		for (auto _[[maybe_unused]] : clauses)
+		for (auto _ [[maybe_unused]] : clauses)
 			++r;
 		return r;
 	}
@@ -325,13 +353,14 @@ class ClauseStorage
 	}
 
 	/**
-	 * Actually remove clauses that are marked as such by moving all remaining
-	 * clauses closer together. Invalidates all CRef's.
+	 * Actually remove clauses that are marked as such by moving all
+	 * remaining clauses closer together. Invalidates all CRef's.
 	 */
 	void compactify();
 
 	/**
-	 * Remove all clauses (but keep allocated memory). Invalidates all CRef's.
+	 * Remove all clauses (but keep allocated memory). Invalidates all
+	 * CRef's.
 	 */
 	void clear();
 };
@@ -380,4 +409,9 @@ template <> struct fmt::formatter<dawn::Clause>
 			it = format_to(it, i == 0 ? "{}" : " {}", cl[i]);
 		return it;
 	}
+};
+
+template <> struct std::hash<dawn::Lit>
+{
+	std::size_t operator()(dawn::Lit const &l) const noexcept { return (int)l; }
 };

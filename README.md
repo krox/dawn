@@ -27,7 +27,7 @@
   - [x] strongly-connected-components
   - [ ] blocked-clause elimination
   - [x] bounded variable elimination (preprocessing only)
-  - [ ] bounded variable addition (at least some?)
+  - [x] bounded variable addition (default=off)
   - [ ] xor discovery and gaussian elimination
 * data-structures
   - [x] two-watch scheme

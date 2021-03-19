@@ -49,6 +49,7 @@ struct SolverConfig
 	                        // (0=off, 2=full)
 	int vivify = 1;         // clause vivification
 	int bve = 1;            // bounded variable elimination
+	int bva = 0;            // bounded variable addition
 
 	// other
 	int64_t max_confls = INT64_MAX; // stop solving
@@ -83,7 +84,7 @@ struct Stats
 	util::Stopwatch swSCC, swCleanup, swProbing;
 	util::Stopwatch swSearch, swSearchInit;
 	util::Stopwatch swSubsumeBin, swSubsumeLong;
-	util::Stopwatch swVivification, swBVE;
+	util::Stopwatch swVivification, swBVE, swBVA;
 
 	// Write stats to stdout. Usually called once at the end of solving
 	void dump();
