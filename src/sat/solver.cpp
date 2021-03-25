@@ -254,47 +254,6 @@ std::optional<Solution> search(PropEngine &p, int64_t maxConfl,
 	}
 }
 
-int unitPropagation(Sat &sat)
-{
-	// early out if no units
-	if (!sat.contradiction && sat.units.empty())
-		return 0;
-
-	auto p = PropEngineLight(sat);
-
-	// conflict -> add empty clause and remove everything else
-	if (p.conflict)
-	{
-		sat.addEmpty();
-		sat.units.resize(0);
-		for (int i = 0; i < sat.varCount() * 2; ++i)
-			sat.bins[i].resize(0);
-		sat.clauses.clear();
-		return 1;
-	}
-
-	assert(p.trail().size() != 0);
-
-	auto trans = std::vector<Lit>(sat.varCount(), Lit::undef());
-	for (Lit u : p.trail())
-	{
-		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
-		trans[u.var()] = Lit::fixed(u.sign());
-	}
-	int newVarCount = 0;
-	for (int i = 0; i < sat.varCount(); ++i)
-	{
-		if (trans[i] == Lit::undef())
-			trans[i] = Lit(newVarCount++, false);
-	}
-
-	// NOTE: this renumber() changes sat and thus invalidates p
-	sat.renumber(trans, newVarCount);
-	assert(sat.units.empty());
-
-	return (int)p.trail().size();
-}
-
 void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 {
 	std::vector<std::vector<CRef>> list(200);
@@ -343,39 +302,12 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 			clauses[ci].remove();
 }
 
-// Very cheap preprocessing: unit-propagation and SCC
-int inprocessCheap(Sat &sat)
-{
-	util::Stopwatch sw;
-	sw.start();
-
-	int totalUP = 0;
-	int totalSCC = 0;
-	int iter = 0;
-	for (;; ++iter) // in princinple, this loop should be capped...
-	{
-		if (int nFound = unitPropagation(sat); nFound)
-			totalUP += nFound;
-		if (int nFound = runSCC(sat); nFound)
-			totalSCC += nFound;
-		else
-			break;
-	}
-	if (totalUP + totalSCC == 0)
-		fmt::print("c [UP/SCC x{:2}   {:#6.2f}] -\n", iter, sw.secs(), totalUP,
-		           totalSCC);
-	else
-		fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
-		           sw.secs(), totalUP, totalSCC);
-	return totalUP + totalSCC;
-}
-
 /** run the full inprocessing */
 void inprocess(Sat &sat, SolverConfig const &config)
 {
 
 	// printBinaryStats(sat);
-	inprocessCheap(sat);
+	cleanup(sat);
 
 	for (int iter = 0;
 	     config.inprocessIters == 0 || iter < config.inprocessIters; ++iter)
@@ -387,50 +319,25 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		// 2 = run until everything is found
 		// 3 = also run binary probing
 		if (config.probing > 0)
-			if (probe(sat, config.probing >= 2 ? 0 : 10000))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
-
-		if (config.probing >= 3)
-			if (probeBinary(sat))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
+			change |= probe(sat, config.probing >= 2 ? 0 : 10000);
 
 		if (config.subsume >= 1)
-			if (subsumeBinary(sat))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
+			change |= subsumeBinary(sat);
 
 		if (config.subsume >= 2)
-			if (subsumeLong(sat))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
+			change |= subsumeLong(sat);
 
-		if (config.bva >= 1)
-		{
-			if (makeDisjunctions(sat))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
-		}
+		if (config.probing >= 3)
+			change |= probeBinary(sat);
 
 		if (config.vivify >= 1)
-		{
-			if (runVivification(sat, config.vivify >= 2))
-			{
-				change = true;
-				inprocessCheap(sat);
-			}
-		}
+			change |= runVivification(sat, config.vivify >= 2);
+
+		if (config.bva >= 1)
+			change |= makeDisjunctions(sat);
+
+		if (config.vivify >= 1)
+			change |= runVivification(sat, config.vivify >= 2);
 
 		// cleanup
 		// (do this last, because it cant lead to anything new for the other
@@ -498,7 +405,7 @@ int solve(Sat &sat, Solution &sol, SolverConfig const &config)
 			fmt::print("c interrupted. abort solver.\n");
 			return 30;
 		}
-		bool needInprocess = sat.stats.nConfls() > lastInprocess + 10000;
+		bool needInprocess = sat.stats.nConfls() > lastInprocess + 20000;
 
 		if (needInprocess || sat.stats.nConfls() > lastPrint + 1000)
 		{

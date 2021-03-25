@@ -132,12 +132,19 @@ bool runVivification(Sat &sat, bool withBinary)
 	}
 
 	if (withBinary)
-		fmt::print(
-		    "c [vivification {:#6.2f}] removed {} lits and replaced {} lits\n",
-		    sw.secs(), viv.shortened, viv.strengthened);
+	{
+		int nRemoved = cleanup(sat);
+		fmt::print("c [vivification {:#6.2f}] removed {} lits and replaced {} "
+		           "lits (removed {} vars)\n",
+		           sw.secs(), viv.shortened, viv.strengthened, nRemoved);
+	}
 	else
-		fmt::print("c [vivification {:#6.2f}] removed {} lits\n", sw.secs(),
-		           viv.shortened);
+	{
+		int nRemoved = cleanup(sat);
+		fmt::print(
+		    "c [vivification {:#6.2f}] removed {} lits (removed {} vars)\n",
+		    sw.secs(), viv.shortened, nRemoved);
+	}
 
 	return viv.shortened + viv.strengthened;
 }

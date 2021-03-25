@@ -81,7 +81,7 @@ struct Stats
 
 	// time of different parts of the solver
 	util::Stopwatch swTotal, swParsing;
-	util::Stopwatch swSCC, swCleanup, swProbing;
+	util::Stopwatch swCleanup, swProbing;
 	util::Stopwatch swSearch, swSearchInit;
 	util::Stopwatch swSubsumeBin, swSubsumeLong;
 	util::Stopwatch swVivification, swBVE, swBVA;

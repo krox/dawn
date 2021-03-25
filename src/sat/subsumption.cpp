@@ -163,9 +163,13 @@ bool subsumeBinary(Sat &sat)
 	if (sub.nRemovedClsBin + sub.nRemovedLitsBin == 0)
 		fmt::print("c [subsumption  {:#6.2f}] - (binary)\n", sw.secs());
 	else
+	{
+		int nRemovedVars = cleanup(sat);
 		fmt::print("c [subsumption  {:#6.2f}] removed {} clauses and {} lits "
-		           "(binary)\n",
-		           sw.secs(), sub.nRemovedClsBin, sub.nRemovedLitsBin);
+		           "(binary) (removed {} vars)\n",
+		           sw.secs(), sub.nRemovedClsBin, sub.nRemovedLitsBin,
+		           nRemovedVars);
+	}
 
 	return sub.nRemovedClsBin || sub.nRemovedLitsBin;
 }
@@ -252,9 +256,12 @@ bool subsumeLong(Sat &sat)
 	if (nRemovedClsLong + nRemovedLitsLong == 0)
 		fmt::print("c [subsumption  {:#6.2f}] - (long)\n", sw.secs());
 	else
-		fmt::print(
-		    "c [subsumption  {:#6.2f}] removed {} clauses and {} lits (long)\n",
-		    sw.secs(), nRemovedClsLong, nRemovedLitsLong);
+	{
+		int nRemovedVars = cleanup(sat);
+		fmt::print("c [subsumption  {:#6.2f}] removed {} clauses and {} lits "
+		           "(long) (removed {} vars)\n",
+		           sw.secs(), nRemovedClsLong, nRemovedLitsLong, nRemovedVars);
+	}
 	return nRemovedClsLong || nRemovedLitsLong;
 }
 

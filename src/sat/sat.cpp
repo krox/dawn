@@ -10,8 +10,6 @@ namespace dawn {
 
 void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 {
-	util::StopwatchGuard swg(stats.swCleanup);
-
 	// check input
 	assert(trans.size() == (size_t)varCount());
 	for (Lit l : trans)
@@ -294,6 +292,38 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 			file.print("{} ", a.toDimacs());
 		file.print("0\n");
 	}
+}
+
+int runUnitPropagation(Sat &sat);
+int runSCC(Sat &sat);
+
+int cleanup(Sat &sat)
+{
+	util::StopwatchGuard swg(sat.stats.swCleanup);
+
+	// util::Stopwatch sw;
+	// sw.start();
+
+	int totalUP = 0;
+	int totalSCC = 0;
+	int iter = 0;
+
+	// NOTE: Theoretically, this loop could become quadratic. But in practice,
+	// I never saw more than a few iterations, so we dont bother capping it.
+	for (;; ++iter)
+	{
+		if (int nFound = runUnitPropagation(sat); nFound)
+			totalUP += nFound;
+		if (int nFound = runSCC(sat); nFound)
+			totalSCC += nFound;
+		else
+			break;
+	}
+
+	// fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
+	//            sw.secs(), totalUP, totalSCC);
+
+	return totalUP + totalSCC;
 }
 
 } // namespace dawn

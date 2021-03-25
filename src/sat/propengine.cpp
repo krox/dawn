@@ -610,4 +610,46 @@ util::span<const Lit> PropEngineLight::trail(int l) const
 		return t.slice(mark_[l - 1], mark_[l]);
 }
 
+int runUnitPropagation(Sat &sat)
+{
+	// early out if no units
+	if (!sat.contradiction && sat.units.empty())
+		return 0;
+
+	// the PropEngine constructor already does all the UP we want
+	auto p = PropEngineLight(sat);
+
+	// conflict -> add empty clause and remove everything else
+	if (p.conflict)
+	{
+		sat.addEmpty();
+		sat.units.resize(0);
+		for (int i = 0; i < sat.varCount() * 2; ++i)
+			sat.bins[i].resize(0);
+		sat.clauses.clear();
+		return 1;
+	}
+
+	assert(p.trail().size() != 0);
+
+	auto trans = std::vector<Lit>(sat.varCount(), Lit::undef());
+	for (Lit u : p.trail())
+	{
+		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
+		trans[u.var()] = Lit::fixed(u.sign());
+	}
+	int newVarCount = 0;
+	for (int i = 0; i < sat.varCount(); ++i)
+	{
+		if (trans[i] == Lit::undef())
+			trans[i] = Lit(newVarCount++, false);
+	}
+
+	// NOTE: this renumber() changes sat and thus invalidates p
+	sat.renumber(trans, newVarCount);
+	assert(sat.units.empty());
+
+	return (int)p.trail().size();
+}
+
 } // namespace dawn

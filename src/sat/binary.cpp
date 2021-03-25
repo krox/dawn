@@ -83,8 +83,6 @@ class Tarjan
 
 int runSCC(Sat &sat)
 {
-	util::StopwatchGuard swg(sat.stats.swSCC);
-
 	if (sat.contradiction)
 		return 0;
 

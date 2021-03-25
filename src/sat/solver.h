@@ -14,6 +14,4 @@ namespace dawn {
  */
 int solve(Sat &sat, Solution &sol, SolverConfig const &config);
 
-int inprocessCheap(Sat &sat);
-
 } // namespace dawn

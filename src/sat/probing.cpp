@@ -71,8 +71,12 @@ int probe(Sat &sat, int maxTries)
 	if (nFails == 0)
 		fmt::print("c [probing      {:#6.2f}] -\n", sw.secs());
 	else
-		fmt::print("c [probing      {:#6.2f}] found {} failing literals\n",
-		           sw.secs(), nFails);
+	{
+		int nRemoved = cleanup(sat);
+		fmt::print("c [probing      {:#6.2f}] found {} failing literals "
+		           "(removed {} vars)\n",
+		           sw.secs(), nFails, nRemoved);
+	}
 	return nFails;
 }
 
@@ -189,9 +193,15 @@ int probeBinary(Sat &sat)
 	next_a:;
 	}
 
-	fmt::print(
-	    "c Binary-Probing found {} failing bins after {} tries in {:.2f}s\n",
-	    nFails, nTries, sw.secs());
+	if (nFails == 0)
+		fmt::print("c [bin-probing  {:#6.2f}] -\n", sw.secs());
+	else
+	{
+		int nRemoved = cleanup(sat);
+		fmt::print("c [bin-probing  {:#6.2f}] found {} failing bins using "
+		           "{:.2f}M tries (removed {} vars)\n",
+		           sw.secs(), nFails, nTries / 1024. / 1024., nRemoved);
+	}
 
 	return nFails;
 }

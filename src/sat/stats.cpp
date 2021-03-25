@@ -56,8 +56,6 @@ void Stats::dump()
 	           "=============================\n");
 	fmt::print("c parser       {:#6.2f} s ({:#4.1f} %)\n", swParsing.secs(),
 	           100. * swParsing.secs() / swTotal.secs());
-	fmt::print("c SCC          {:#6.2f} s ({:#4.1f} %)\n", swSCC.secs(),
-	           100. * swSCC.secs() / swTotal.secs());
 	fmt::print("c cleanup      {:#6.2f} s ({:#4.1f} %)\n", swCleanup.secs(),
 	           100. * swCleanup.secs() / swTotal.secs());
 	fmt::print("c probing      {:#6.2f} s ({:#4.1f} %)\n", swProbing.secs(),

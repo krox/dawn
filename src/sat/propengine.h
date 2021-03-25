@@ -203,4 +203,7 @@ class PropEngineLight
 	util::span<const Lit> trail(int l) const;
 };
 
+/** run unit propagation and remove all fixed variables */
+int runUnitPropagation(Sat &sat);
+
 } // namespace dawn

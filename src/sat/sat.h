@@ -293,4 +293,10 @@ inline void Sat::decayVariableActivity()
 void dump(Sat const &sat);
 void dumpOuter(std::string const &filename, Sat const &sat);
 
+/**
+ * run unit propagation + SCC until fixed point.
+ * returns number of removed variables.
+ */
+int cleanup(Sat &sat);
+
 } // namespace dawn
