@@ -44,7 +44,7 @@ int makeDisjunctions(Sat &sat)
 	util::Stopwatch sw;
 	sw.start();
 
-	int minOccs = 50; // arbitrary cutoff. should be configurable
+	int minOccs = 10; // arbitrary cutoff. should be configurable
 	int nFound = 0;
 
 	// helper function
@@ -59,9 +59,10 @@ int makeDisjunctions(Sat &sat)
 	// occ-lists per pair of literals
 	absl::flat_hash_map<Pair, std::vector<CRef>> pairOccs;
 	for (auto [ci, cl] : sat.clauses)
-		for (int i = 0; i < cl.size(); ++i)
-			for (int j = i + 1; j < cl.size(); ++j)
-				pairOccs[sort({cl[i], cl[j]})].push_back(ci);
+		if (cl.irred() || cl.size() <= 8)
+			for (int i = 0; i < cl.size(); ++i)
+				for (int j = i + 1; j < cl.size(); ++j)
+					pairOccs[sort({cl[i], cl[j]})].push_back(ci);
 
 	// build priority queue of pairs to replace
 	absl::flat_hash_map<Pair, int> pairCount;
