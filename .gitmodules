@@ -1,9 +1,6 @@
 [submodule "util"]
 	path = util
 	url = git@github.com:krox/util
-[submodule "fmt"]
-	path = fmt
-	url = git@github.com:fmtlib/fmt
 [submodule "CLI11"]
 	path = CLI11
 	url = git@github.com:CLIUtils/CLI11
