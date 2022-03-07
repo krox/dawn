@@ -4,6 +4,3 @@
 [submodule "CLI11"]
 	path = CLI11
 	url = git@github.com:CLIUtils/CLI11
-[submodule "abseil-cpp"]
-	path = abseil-cpp
-	url = git@github.com:abseil/abseil-cpp

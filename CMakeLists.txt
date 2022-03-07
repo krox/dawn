@@ -1,26 +1,19 @@
-OPTION(BUILD_TESTING "Build tests" OFF)
-
-cmake_minimum_required (VERSION 3.1.0)
-project (dawn)
-
-set(CMAKE_CXX_STANDARD 17)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS ON)
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2 -Wall -Wextra -Werror -g")
+cmake_minimum_required (VERSION 3.16.0)
+project (dawn LANGUAGES CXX)
 
 add_subdirectory(util EXCLUDE_FROM_ALL)
 add_subdirectory(CLI11 EXCLUDE_FROM_ALL)
-add_subdirectory(abseil-cpp EXCLUDE_FROM_ALL)
-
-include_directories(src)
-include_directories(util/src)
-include_directories(CLI11/include)
 
 file(GLOB files_cpp "src/sat/*.cpp")
 add_library(sat STATIC ${files_cpp})
-target_link_libraries(sat util fmt::fmt absl::flat_hash_map)
+
+target_compile_features(sat PUBLIC cxx_std_17)
+target_include_directories(sat PUBLIC src)
+target_link_libraries(sat PUBLIC util)
+target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -pedantic -Wnoexcept)
 
 foreach(bin "dawn" "dawn_lookahead" "check" "simplify" "gen" "gen_pigeonhole")
 	add_executable(${bin} src/${bin}.cpp)
-	target_link_libraries(${bin} sat util fmt::fmt absl::flat_hash_map)
+	target_link_libraries(${bin} sat CLI11::CLI11)
+	target_compile_options(${bin} PRIVATE -O2 -Wall -Wextra -Werror -pedantic -Wnoexcept)
 endforeach(bin)

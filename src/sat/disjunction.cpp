@@ -1,7 +1,7 @@
 #include "sat/disjunction.h"
 
-#include "absl/container/flat_hash_map.h"
 #include "util/bit_vector.h"
+#include "util/hash_map.h"
 #include <queue>
 #include <utility>
 
@@ -57,7 +57,7 @@ int makeDisjunctions(Sat &sat)
 	};
 
 	// occ-lists per pair of literals
-	absl::flat_hash_map<Pair, std::vector<CRef>> pairOccs;
+	util::hash_map<Pair, std::vector<CRef>> pairOccs;
 	for (auto [ci, cl] : sat.clauses)
 		if (cl.irred() || cl.size() <= 8)
 			for (int i = 0; i < cl.size(); ++i)
@@ -65,7 +65,7 @@ int makeDisjunctions(Sat &sat)
 					pairOccs[sort({cl[i], cl[j]})].push_back(ci);
 
 	// build priority queue of pairs to replace
-	absl::flat_hash_map<Pair, int> pairCount;
+	util::hash_map<Pair, int> pairCount;
 	std::priority_queue<std::pair<int, Pair>> queue;
 	for (auto &[pair, occs] : pairOccs)
 	{

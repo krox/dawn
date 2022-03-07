@@ -232,17 +232,12 @@ void runBinaryReduction(Sat &sat)
 
 		seen.clear();
 		assert(stack.empty());
-		for (size_t j = 0; j < sat.bins[a.neg()].size(); ++j)
-		{
-			Lit b = sat.bins[a.neg()][j];
-
+		erase_if(sat.bins[a.neg()], [&](Lit b) {
 			// if b is already seen then (a->b) is redundant
 			if (seen[b])
 			{
 				nFound += 1;
-				sat.bins[a.neg()].erase(j);
-				--j;
-				continue;
+				return true;
 			}
 
 			// otherwise mark b and all its implications
@@ -263,7 +258,8 @@ void runBinaryReduction(Sat &sat)
 						propCount++;
 					}
 			}
-		}
+			return false;
+		});
 	}
 	assert(nFound % 2 == 0);
 	fmt::print("c [TBR          {:#6.2f}] removed {} redundant binaries (using "

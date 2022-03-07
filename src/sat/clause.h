@@ -18,11 +18,11 @@ namespace dawn {
  */
 class Lit
 {
-	uint32_t val_;
+	uint32_t val_; // was '= -3' in the past
 
   public:
 	/** constructors */
-	constexpr Lit() : val_(-3) {}
+	Lit() = default;
 	explicit constexpr Lit(uint32_t val) : val_(val) {}
 	constexpr Lit(int var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
 
@@ -413,5 +413,17 @@ template <> struct fmt::formatter<dawn::Clause>
 
 template <> struct std::hash<dawn::Lit>
 {
-	std::size_t operator()(dawn::Lit const &l) const noexcept { return (int)l; }
+	std::size_t operator()(dawn::Lit const &l) const noexcept
+	{
+		return std::hash<int>()((int)l);
+	}
+};
+
+template <> struct std::hash<std::pair<dawn::Lit, dawn::Lit>>
+{
+	uint64_t operator()(std::pair<dawn::Lit, dawn::Lit> const &p) const noexcept
+	{
+		auto c = (int)p.first | (uint64_t)(int)p.second << 32;
+		return std::hash<uint64_t>()(c);
+	}
 };
