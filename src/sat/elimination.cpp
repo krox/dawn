@@ -208,10 +208,16 @@ struct BVE
 		// add binary-binary resolvents
 		for (Lit x : sat.bins[pos])
 			for (Lit y : sat.bins[neg])
-				sat.addBinary(x, y); // might this be a unit or tautology ?
+				if (x == y)
+					sat.addUnary(x);
+				else if (x != y.neg())
+					sat.addBinary(x, y);
 		for (Lit x : sat.bins[neg])
 			for (Lit y : sat.bins[pos])
-				sat.addBinary(x, y);
+				if (x == y)
+					sat.addUnary(x);
+				else if (x != y.neg())
+					sat.addBinary(x, y);
 
 		// add long-binary resolvents
 		for (CRef i : occs[pos])

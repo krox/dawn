@@ -411,19 +411,8 @@ template <> struct fmt::formatter<dawn::Clause>
 	}
 };
 
-template <> struct std::hash<dawn::Lit>
-{
-	std::size_t operator()(dawn::Lit const &l) const noexcept
-	{
-		return std::hash<int>()((int)l);
-	}
-};
-
-template <> struct std::hash<std::pair<dawn::Lit, dawn::Lit>>
-{
-	uint64_t operator()(std::pair<dawn::Lit, dawn::Lit> const &p) const noexcept
-	{
-		auto c = (int)p.first | (uint64_t)(int)p.second << 32;
-		return std::hash<uint64_t>()(c);
-	}
-};
+namespace util {
+template <class> struct is_contiguously_hashable;
+template <> struct is_contiguously_hashable<dawn::Lit> : std::true_type
+{};
+} // namespace util
