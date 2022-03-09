@@ -85,7 +85,7 @@ int restartSize(int iter, SolverConfig const &config)
 	}
 }
 
-Solution buildSolution(const PropEngine &p)
+Assignment buildSolution(const PropEngine &p)
 {
 	assert(!p.conflict);
 	auto outer = Sat(p.sat.varCountOuter());
@@ -127,15 +127,15 @@ Solution buildSolution(const PropEngine &p)
 		assert(!outerProp.conflict);
 	}
 
-	auto sol = Solution(outerProp.assign);
-	assert(sol.valid());
+	auto sol = Assignment(outerProp.assign);
+	assert(sol.complete());
 	return sol;
 }
 
 /** returns solution if found, or std::nullopt if limits reached or
  * contradiction */
-std::optional<Solution> search(PropEngine &p, int64_t maxConfl,
-                               SolverConfig const &config)
+std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
+                                 SolverConfig const &config)
 {
 	Sat &sat = p.sat;
 
@@ -350,7 +350,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 	}
 }
 
-int solve(Sat &sat, Solution &sol, SolverConfig const &config)
+int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 {
 	util::StopwatchGuard _(sat.stats.swTotal);
 

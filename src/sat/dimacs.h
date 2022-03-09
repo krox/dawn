@@ -1,13 +1,13 @@
 #pragma once
 
+#include "assignment.h"
 #include "clause.h"
-#include "solution.h"
 #include <string>
 
 namespace dawn {
 
 /** filename = "" means reading from stdin */
 std::pair<ClauseStorage, int> parseCnf(std::string filename);
-void parseSolution(std::string filename, Solution &sol);
+void parseAssignment(std::string filename, Assignment &sol);
 
 } // namespace dawn

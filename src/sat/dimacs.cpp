@@ -218,7 +218,7 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 
 	return {clauses, varCount};
 }
-void parseSolution(std::string filename, Solution &sol)
+void parseAssignment(std::string filename, Assignment &sol)
 {
 	auto parser = Parser(filename);
 
@@ -255,7 +255,7 @@ void parseSolution(std::string filename, Solution &sol)
 				if (x == 0)
 					break;
 				auto lit = Lit::fromDimacs(x);
-				enforce(lit.var() < sol.varCount(),
+				enforce(lit.var() < sol.var_count(),
 				        "invalid literal in solution");
 				sol.set(lit);
 			}
@@ -265,7 +265,7 @@ void parseSolution(std::string filename, Solution &sol)
 			panic(std::string("unexpected character: '") + *parser + "'");
 	}
 
-	enforce(sol.valid(), "invalid/incomplete solution");
+	enforce(sol.complete(), "incomplete solution");
 }
 
 } // namespace dawn

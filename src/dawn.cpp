@@ -122,7 +122,7 @@ int main(int argc, char *argv[])
 	int result = 10;
 	while (result == 10)
 	{
-		Solution sol;
+		Assignment sol;
 		result = solve(sat, sol, config);
 
 		// print to stdout
@@ -152,10 +152,7 @@ int main(int argc, char *argv[])
 			{
 				file.print("s SATISFIABLE\n");
 
-				file.print("v");
-				for (int i = 0; i < (int)sol.assign.size(); ++i)
-					if (sol.assign[i])
-						file.print(" {}", Lit(i));
+				file.print("v {} 0\n");
 				file.print(" 0\n");
 			}
 			else if (result == 20)
@@ -170,9 +167,9 @@ int main(int argc, char *argv[])
 		// solution and start again
 		if (allSolutions && result == 10)
 		{
-			assert(sol.valid());
+			assert(sol.complete());
 			std::vector<Lit> cl;
-			for (int i = 0; i < sol.varCount(); ++i)
+			for (int i = 0; i < sol.var_count(); ++i)
 				if (sol.satisfied(Lit(i, false)))
 					cl.push_back(Lit(i, true));
 				else
