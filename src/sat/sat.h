@@ -5,6 +5,8 @@
 #include "util/bit_vector.h"
 #include "util/small_vector.h"
 #include <cassert>
+#include <iterator>
+#include <sstream>
 #include <vector>
 
 namespace dawn {
@@ -70,6 +72,7 @@ class Sat
 
 	/** add clause ('outer' numbering, normalizes clause) */
 	void addClauseOuter(util::span<const Lit> lits);
+	void addClauseOuter(std::string_view lits);
 
 	/** number of clauses */
 	size_t unaryCount() const;
@@ -240,6 +243,17 @@ inline void Sat::addClauseOuter(util::span<const Lit> lits)
 	buf_.resize(0);
 }
 
+inline void Sat::addClauseOuter(std::string_view cl)
+{
+	std::vector<Lit> lits;
+	std::istringstream iss{std::string{cl}};
+	for (auto it = std::istream_iterator<std::string>(iss),
+	          end = std::istream_iterator<std::string>();
+	     it != end; ++it)
+		lits.push_back(Lit::fromDimacs(std::stoi(*it)));
+	addClauseOuter(lits);
+}
+
 inline size_t Sat::unaryCount() const { return units.size(); }
 
 inline size_t Sat::binaryCount() const
@@ -290,6 +304,9 @@ inline void Sat::decayVariableActivity()
 	}
 }
 
+// create list of all clauses (active and extension) in outer numbering
+ClauseStorage getAllClausesOuter(Sat const &sat);
+
 void dump(Sat const &sat);
 void dumpOuter(std::string const &filename, Sat const &sat);
 
@@ -300,3 +317,22 @@ void dumpOuter(std::string const &filename, Sat const &sat);
 int cleanup(Sat &sat);
 
 } // namespace dawn
+
+template <> struct fmt::formatter<dawn::Sat>
+{
+	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
+
+	template <typename FormatContext>
+	auto format(dawn::Sat const &sat, FormatContext &ctx)
+	{
+		auto clauses = getAllClausesOuter(sat);
+		auto it = format_to(ctx.out(), "p cnf {} {}\n", sat.varCountOuter(),
+		                    clauses.count());
+		for (auto [ci, cl] : clauses)
+		{
+			(void)ci;
+			it = format_to(it, "{} 0\n", cl);
+		}
+		return it;
+	}
+};

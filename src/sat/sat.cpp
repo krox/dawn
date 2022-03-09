@@ -221,8 +221,10 @@ void dump(Sat const &sat)
 	}
 }
 
-void dumpOuter(std::string const &filename, Sat const &sat)
+ClauseStorage getAllClausesOuter(Sat const &sat)
 {
+	ClauseStorage r;
+
 	// get inner->outer translation and list removed outer vars
 	std::vector<Lit> fixed_lits; // outer vars that are fixed
 	std::vector<std::pair<Lit, Lit>> equ_lits;
@@ -241,30 +243,25 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 			equ_lits.push_back({innerToOuter[a.var()], Lit(i, a.sign())});
 	}
 
-	auto file = fmt::output_file(filename);
-	file.print("p cnf {} {}\n", sat.varCountOuter(),
-	           sat.clauseCount() + fixed_lits.size() + 2 * equ_lits.size() +
-	               sat.extension_clauses.count());
-
 	// consistency check
 	for (Lit a : innerToOuter)
 		assert(a.proper());
 
-	// write empty clause
+	// empty clause
 	if (sat.contradiction)
-		file.print("0\n");
+		r.addClause({}, true);
 
-	// write unit clauses
+	// unit clauses
 	for (Lit a : fixed_lits)
-		file.print("{} 0\n", a.toDimacs());
+		r.addClause({a}, true);
 	for (Lit a : sat.units)
-		file.print("{} 0\n", (innerToOuter[a.var()] ^ a.sign()).toDimacs());
+		r.addClause({innerToOuter[a.var()] ^ a.sign()}, true);
 
-	// write binary clauses
+	// binary clauses
 	for (auto [a, b] : equ_lits)
 	{
-		file.print("{} {} 0\n", a.toDimacs(), b.neg().toDimacs());
-		file.print("{} {} 0\n", b.toDimacs(), a.neg().toDimacs());
+		r.addClause({a, b.neg()}, true);
+		r.addClause({b, a.neg()}, true);
 	}
 	for (int i = 0; i < sat.varCount() * 2; ++i)
 		for (Lit b : sat.bins[i])
@@ -272,26 +269,27 @@ void dumpOuter(std::string const &filename, Sat const &sat)
 			Lit a = Lit(i);
 			a = innerToOuter[a.var()] ^ a.sign();
 			b = innerToOuter[b.var()] ^ b.sign();
-			file.print("{} {} 0\n", a.toDimacs(), b.toDimacs());
+			r.addClause({a, b}, true);
 		}
 
-	// write long clauses
+	// long clauses
 	for (auto [ci, cl] : sat.clauses)
 	{
+		util::small_vector<Lit, 16> tmp;
 		(void)ci;
 		for (Lit a : cl.lits())
-			file.print("{} ", (innerToOuter[a.var()] ^ a.sign()).toDimacs());
-		file.print("0\n");
+			tmp.push_back(innerToOuter[a.var()] ^ a.sign());
+		r.addClause({tmp.begin(), tmp.end()}, cl.irred());
 	}
 
-	// write extension clauses (can be of any size)
+	// extension clauses (can be of any size)
 	for (auto [ci, cl] : sat.extension_clauses)
 	{
 		(void)ci;
-		for (Lit a : cl.lits())
-			file.print("{} ", a.toDimacs());
-		file.print("0\n");
+		r.addClause(cl.lits(), true);
 	}
+
+	return r;
 }
 
 int runUnitPropagation(Sat &sat);
