@@ -24,7 +24,6 @@ int main(int argc, char *argv[])
 	bool shuffle = false;
 	int64_t seed = 0;
 	int timeout = 0;
-	bool allSolutions = false;
 	bool watch_stats = false;
 	SolverConfig config;
 	CLI::App app{"sat solver"};
@@ -32,8 +31,6 @@ int main(int argc, char *argv[])
 	// general options and limits
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", solFile, "output solution in dimacs format");
-	app.add_flag("--all", allSolutions,
-	             "find all solutions instead of just one");
 	app.add_option("--max-confls", config.max_confls,
 	               "stop solving after (approximately) this many conflicts");
 	app.add_option("--max-time", timeout,
@@ -163,21 +160,7 @@ int main(int argc, char *argv[])
 				assert(false);
 		}
 
-		// if all solutions are requestes, add a clause excluding the current
-		// solution and start again
-		if (allSolutions && result == 10)
-		{
-			assert(sol.complete());
-			std::vector<Lit> cl;
-			for (int i = 0; i < sol.var_count(); ++i)
-				if (sol.satisfied(Lit(i, false)))
-					cl.push_back(Lit(i, true));
-				else
-					cl.push_back(Lit(i, false));
-			sat.addClauseOuter(cl);
-		}
-		else
-			break;
+		break;
 	}
 
 	// statistics

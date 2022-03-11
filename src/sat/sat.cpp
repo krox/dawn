@@ -18,10 +18,9 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 
 	// renumber units
 	{
-		std::vector<Lit> unitsOld;
-		std::swap(units, unitsOld);
-
-		for (Lit a : unitsOld)
+		auto units_old = std::move(units);
+		units.clear();
+		for (Lit a : units_old)
 		{
 			a = trans[a.var()] ^ a.sign();
 			if (a == Lit::one())
@@ -127,52 +126,36 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 	}
 
 	// renumber translation arrays
-	for (int outer = 0; outer < (int)varCountOuter(); ++outer)
+	auto to_outer_old = std::move(to_outer_);
+	to_outer_ = std::vector<Lit>(newVarCount, Lit::undef());
+	for (int i = 0; i < (int)trans.size(); ++i)
 	{
-		Lit inner = outer_to_inner_[outer];
-
-		// outer was already elim/fixed -> do nothing
-		if (!inner.proper())
-			continue;
-
-		// variable is to be removed right now
-		if (trans[inner.var()] == Lit::elim())
+		if (trans[i].fixed())
 		{
-			// if outer was previously removed by equivalence
-			if (inner_to_outer_[inner.var()].var() != outer)
-			{
-				Lit outer2 = inner_to_outer_[inner.var()] ^ inner.sign();
-				extender.set_equivalence(Lit(outer, false), outer2);
-			}
-
-			outer_to_inner_[outer] = Lit::elim();
-			continue;
+			extender.set_literal(to_outer_old[i] ^ trans[i].sign());
 		}
-
-		// variable is to be fixed or still active
-		assert(trans[inner.var()].proper() || trans[inner.var()].fixed());
-		outer_to_inner_[outer] = trans[inner.var()] ^ inner.sign();
+		else if (trans[i] == Lit::elim())
+		{}
+		else if (trans[i].proper())
+		{
+			if (to_outer_[trans[i].var()] == Lit::undef())
+				to_outer_[trans[i].var()] = to_outer_old[i] ^ trans[i].sign();
+			else
+				// equivalence. just push the information to the extender
+				extender.set_equivalence(to_outer_old[i] ^ trans[i].sign(),
+				                         to_outer_[trans[i].var()]);
+		}
+		else
+			assert(false);
 	}
-
-	inner_to_outer_.resize(0);
-	inner_to_outer_.resize(newVarCount, Lit::undef());
-	for (int outer = 0; outer < (int)varCountOuter(); ++outer)
-	{
-		Lit inner = outer_to_inner_[outer];
-		if (!inner.proper())
-			continue;
-		if (inner_to_outer_[inner.var()] != Lit::undef())
-			continue;
-		inner_to_outer_[inner.var()] = Lit(outer, inner.sign());
-	}
-	for (Lit a : inner_to_outer_)
+	for (Lit a : to_outer_)
 		assert(a.proper());
 }
 
 size_t Sat::memory_usage() const
 {
 	size_t r = 0;
-	r += outer_to_inner_.capacity() * sizeof(Lit);
+	r += to_outer_.capacity() * sizeof(Lit);
 	r += units.capacity() * sizeof(Lit);
 	for (int i = 0; i < varCount() * 2; ++i)
 		r += bins[i].capacity() * sizeof(Lit);
@@ -219,76 +202,77 @@ void dump(Sat const &sat)
 	}
 }
 
+/*
 ClauseStorage getAllClausesOuter(Sat const &sat)
 {
-	ClauseStorage r;
+    ClauseStorage r;
 
-	// get inner->outer translation and list removed outer vars
-	std::vector<Lit> fixed_lits; // outer vars that are fixed
-	std::vector<std::pair<Lit, Lit>> equ_lits;
-	auto innerToOuter = std::vector<Lit>(sat.varCount(), Lit::undef());
-	for (int i = 0; i < sat.varCountOuter(); ++i)
-	{
-		Lit a = sat.outerToInner(Lit(i, false));
-		if (a == Lit::elim())
-			continue;
-		assert(a.fixed() || a.proper());
-		if (a.fixed())
-			fixed_lits.push_back(Lit(i, a.sign()));
-		else if (innerToOuter[a.var()] == Lit::undef())
-			innerToOuter[a.var()] = Lit(i, a.sign());
-		else
-			equ_lits.push_back({innerToOuter[a.var()], Lit(i, a.sign())});
-	}
+    // get inner->outer translation and list removed outer vars
+    std::vector<Lit> fixed_lits; // outer vars that are fixed
+    std::vector<std::pair<Lit, Lit>> equ_lits;
+    auto innerToOuter = std::vector<Lit>(sat.varCount(), Lit::undef());
+    for (int i = 0; i < sat.varCountOuter(); ++i)
+    {
+        Lit a = sat.outerToInner(Lit(i, false));
+        if (a == Lit::elim())
+            continue;
+        assert(a.fixed() || a.proper());
+        if (a.fixed())
+            fixed_lits.push_back(Lit(i, a.sign()));
+        else if (innerToOuter[a.var()] == Lit::undef())
+            innerToOuter[a.var()] = Lit(i, a.sign());
+        else
+            equ_lits.push_back({innerToOuter[a.var()], Lit(i, a.sign())});
+    }
 
-	// consistency check
-	for (Lit a : innerToOuter)
-		assert(a.proper());
+    // consistency check
+    for (Lit a : innerToOuter)
+        assert(a.proper());
 
-	// empty clause
-	if (sat.contradiction)
-		r.addClause({}, true);
+    // empty clause
+    if (sat.contradiction)
+        r.addClause({}, true);
 
-	// unit clauses
-	for (Lit a : fixed_lits)
-		r.addClause({a}, true);
-	for (Lit a : sat.units)
-		r.addClause({innerToOuter[a.var()] ^ a.sign()}, true);
+    // unit clauses
+    for (Lit a : fixed_lits)
+        r.addClause({a}, true);
+    for (Lit a : sat.units)
+        r.addClause({innerToOuter[a.var()] ^ a.sign()}, true);
 
-	// binary clauses
-	for (auto [a, b] : equ_lits)
-	{
-		r.addClause({a, b.neg()}, true);
-		r.addClause({b, a.neg()}, true);
-	}
-	for (int i = 0; i < sat.varCount() * 2; ++i)
-		for (Lit b : sat.bins[i])
-		{
-			Lit a = Lit(i);
-			a = innerToOuter[a.var()] ^ a.sign();
-			b = innerToOuter[b.var()] ^ b.sign();
-			r.addClause({a, b}, true);
-		}
+    // binary clauses
+    for (auto [a, b] : equ_lits)
+    {
+        r.addClause({a, b.neg()}, true);
+        r.addClause({b, a.neg()}, true);
+    }
+    for (int i = 0; i < sat.varCount() * 2; ++i)
+        for (Lit b : sat.bins[i])
+        {
+            Lit a = Lit(i);
+            a = innerToOuter[a.var()] ^ a.sign();
+            b = innerToOuter[b.var()] ^ b.sign();
+            r.addClause({a, b}, true);
+        }
 
-	// long clauses
-	for (auto [ci, cl] : sat.clauses)
-	{
-		util::small_vector<Lit, 16> tmp;
-		(void)ci;
-		for (Lit a : cl.lits())
-			tmp.push_back(innerToOuter[a.var()] ^ a.sign());
-		r.addClause({tmp.begin(), tmp.end()}, cl.irred());
-	}
+    // long clauses
+    for (auto [ci, cl] : sat.clauses)
+    {
+        util::small_vector<Lit, 16> tmp;
+        (void)ci;
+        for (Lit a : cl.lits())
+            tmp.push_back(innerToOuter[a.var()] ^ a.sign());
+        r.addClause({tmp.begin(), tmp.end()}, cl.irred());
+    }
 
-	// extension clauses (can be of any size)
-	for (auto [ci, cl] : sat.extender.clauses_)
-	{
-		(void)ci;
-		r.addClause(cl.lits(), true);
-	}
+    // extension clauses (can be of any size)
+    for (auto [ci, cl] : sat.extender.clauses_)
+    {
+        (void)ci;
+        r.addClause(cl.lits(), true);
+    }
 
-	return r;
-}
+    return r;
+}*/
 
 int runUnitPropagation(Sat &sat);
 int runSCC(Sat &sat);

@@ -18,9 +18,13 @@ class Extender
 	//       datastructure, though semantically misleading
   public: // TODO: private
 	ClauseStorage clauses_;
+	int var_count_;
 
   public:
-	Extender() = default;
+	explicit Extender(int n) noexcept : var_count_(n) {}
+
+	int var_count() const { return var_count_; }
+	int add_var() { return var_count_++; }
 
 	// add a transformation rule, which will be applied (in reverse order)
 	// by '.extend()' in the future

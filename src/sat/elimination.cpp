@@ -276,7 +276,7 @@ struct BVE
 				if (a.var() == v)
 					std::swap(a, cl[0]);
 			for (Lit &a : cl)
-				a = sat.innerToOuter(a);
+				a = sat.to_outer(a);
 			sat.extender.add_rule(cl);
 		}
 	}

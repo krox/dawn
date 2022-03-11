@@ -20,8 +20,7 @@ namespace dawn {
 class Sat
 {
   private:
-	std::vector<Lit> outer_to_inner_; // outer variable -> inner literal
-	std::vector<Lit> inner_to_outer_;
+	std::vector<Lit> to_outer_; // inner variable -> outer literal
 
 	std::vector<Lit> buf_; // temporary
 
@@ -41,15 +40,15 @@ class Sat
 	Extender extender;
 
 	// constructors
-	Sat();
+	Sat() noexcept;
 	explicit Sat(int n, ClauseStorage clauses_ = {});
 
-	Sat(const Sat &) = delete;
-	Sat(const Sat &&) = delete;
+	// would work fine, just never used so we disallow copies to prevent bugs
+	Sat(Sat const &) = delete;
+	Sat &operator=(Sat const &) = delete;
 
-	/** translate outer to inner (can return Lit::zero()/Lit::one() for fixed)*/
-	Lit outerToInner(Lit a) const;
-	Lit innerToOuter(Lit a) const;
+	/** translate inner to outer (can return Lit::zero()/Lit::one() for fixed)*/
+	Lit to_outer(Lit a) const;
 
 	/** add/count variables in the 'inner' problem */
 	int addVar();
@@ -66,9 +65,9 @@ class Sat
 	CRef addLong(util::span<const Lit> lits, bool irred);
 	CRef addClause(util::span<const Lit> lits, bool irred);
 
-	/** add clause ('outer' numbering, normalizes clause) */
-	void addClauseOuter(util::span<const Lit> lits);
-	void addClauseOuter(std::string_view lits);
+	// add clause ('inner' numbering, normalizes clause)
+	void add_clause_safe(util::span<const Lit> lits);
+	void add_clause_safe(std::string_view lits);
 
 	/** number of clauses */
 	size_t unaryCount() const;
@@ -98,17 +97,14 @@ class Sat
 
 void shuffleVariables(Sat &sat);
 
-inline Sat::Sat() {}
+inline Sat::Sat() noexcept : Sat(0) {}
 
 inline Sat::Sat(int n, ClauseStorage clauses_)
-    : outer_to_inner_(n), inner_to_outer_(n), bins(2 * n),
-      clauses(std::move(clauses_)), activity(n, 0.0), polarity(n)
+    : to_outer_(n), bins(2 * n), clauses(std::move(clauses_)), extender(n),
+      activity(n, 0.0), polarity(n)
 {
 	for (int i = 0; i < n; ++i)
-	{
-		outer_to_inner_[i] = Lit(i, false);
-		inner_to_outer_[i] = Lit(i, false);
-	}
+		to_outer_[i] = Lit(i, false);
 
 	for (auto [ci, cl] : clauses)
 	{
@@ -128,44 +124,33 @@ inline Sat::Sat(int n, ClauseStorage clauses_)
 	}
 }
 
-inline Lit Sat::outerToInner(Lit a) const
-{
-	if (!a.proper())
-		return a;
-	assert(a.var() < varCountOuter());
-	if (outer_to_inner_[a.var()] == Lit::elim())
-		return Lit::elim();
-	return outer_to_inner_[a.var()] ^ a.sign();
-}
-
-inline Lit Sat::innerToOuter(Lit a) const
+inline Lit Sat::to_outer(Lit a) const
 {
 	if (!a.proper())
 		return a;
 	assert(a.var() < varCount());
-	return inner_to_outer_[a.var()] ^ a.sign();
+	return to_outer_[a.var()] ^ a.sign();
 }
 
-inline int Sat::varCount() const { return (int)inner_to_outer_.size(); }
-inline int Sat::varCountOuter() const { return (int)outer_to_inner_.size(); }
+inline int Sat::varCount() const { return (int)to_outer_.size(); }
+inline int Sat::varCountOuter() const { return extender.var_count(); }
 
 inline int Sat::addVar()
 {
 	int inner = varCount();
-	int outer = varCountOuter();
+	int outer = extender.add_var();
 	bins.emplace_back();
 	bins.emplace_back();
 	activity.push_back(0.0);
 	polarity.push_back(false);
-	outer_to_inner_.push_back(Lit(inner, false));
-	inner_to_outer_.push_back(Lit(outer, false));
+	to_outer_.push_back(Lit(outer, false));
 	return inner;
 }
 
 inline int Sat::addVarOuter()
 {
 	int i = addVar();
-	return inner_to_outer_[i].var();
+	return to_outer_[i].var();
 }
 
 inline void Sat::addEmpty() { contradiction = true; }
@@ -221,14 +206,13 @@ inline CRef Sat::addClause(util::span<const Lit> lits, bool irred)
 	return CRef::undef();
 }
 
-inline void Sat::addClauseOuter(util::span<const Lit> lits)
+inline void Sat::add_clause_safe(util::span<const Lit> lits)
 {
 	assert(buf_.size() == 0);
 	for (auto a : lits)
 	{
-		auto b = outerToInner(a);
-		assert(b.proper() || b.fixed());
-		buf_.push_back(b);
+		assert(a.proper() || a.fixed());
+		buf_.push_back(a);
 	}
 	int s = normalizeClause(buf_);
 	if (s != -1)
@@ -239,7 +223,7 @@ inline void Sat::addClauseOuter(util::span<const Lit> lits)
 	buf_.resize(0);
 }
 
-inline void Sat::addClauseOuter(std::string_view cl)
+inline void Sat::add_clause_safe(std::string_view cl)
 {
 	std::vector<Lit> lits;
 	std::istringstream iss{std::string{cl}};
@@ -247,7 +231,7 @@ inline void Sat::addClauseOuter(std::string_view cl)
 	          end = std::istream_iterator<std::string>();
 	     it != end; ++it)
 		lits.push_back(Lit::fromDimacs(std::stoi(*it)));
-	addClauseOuter(lits);
+	add_clause_safe(lits);
 }
 
 inline size_t Sat::unaryCount() const { return units.size(); }

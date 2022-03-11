@@ -87,29 +87,15 @@ int restartSize(int iter, SolverConfig const &config)
 
 Assignment buildSolution(const PropEngine &p)
 {
+	// TODO: right now we set an arbitrary default value here for unassigned
+	//       variables. For eliminated vars this is necessary because the
+	//       extension clauses may not force either value. Alternative would
+	//       be to make the extension rules forcing whenever we eliminate a var
 	auto a = Assignment(p.sat.varCountOuter());
-	for (int i = 0; i < a.var_count(); ++i)
-	{
-		Lit inner = p.sat.outerToInner(Lit(i, false));
-		if (inner.fixed())
-			a.set(Lit(i, inner.sign()));
-		else if (inner.proper())
-		{
-			if (p.assign[inner])
-				a.set(Lit(i, false));
-			else if (p.assign[inner.neg()])
-				a.set(Lit(i, true));
-			else
-				assert(false);
-		}
-		else if (inner == Lit::elim())
-		{
-			a.set(Lit(i, true)); // arbitrary value
-		}
-		else
-			assert(false);
-	}
-
+	for (int i = 0; i < p.sat.varCountOuter(); ++i)
+		a.set(Lit(i, true));
+	for (Lit l : p.trail())
+		a.force_set(p.sat.to_outer(l));
 	assert(a.complete());
 	p.sat.extender.extend(a);
 	assert(a.complete());
