@@ -16,19 +16,9 @@ int main(int argc, char *argv[])
 	app.add_option("output", outFile, "output CNF in dimacs format");
 	CLI11_PARSE(app, argc, argv);
 
-	// read CNF from file or stdin
-	static Sat sat;
-	parseCnf(cnfFile, sat);
-
-	while (true)
-	{
-		inprocessCheap(sat);
-
-		if (probe(sat, 0))
-			continue;
-
-		break;
-	}
-	dumpOuter(outFile, sat);
+	auto [clauses, varCount] = parseCnf(cnfFile);
+	Sat sat = Sat(varCount, std::move(clauses)); // clauses are copied here!
+	cleanup(sat);
+	dump(sat);
 	return 0;
 }
