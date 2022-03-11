@@ -205,6 +205,9 @@ struct BVE
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
 
+		// fmt::print("c eliminating variable i={}, o={}\n", pos,
+		// sat.innerToOuter(pos));
+
 		// add binary-binary resolvents
 		for (Lit x : sat.bins[pos])
 			for (Lit y : sat.bins[neg])
@@ -237,49 +240,44 @@ struct BVE
 					add_clause(resolvent(sat.clauses[i].lits(),
 					                     sat.clauses[j].lits()));
 
-		sat.removed_vars.push_back(sat.innerToOuter(Lit(v, false)).var());
-
-		std::vector<CRef> todo_renumber;
-		// move old long clauses from the problem to the solution extender
+		// remove old long clauses from the problem
+		std::vector<std::vector<Lit>> removed_clauses;
 		for (CRef i : occs[pos])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.irred());
-			CRef ci = sat.extension_clauses.addClause(cl.lits(), true);
-			todo_renumber.push_back(ci);
+			assert(cl.irred() && !cl.isRemoved());
+			removed_clauses.emplace_back(cl.begin(), cl.end());
 			cl.remove();
 		}
 		for (CRef i : occs[neg])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.irred());
-			CRef ci = sat.extension_clauses.addClause(cl.lits(), true);
-			todo_renumber.push_back(ci);
+			assert(cl.irred() && !cl.isRemoved());
+			removed_clauses.emplace_back(cl.begin(), cl.end());
 			cl.remove();
 		}
 		occs[pos].resize(0);
 		occs[neg].resize(0);
 
-		// move old binary clauses from the problem to the solution extender
+		// remove old binary clauses from the problem
 		for (Lit b : sat.bins[pos])
-		{
-			CRef ci = sat.extension_clauses.addBinary(pos, b);
-			todo_renumber.push_back(ci);
-		}
+			removed_clauses.push_back({pos, b});
 		for (Lit b : sat.bins[neg])
-		{
-			CRef ci = sat.extension_clauses.addBinary(neg, b);
-			todo_renumber.push_back(ci);
-		}
+			removed_clauses.push_back({neg, b});
 		sat.bins[pos].resize(0);
 		sat.bins[neg].resize(0);
 
-		// renumber extension clauses from 'inner' to 'outer'
-		for (CRef j : todo_renumber)
+		// add removed clauses to the extender
+		//     * renumber 'inner' to 'outer'
+		//     * move eliminated variable to front
+		for (auto &cl : removed_clauses)
 		{
-			Clause &cl = sat.extension_clauses[j];
-			for (Lit &a : cl.lits())
+			for (Lit &a : cl)
+				if (a.var() == v)
+					std::swap(a, cl[0]);
+			for (Lit &a : cl)
 				a = sat.innerToOuter(a);
+			sat.extender.add_rule(cl);
 		}
 	}
 

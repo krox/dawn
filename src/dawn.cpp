@@ -152,7 +152,7 @@ int main(int argc, char *argv[])
 			{
 				file.print("s SATISFIABLE\n");
 
-				file.print("v {} 0\n");
+				file.print("v {} 0\n", sol);
 				file.print(" 0\n");
 			}
 			else if (result == 20)

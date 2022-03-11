@@ -87,49 +87,33 @@ int restartSize(int iter, SolverConfig const &config)
 
 Assignment buildSolution(const PropEngine &p)
 {
-	assert(!p.conflict);
-	auto outer = Sat(p.sat.varCountOuter());
-	for (auto [ci, cl] : p.sat.extension_clauses)
-	{
-		(void)ci;
-		outer.addClauseOuter(cl.lits());
-	}
-
-	auto outerProp = PropEngineLight(outer);
-	assert(!outerProp.conflict);
-	for (int i = 0; i < p.sat.varCountOuter(); ++i)
+	auto a = Assignment(p.sat.varCountOuter());
+	for (int i = 0; i < a.var_count(); ++i)
 	{
 		Lit inner = p.sat.outerToInner(Lit(i, false));
 		if (inner.fixed())
-			outerProp.propagate(Lit(i, inner.sign()));
+			a.set(Lit(i, inner.sign()));
 		else if (inner.proper())
 		{
 			if (p.assign[inner])
-				outerProp.propagate(Lit(i, false));
+				a.set(Lit(i, false));
 			else if (p.assign[inner.neg()])
-				outerProp.propagate(Lit(i, true));
+				a.set(Lit(i, true));
 			else
 				assert(false);
 		}
 		else if (inner == Lit::elim())
-		{}
+		{
+			a.set(Lit(i, true)); // arbitrary value
+		}
 		else
 			assert(false);
-		assert(!outerProp.conflict);
 	}
 
-	for (size_t i = p.sat.removed_vars.size(); i--;)
-	{
-		Lit a = Lit(p.sat.removed_vars[i], false);
-		if (outerProp.assign[a] || outerProp.assign[a.neg()])
-			continue;
-		outerProp.propagate(a);
-		assert(!outerProp.conflict);
-	}
-
-	auto sol = Assignment(outerProp.assign);
-	assert(sol.complete());
-	return sol;
+	assert(a.complete());
+	p.sat.extender.extend(a);
+	assert(a.complete());
+	return a;
 }
 
 /** returns solution if found, or std::nullopt if limits reached or

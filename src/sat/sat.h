@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sat/clause.h"
+#include "sat/extender.h"
 #include "sat/stats.h"
 #include "util/bit_vector.h"
 #include "util/small_vector.h"
@@ -35,16 +36,11 @@ class Sat
 	bins_t bins;
 	ClauseStorage clauses;
 
-	/**
-	 * clauses needed to extend solution to full problem if variable
-	 * elimination was performed
-	 *   - 'outer' variable numbering
-	 *   - can contain small clauses (i.e. no implicit binaries)
-	 */
-	ClauseStorage extension_clauses;
-	std::vector<int> removed_vars; // consider in reverse when extending sol
+	// Rules needed to extend solution to original problem.
+	// 'outer' variable numbering.
+	Extender extender;
 
-	/** constructor */
+	// constructors
 	Sat();
 	explicit Sat(int n, ClauseStorage clauses_ = {});
 

@@ -142,8 +142,7 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 			if (inner_to_outer_[inner.var()].var() != outer)
 			{
 				Lit outer2 = inner_to_outer_[inner.var()] ^ inner.sign();
-				extension_clauses.addBinary(Lit(outer, false), outer2.neg());
-				extension_clauses.addBinary(Lit(outer, true), outer2);
+				extender.set_equivalence(Lit(outer, false), outer2);
 			}
 
 			outer_to_inner_[outer] = Lit::elim();
@@ -178,8 +177,7 @@ size_t Sat::memory_usage() const
 	for (int i = 0; i < varCount() * 2; ++i)
 		r += bins[i].capacity() * sizeof(Lit);
 	r += clauses.memory_usage();
-	r += extension_clauses.memory_usage();
-	r += removed_vars.capacity() * sizeof(int);
+	r += extender.memory_usage();
 	return r;
 }
 
@@ -283,7 +281,7 @@ ClauseStorage getAllClausesOuter(Sat const &sat)
 	}
 
 	// extension clauses (can be of any size)
-	for (auto [ci, cl] : sat.extension_clauses)
+	for (auto [ci, cl] : sat.extender.clauses_)
 	{
 		(void)ci;
 		r.addClause(cl.lits(), true);

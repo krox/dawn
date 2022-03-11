@@ -341,10 +341,13 @@ class ClauseStorage
 	size_t count() const
 	{
 		size_t r = 0;
-		for (auto _ [[maybe_unused]] : clauses)
+		for (auto _ [[maybe_unused]] : *this)
 			++r;
 		return r;
 	}
+
+	// TODO: this contains removed clauses, should not be exposed
+	std::vector<CRef> const &allClauses() const { return clauses; }
 
 	size_t memory_usage() const
 	{
