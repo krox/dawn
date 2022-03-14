@@ -57,5 +57,6 @@ int main(int argc, char *argv[])
 
 		cl.resize(0);
 	}
-	dump(sat);
+
+	fmt::print("{}", sat);
 }

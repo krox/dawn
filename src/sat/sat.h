@@ -92,6 +92,10 @@ class Sat
 	void bumpVariableActivity(int i);
 	void decayVariableActivity();
 
+	// sort clauses and literals in clauses. Invalidates all CRefs, just
+	// intended for nicer human-readable output
+	void sort_clauses();
+
 	size_t memory_usage() const;
 };
 
@@ -285,9 +289,7 @@ inline void Sat::decayVariableActivity()
 
 // create list of all clauses (active and extension) in outer numbering
 ClauseStorage getAllClausesOuter(Sat const &sat);
-
-void dump(Sat const &sat);
-void dumpOuter(std::string const &filename, Sat const &sat);
+ClauseStorage getAllClauses(Sat const &sat);
 
 /**
  * run unit propagation + SCC until fixed point.
@@ -304,11 +306,45 @@ template <> struct fmt::formatter<dawn::Sat>
 	template <typename FormatContext>
 	auto format(dawn::Sat const &sat, FormatContext &ctx)
 	{
-		auto clauses = getAllClausesOuter(sat);
-		auto it = format_to(ctx.out(), "p cnf {} {}\n", sat.varCountOuter(),
-		                    clauses.count());
-		for (auto &cl : clauses.all())
-			it = format_to(it, "{} 0\n", cl);
+		using namespace dawn;
+		auto it = format_to(ctx.out(), "p cnf {} {}\n", sat.varCount(),
+		                    sat.clauseCount());
+
+		// empty clause
+		if (sat.contradiction)
+			it = format_to(it, "0\n");
+
+		// unary clauses
+		auto units = sat.units;
+		std::sort(units.begin(), units.end());
+		for (auto a : units)
+			it = format_to(it, "{} 0\n", a);
+
+		// binary clauses
+		for (int l = 0; l < 2 * sat.varCount(); ++l)
+		{
+			auto tmp = sat.bins[l];
+			std::sort(tmp.begin(), tmp.end());
+			for (auto b : tmp)
+				if (l <= b)
+					it = format_to(it, "{} {} 0\n", dawn::Lit(l), b);
+		}
+
+		// long clauses
+		auto crefs =
+		    std::vector(sat.clauses.crefs().begin(), sat.clauses.crefs().end());
+		std::sort(crefs.begin(), crefs.end(), [&sat](CRef i, CRef j) {
+			auto &a = sat.clauses[i];
+			auto &b = sat.clauses[j];
+			if (a.size() != b.size())
+				return a.size() < b.size();
+			else
+				return std::lexicographical_compare(a.begin(), a.end(),
+				                                    b.begin(), b.end());
+		});
+		for (auto i : crefs)
+			it = format_to(it, "{} 0\n", sat.clauses[i]);
+
 		return it;
 	}
 };
