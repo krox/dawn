@@ -25,7 +25,7 @@
   - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components
-  - [ ] blocked-clause elimination
+  - [x] blocked-clause elimination
   - [x] bounded variable elimination (preprocessing only)
   - [x] bounded variable addition (default=off)
   - [ ] xor discovery and gaussian elimination

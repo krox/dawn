@@ -409,6 +409,94 @@ struct BVE
 	}
 };
 
+struct BCE
+{
+	/**
+	 * NOTE:
+	 *   - all irreducible clauses in sat are sorted
+	 *     (this property is maintained in the resolvent() functions)
+	 *   - occ-lists contain exactly the non-removed irreduble clauses
+	 *     (this property is restored after each variable elimination)
+	 */
+	Sat &sat;
+	using occs_t = std::vector<std::vector<CRef>>;
+	occs_t occs;
+
+	BCE(Sat &sat_) : sat(sat_), occs(2 * sat_.varCount())
+	{
+		// sort lits and create occ-lists
+		for (auto [ci, cl] : sat.clauses.enumerate())
+			if (cl.irred())
+			{
+				std::sort(cl.lits().begin(), cl.lits().end());
+				for (Lit a : cl.lits())
+					occs[a].push_back(ci);
+			}
+	}
+
+	int run_on_variable(int v)
+	{
+		// if there is a unit -> do nothing (could break our
+		// implementaion of resolution and would be stupid anyway)
+		for (Lit u : sat.units)
+			if (u.var() == v)
+				return 0;
+		int nFound = 0;
+		auto pos = Lit(v, false);
+		auto neg = Lit(v, true);
+
+		// its not worth trying with variables with many occurences
+		if (occs[pos].size() + sat.bins[pos].size() > 10 &&
+		    occs[neg].size() + sat.bins[neg].size() > 10)
+			return 0;
+
+		for (CRef i : occs[pos]) // try to eliminate i with variable v(pos)
+		{
+			// already removed (on a different variable)
+			if (sat.clauses[i].isRemoved())
+				continue;
+
+			// check for (non-)tautologies
+			for (Lit x : sat.bins[neg])
+				if (!sat.clauses[i].contains(x.neg()))
+					goto next;
+			for (CRef j : occs[neg])
+				if (!sat.clauses[j].isRemoved()) // could have been blocked
+					if (!is_resolvent_tautological(sat.clauses[i].lits(),
+					                               sat.clauses[j].lits()))
+						goto next;
+
+			// remove clause and add it to the extender
+			{
+				nFound += 1;
+				auto cl = std::vector<Lit>(sat.clauses[i].begin(),
+				                           sat.clauses[i].end());
+				sat.clauses[i].remove();
+
+				for (Lit &a : cl)
+					if (a.var() == v)
+						std::swap(a, cl[0]);
+				for (Lit &a : cl)
+					a = sat.to_outer(a);
+				sat.extender.add_rule(cl);
+			}
+
+		next:;
+		}
+
+		return nFound;
+	}
+
+	// returns number of removed variables
+	int run()
+	{
+		int nFound = 0;
+		for (int v = 0; v < sat.varCount(); ++v)
+			nFound += run_on_variable(v);
+		return nFound;
+	}
+};
+
 } // namespace
 
 int run_variable_elimination(Sat &sat)
@@ -423,6 +511,24 @@ int run_variable_elimination(Sat &sat)
 	auto bve = BVE(sat);
 	int nFound = bve.run();
 	fmt::print("c [BVE          {:#6.2f}] removed {} vars\n", sw.secs(),
+	           nFound);
+	return nFound;
+}
+
+int run_blocked_clause_elimination(Sat &sat)
+{
+	if (sat.contradiction)
+		return 0;
+
+	util::StopwatchGuard swg(sat.stats.swBCE);
+	util::Stopwatch sw;
+	sw.start();
+
+	auto bce = BCE(sat);
+	int nFound = bce.run();
+	if (nFound)
+		nFound += bce.run();
+	fmt::print("c [BCE          {:#6.2f}] removed {} clauses\n", sw.secs(),
 	           nFound);
 	return nFound;
 }

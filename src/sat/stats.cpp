@@ -69,6 +69,8 @@ void Stats::dump()
 	           100. * swVivification.secs() / swTotal.secs());
 	fmt::print("c BVE          {:#6.2f} s ({:#4.1f} %)\n", swBVE.secs(),
 	           100. * swBVE.secs() / swTotal.secs());
+	fmt::print("c BCE          {:#6.2f} s ({:#4.1f} %)\n", swBCE.secs(),
+	           100. * swBCE.secs() / swTotal.secs());
 	fmt::print("c BVA          {:#6.2f} s ({:#4.1f} %)\n", swBVA.secs(),
 	           100. * swBVA.secs() / swTotal.secs());
 	fmt::print("c search init  {:#6.2f} s ({:#4.1f} %)\n", swSearchInit.secs(),

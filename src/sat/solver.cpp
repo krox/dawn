@@ -324,8 +324,14 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	inprocess(sat, config);
 	// run BVE only once at the beginning, not at every inprocessing
 	// (it ignores and removes learnt clauses, so can be very harmful)
+	if (config.bce > 0)
+	{
+		if (run_blocked_clause_elimination(sat))
+			inprocess(sat, config);
+	}
 	if (config.bve > 0)
 	{
+
 		if (run_variable_elimination(sat))
 			inprocess(sat, config);
 	}
