@@ -21,7 +21,7 @@ PropEngine::PropEngine(Sat &sat)
 	}
 
 	// attach long clauses
-	for (auto [i, c] : sat.clauses)
+	for (auto [i, c] : sat.clauses.enumerate())
 	{
 		assert(c.size() >= 2);
 		watches[c[0]].push_back(i);
@@ -463,7 +463,7 @@ PropEngineLight::PropEngineLight(Sat &sat)
 	}
 
 	// attach long clauses
-	for (auto [i, c] : sat.clauses)
+	for (auto [i, c] : sat.clauses.enumerate())
 	{
 		assert(c.size() >= 3);
 		watches[c[0]].push_back(i);

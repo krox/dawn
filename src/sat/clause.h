@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "util/iterator.h"
 #include "util/span.h"
 #include <cstdint>
 #include <functional>
@@ -225,7 +226,7 @@ class ClauseStorage
 {
   private:
 	std::vector<uint32_t> store;
-	std::vector<CRef> clauses;
+	std::vector<CRef> clauses_;
 
   public:
 	/** add a new clause, no checking of lits done */
@@ -256,7 +257,7 @@ class ClauseStorage
 			store.push_back(l);
 
 		auto r = CRef((uint32_t)index);
-		clauses.push_back(r);
+		clauses_.push_back(r);
 		return r;
 	}
 
@@ -269,90 +270,65 @@ class ClauseStorage
 
 	const Clause &operator[](CRef i) const { return *(Clause *)&store[i]; }
 
-	struct iterator
+	auto crefs() const
 	{
-		ClauseStorage &cs_;
-		std::vector<CRef>::iterator it_;
-
-	  public:
-		iterator(ClauseStorage &cs, std::vector<CRef>::iterator it)
-		    : cs_(cs), it_(it)
-		{
-			while (it_ != cs.clauses.end() && cs[*it_].isRemoved())
-				++it_;
-		}
-
-		std::tuple<CRef, Clause &> operator*()
-		{
-			return std::make_tuple(*it_, std::ref(cs_[*it_]));
-		}
-
-		void operator++()
-		{
-			++it_;
-			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
-				++it_;
-		}
-
-		bool operator!=(const iterator &r) const { return it_ != r.it_; }
-	};
-
-	iterator begin() { return iterator(*this, clauses.begin()); }
-
-	iterator end() { return iterator(*this, clauses.end()); }
-
-	struct const_iterator
-	{
-		const ClauseStorage &cs_;
-		std::vector<CRef>::const_iterator it_;
-
-	  public:
-		const_iterator(const ClauseStorage &cs,
-		               std::vector<CRef>::const_iterator it)
-		    : cs_(cs), it_(it)
-		{
-			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
-				++it_;
-		}
-
-		std::tuple<CRef, const Clause &> operator*()
-		{
-			return std::make_tuple(*it_, std::ref(cs_[*it_]));
-		}
-
-		void operator++()
-		{
-			++it_;
-			while (it_ != cs_.clauses.end() && cs_[*it_].isRemoved())
-				++it_;
-		}
-
-		bool operator!=(const const_iterator &r) const { return it_ != r.it_; }
-	};
-
-	const_iterator begin() const
-	{
-		return const_iterator(*this, clauses.begin());
+		auto not_removed = [this](CRef i) { return !(*this)[i].isRemoved(); };
+		return util::filter(not_removed, clauses_);
 	}
 
-	const_iterator end() const { return const_iterator(*this, clauses.end()); }
+	auto crefs_reverse() const
+	{
+		auto not_removed = [this](CRef i) { return !(*this)[i].isRemoved(); };
+		return util::filter(not_removed, util::reverse(clauses_));
+	}
+
+	auto all()
+	{
+		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
+		return util::transform(crefs(), deref);
+	}
+
+	auto all() const
+	{
+		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
+		return util::transform(crefs(), deref);
+	}
+
+	auto all_reverse() const
+	{
+		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
+		return util::transform(crefs_reverse(), deref);
+	}
+
+	auto enumerate()
+	{
+		auto deref = [this](CRef i) {
+			return std::make_tuple(i, std::ref((*this)[i]));
+		};
+		return util::transform(crefs(), deref);
+	}
+
+	auto enumerate() const
+	{
+		auto deref = [this](CRef i) {
+			return std::make_tuple(i, std::ref((*this)[i]));
+		};
+		return util::transform(crefs(), deref);
+	}
 
 	/** number of (non-removed) clauses */
 	size_t count() const
 	{
 		size_t r = 0;
-		for (auto _ [[maybe_unused]] : *this)
+		for (auto &_ [[maybe_unused]] : all())
 			++r;
 		return r;
 	}
 
-	// TODO: this contains removed clauses, should not be exposed
-	std::vector<CRef> const &allClauses() const { return clauses; }
-
 	size_t memory_usage() const
 	{
 		return store.capacity() * sizeof(uint32_t) +
-		       clauses.capacity() * sizeof(CRef);
+		       clauses_.capacity() * sizeof(CRef);
 	}
 
 	/**
@@ -362,7 +338,7 @@ class ClauseStorage
 	void compactify();
 
 	/**
-	 * Remove all clauses (but keep allocated memory). Invalidates all
+	 * Remove all clauses_ (but keep allocated memory). Invalidates all
 	 * CRef's.
 	 */
 	void clear();

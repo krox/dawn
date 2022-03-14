@@ -106,9 +106,8 @@ inline Sat::Sat(int n, ClauseStorage clauses_)
 	for (int i = 0; i < n; ++i)
 		to_outer_[i] = Lit(i, false);
 
-	for (auto [ci, cl] : clauses)
+	for (auto &cl : clauses.all())
 	{
-		(void)ci;
 		cl.normalize();
 		if (cl.isRemoved() || cl.size() >= 3)
 			continue;
@@ -249,8 +248,8 @@ inline size_t Sat::longCount() const { return clauses.count(); }
 inline size_t Sat::longCountIrred() const
 {
 	size_t r = 0;
-	for (auto [_, cl] : clauses)
-		if ((void)_, cl.irred())
+	for (auto &cl : clauses.all())
+		if (cl.irred())
 			++r;
 	return r;
 }
@@ -258,8 +257,8 @@ inline size_t Sat::longCountIrred() const
 inline size_t Sat::longCountRed() const
 {
 	size_t r = 0;
-	for (auto [_, cl] : clauses)
-		if ((void)_, !cl.irred())
+	for (auto &cl : clauses.all())
+		if (!cl.irred())
 			++r;
 	return r;
 }
@@ -308,11 +307,8 @@ template <> struct fmt::formatter<dawn::Sat>
 		auto clauses = getAllClausesOuter(sat);
 		auto it = format_to(ctx.out(), "p cnf {} {}\n", sat.varCountOuter(),
 		                    clauses.count());
-		for (auto [ci, cl] : clauses)
-		{
-			(void)ci;
+		for (auto &cl : clauses.all())
 			it = format_to(it, "{} 0\n", cl);
-		}
 		return it;
 	}
 };

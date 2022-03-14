@@ -77,9 +77,8 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 	}
 
 	// renumber long clauses
-	for (auto [_, cl] : clauses)
+	for (auto &cl : clauses.all())
 	{
-		(void)_;
 		for (Lit &a : cl.lits())
 			a = trans[a.var()] ^ a.sign();
 		cl.normalize();
@@ -195,11 +194,8 @@ void dump(Sat const &sat)
 				fmt::print("{} {} 0\n", Lit(l), b);
 
 	// long clauses
-	for (auto [ci, cl] : sat.clauses)
-	{
-		(void)ci;
+	for (auto &cl : sat.clauses.all())
 		fmt::print("{} 0\n", cl);
-	}
 }
 
 /*

@@ -73,10 +73,9 @@ inline void Extender::extend(Assignment &a) const
 	}*/
 
 	assert(a.complete());
-	for (auto it = clauses_.allClauses().rbegin();
-	     it != clauses_.allClauses().rend(); ++it)
-		if (!a.satisfied(clauses_[*it]))
-			a.force_set(clauses_[*it].lits()[0]);
+	for (auto &cl : clauses_.all_reverse())
+		if (!a.satisfied(cl))
+			a.force_set(cl[0]);
 }
 
 inline size_t Extender::memory_usage() const { return clauses_.memory_usage(); }

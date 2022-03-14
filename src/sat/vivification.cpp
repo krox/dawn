@@ -107,10 +107,8 @@ bool runVivification(Sat &sat, bool withBinary)
 	std::vector<Lit> buf;
 
 	ClauseStorage newClauses;
-	for (auto [ci, cl] : sat.clauses)
+	for (auto &cl : sat.clauses.all())
 	{
-		(void)ci;
-
 		if (!(cl.irred() || cl.size() < 8))
 			continue;
 		if (interrupt)
@@ -125,11 +123,8 @@ bool runVivification(Sat &sat, bool withBinary)
 		}
 	}
 
-	for (auto [ci, cl] : newClauses)
-	{
-		(void)ci;
+	for (auto &cl : newClauses.all())
 		sat.addClause(cl.lits(), cl.irred());
-	}
 
 	if (withBinary)
 	{

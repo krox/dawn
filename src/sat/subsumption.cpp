@@ -69,7 +69,7 @@ class Subsumption
 	Subsumption(Sat &sat)
 	    : sat(sat), occs(sat.varCount() * 2), seen(sat.varCount() * 2)
 	{
-		for (auto [ci, cl] : sat.clauses)
+		for (auto [ci, cl] : sat.clauses.enumerate())
 			for (Lit a : cl.lits())
 				occs[a].push_back(ci);
 	}
@@ -196,7 +196,7 @@ bool subsumeLong(Sat &sat)
 	// and list clauses by size
 	std::array<std::vector<CRef>, 128> clauses;
 	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.varCount());
-	for (auto [ci, cl] : sat.clauses)
+	for (auto [ci, cl] : sat.clauses.enumerate())
 	{
 		std::sort(cl.lits().begin(), cl.lits().end());
 		clauses[cl.size() < 128 ? cl.size() : 127].push_back(ci);

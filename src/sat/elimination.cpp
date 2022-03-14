@@ -116,7 +116,7 @@ struct BVE
 	    : sat(sat_), occs(2 * sat_.varCount()), eliminated(sat_.varCount())
 	{
 		// sort lits and create occ-lists
-		for (auto [ci, cl] : sat.clauses)
+		for (auto [ci, cl] : sat.clauses.enumerate())
 			if (cl.irred())
 			{
 				std::sort(cl.lits().begin(), cl.lits().end());
@@ -379,10 +379,8 @@ struct BVE
 		// TODO: maybe it would be worthwhile to keep at least some
 		// resolvents
 		//       of learnt clauses (need heuristic based on size/glue/...)
-		for (auto [ci, cl] : sat.clauses)
+		for (auto &cl : sat.clauses.all())
 		{
-			(void)ci;
-			assert(!cl.isRemoved());
 			bool elim = false;
 			for (Lit a : cl.lits())
 				if (eliminated[a.var()])

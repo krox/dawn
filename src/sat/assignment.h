@@ -97,12 +97,9 @@ inline bool Assignment::satisfied(util::span<const Lit> cl) const noexcept
 
 inline bool Assignment::satisfied(ClauseStorage const &cls) const noexcept
 {
-	for (auto [ci, cl] : cls)
-	{
-		(void)ci;
+	for (auto &cl : cls.all())
 		if (!satisfied(cl))
 			return false;
-	}
 	return true;
 }
 

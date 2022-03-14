@@ -58,7 +58,7 @@ int makeDisjunctions(Sat &sat)
 
 	// occ-lists per pair of literals
 	util::hash_map<Pair, std::vector<CRef>> pairOccs;
-	for (auto [ci, cl] : sat.clauses)
+	for (auto [ci, cl] : sat.clauses.enumerate())
 		if (cl.irred() || cl.size() <= 8)
 			for (int i = 0; i < cl.size(); ++i)
 				for (int j = i + 1; j < cl.size(); ++j)
@@ -130,9 +130,8 @@ int makeDisjunctions(Sat &sat)
 	}
 
 	// cleanup
-	for (auto [ci, cl] : sat.clauses)
+	for (auto &cl : sat.clauses.all())
 	{
-		(void)ci;
 		if (cl.size() >= 3)
 			continue;
 		if (cl.size() == 2)
@@ -152,7 +151,7 @@ void substituteDisjunctions(Sat &sat)
 {
 	// build occ lists (per lit)
 	auto occs = std::vector<std::vector<CRef>>(sat.varCount() * 2);
-	for (auto [ci, cl] : sat.clauses)
+	for (auto [ci, cl] : sat.clauses.enumerate())
 		for (Lit a : cl.lits())
 			occs[a].push_back(ci);
 

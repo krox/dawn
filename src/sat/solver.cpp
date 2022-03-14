@@ -33,21 +33,17 @@ static void printLine(Sat &sat)
 	size_t learntLits = 0;
 	size_t learntGlue = 0;
 
-	for (auto [ci, cl] : sat.clauses)
-		if (!cl.isRemoved())
+	for (auto &cl : sat.clauses.all())
+		if (cl.irred())
 		{
-			(void)ci;
-			if (cl.irred())
-			{
-				longCount += 1;
-				longLits += cl.size();
-			}
-			else
-			{
-				learntCount += 1;
-				learntLits += cl.size();
-				learntGlue += cl.glue;
-			}
+			longCount += 1;
+			longLits += cl.size();
+		}
+		else
+		{
+			learntCount += 1;
+			learntLits += cl.size();
+			learntGlue += cl.glue;
 		}
 
 	fmt::print(
@@ -227,7 +223,7 @@ std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
 void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 {
 	std::vector<std::vector<CRef>> list(200);
-	for (auto [ci, cl] : clauses)
+	for (auto [ci, cl] : clauses.enumerate())
 	{
 		if (cl.irred())
 			continue;
@@ -251,7 +247,7 @@ void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 {
 	std::vector<std::vector<CRef>> list(200);
-	for (auto [ci, cl] : clauses)
+	for (auto [ci, cl] : clauses.enumerate())
 	{
 		if (cl.irred())
 			continue;
@@ -391,9 +387,8 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			inprocess(sat, config);
 
 			// clause cleaning
-			for (auto [ci, cl] : sat.clauses)
+			for (auto &cl : sat.clauses.all())
 			{
-				(void)ci;
 				if (cl.irred())
 					continue;
 				if (cl.size() > config.max_learnt_size ||
