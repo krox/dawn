@@ -47,7 +47,7 @@ struct SolverConfig
 	                        // (0=off, 1=limited, 2=full)
 	int tbr = 2;            // transitive binary reduction
 	                        // (0=off, 2=full)
-	int vivify = 1;         // clause vivification
+	int vivify = 2;         // clause vivification
 	int bve = 1;            // bounded variable elimination
 	int bce = 1;            // blocked clause elimination
 	int bva = 0;            // bounded variable addition

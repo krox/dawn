@@ -285,7 +285,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		// 2 = run until everything is found
 		// 3 = also run binary probing
 		if (config.probing > 0)
-			change |= probe(sat, config.probing >= 2 ? 0 : 10000);
+			change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
 
 		if (config.subsume >= 1)
 			change |= subsumeBinary(sat);

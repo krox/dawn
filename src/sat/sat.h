@@ -297,6 +297,12 @@ ClauseStorage getAllClauses(Sat const &sat);
  */
 int cleanup(Sat &sat);
 
+// check that
+//     * no contradiction
+//     * no unit clauses
+//     * no equivalent variables
+bool is_normal_form(Sat const &sat);
+
 } // namespace dawn
 
 template <> struct fmt::formatter<dawn::Sat>

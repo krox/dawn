@@ -515,10 +515,58 @@ int run_variable_elimination(Sat &sat)
 	return nFound;
 }
 
+int run_pure_literal_elimination(Sat &sat)
+{
+	// TODO: not sure if we should distinguish red/irred in this routine
+
+	// NOTE: we remove pure/unused vars by adding unit clauses, without putting
+	//       anything in the solution extender. This is simpler/cheaper, but
+	//       violates exact equivalence of course. Also the units added can
+	//       contradict previously removed clauses. The extender will have to
+	//       figure all that out in case a solution is found eventually.
+
+	assert(is_normal_form(sat)); // not strictly necessary...
+
+	util::Stopwatch sw;
+	sw.start();
+
+	// count occurences in long clauses
+	auto occs = std::vector<int>(sat.varCount() * 2, 0);
+	for (auto &cl : sat.clauses.all())
+		for (Lit a : cl.lits())
+			occs[a] += 1;
+
+	int nFound = 0;
+	for (int i = 0; i < sat.varCount(); ++i)
+	{
+		auto pos = Lit(i, false);
+		auto neg = Lit(i, true);
+		if (occs[pos] == 0 && sat.bins[pos].empty())
+		{
+			++nFound;
+			sat.addUnary(neg);
+		}
+		else if (occs[neg] == 0 && sat.bins[neg].empty())
+		{
+			++nFound;
+			sat.addUnary(pos);
+		}
+	}
+
+	// NOTE: removal of pure variables cant trigger anything interesting, so
+	//       cleanup() is overkill, but it works
+	if (nFound)
+		cleanup(sat);
+
+	fmt::print(
+	    "c [pure         {:#6.2f}] removed {} pure or unused variables\n",
+	    sw.secs(), nFound);
+	return nFound;
+}
+
 int run_blocked_clause_elimination(Sat &sat)
 {
-	if (sat.contradiction)
-		return 0;
+	assert(is_normal_form(sat)); // not strictly necessary...
 
 	util::StopwatchGuard swg(sat.stats.swBCE);
 	util::Stopwatch sw;

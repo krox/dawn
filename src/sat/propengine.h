@@ -189,16 +189,19 @@ class PropEngineLight
 	/** constructor */
 	PropEngineLight(Sat &sat);
 
-	/** assign literal and do unit propagation */
+	// assign literal and perform unit propagation (already set does nothing)
 	void propagate(Lit x);
 
-	/** create a new level */
-	void mark();
+	// propagate and immediately backtracks.
+	//     - returns number of propagated variabls (including x)
+	//     - returns 0 if already set
+	//     - returns -1 on conflict
+	int probe(Lit x);
 
-	/** unrolls one level */
-	void unroll();
+	void mark();       // create a new level
+	void unroll();     // unrolls one level
+	int level() const; // current level (starts at 0)
 
-	int level() const;
 	util::span<const Lit> trail() const;
 	util::span<const Lit> trail(int l) const;
 };

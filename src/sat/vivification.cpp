@@ -24,7 +24,6 @@ struct Vivification
 	{
 		assert(p.level() == 0);
 		assert(!p.conflict);
-		assert(cl.size() >= 3); // not sure about this limitation
 
 		p.mark();
 		for (size_t i = 0; i < cl.size(); ++i)
@@ -58,19 +57,17 @@ struct Vivification
 					for (size_t j = 0; j < cl.size(); ++j)
 						if (i != j && cl[j].var() == a.var())
 							goto next_try;
-					p.mark();
-					p.propagate(a);
-					if (p.conflict)
+
+					if (p.probe(a) == -1)
 					{
 						cl[i] = a.neg();
 						strengthened += 1;
-						p.unroll();
+
 						p.unroll();
 						p.unroll();
 						return true;
 					}
-					else
-						p.unroll();
+
 				next_try:;
 				}
 			}
@@ -97,16 +94,30 @@ struct Vivification
 
 bool runVivification(Sat &sat, bool withBinary)
 {
+	if (!is_normal_form(sat))
+		return false;
+
 	util::StopwatchGuard swg(sat.stats.swVivification);
 	util::Stopwatch sw;
 	sw.start();
 
 	auto viv = Vivification(sat);
-	if (viv.p.conflict)
-		return false;
 	std::vector<Lit> buf;
 
 	ClauseStorage newClauses;
+
+	for (int i = 0; i < sat.varCount() * 2; ++i)
+	{
+		for (Lit b : sat.bins[i])
+		{
+			if (Lit(i) > b)
+				continue;
+			buf = {Lit(i), b};
+			if (viv.vivifyClause(buf, withBinary))
+				newClauses.addClause(buf, true);
+		}
+	}
+
 	for (auto &cl : sat.clauses.all())
 	{
 		if (!(cl.irred() || cl.size() < 8))

@@ -5,13 +5,14 @@
 
 namespace dawn {
 
-int probe(Sat &sat, int maxTries)
+int probe(Sat &sat, bool lhbr, int maxTries)
 {
 	util::StopwatchGuard swg(sat.stats.swProbing);
 	util::Stopwatch sw;
 	sw.start();
 
 	PropEngine p(sat);
+	p.config.lhbr = lhbr;
 	if (p.conflict)
 		return 0;
 

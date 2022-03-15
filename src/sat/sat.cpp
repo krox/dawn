@@ -2,6 +2,7 @@
 
 #include "fmt/format.h"
 #include "fmt/os.h"
+#include "sat/binary.h"
 #include <algorithm>
 #include <cassert>
 #include <random>
@@ -205,6 +206,17 @@ int cleanup(Sat &sat)
 	//            sw.secs(), totalUP, totalSCC);
 
 	return totalUP + totalSCC;
+}
+
+bool is_normal_form(Sat const &sat)
+{
+	if (sat.contradiction)
+		return false;
+	if (!sat.units.empty())
+		return false;
+	if (auto top = TopOrder(sat); !top.valid())
+		return false;
+	return true;
 }
 
 } // namespace dawn

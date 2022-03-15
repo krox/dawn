@@ -9,9 +9,8 @@ namespace dawn {
  *   - only tries at roots of implication graph
  *   - does UIP analysis in case something is found
  *   - does not use or modify polarity/activity of variables
- *   - always does LHBR
  */
-int probe(Sat &sat, int maxTries);
+int probe(Sat &sat, bool lhbr, int maxTries);
 
 /**
  * Probe for binaries. Quite expensive and probably not woth it for most

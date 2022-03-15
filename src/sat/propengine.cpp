@@ -594,6 +594,16 @@ void PropEngineLight::unroll()
 	mark_.pop_back();
 }
 
+int PropEngineLight::probe(Lit a)
+{
+	assert(!conflict);
+	mark();
+	propagate(a);
+	int r = conflict ? -1 : (int)trail(level()).size();
+	unroll();
+	return r;
+}
+
 util::span<const Lit> PropEngineLight::trail() const { return trail_; }
 
 util::span<const Lit> PropEngineLight::trail(int l) const
