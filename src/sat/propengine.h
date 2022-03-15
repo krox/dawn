@@ -98,7 +98,7 @@ class PropEngine
 	Lit analyzeBin(util::span<const Lit> reason); // helper for LHBR
 
   public:
-	util::bit_vector assign;
+	Assignment assign;
 	bool conflict = false;
 
 	/** constructor */
@@ -183,7 +183,7 @@ class PropEngineLight
 	watches_t watches;
 
   public:
-	util::bit_vector assign;
+	Assignment assign;
 	bool conflict = false;
 
 	/** constructor */

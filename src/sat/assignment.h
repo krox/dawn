@@ -8,6 +8,69 @@
 
 namespace dawn {
 
+class lbool
+{
+	// 0=undef, 1=true, 2=false
+	uint8_t v_ = 0;
+
+  public:
+	static constexpr lbool unchecked(uint8_t v)
+	{
+		lbool b;
+		b.v_ = v;
+		return b;
+	}
+
+	lbool() = default;
+	constexpr explicit lbool(bool b) noexcept : v_(1 << !b) {}
+	constexpr explicit operator bool() const noexcept { return v_ == 1; }
+
+	constexpr bool operator==(lbool b) const noexcept { return v_ == b.v_; }
+	constexpr bool operator!=(lbool b) const noexcept { return v_ != b.v_; }
+	constexpr bool operator==(bool b) const noexcept
+	{
+		return *this == lbool(b);
+	}
+	constexpr bool operator!=(bool b) const noexcept
+	{
+		return *this != lbool(b);
+	}
+
+	constexpr lbool operator~() const noexcept
+	{
+		return unchecked((0b011000 >> (v_ * 2)) & 3);
+	}
+
+	constexpr lbool operator&(lbool b) const noexcept
+	{
+		return unchecked((0b101010100100100000 >> (v_ * 2 + b.v_ * 6)) & 3);
+	}
+
+	constexpr lbool operator|(lbool b) const noexcept
+	{
+		return unchecked((0b100100010101000100 >> (v_ * 2 + b.v_ * 6)) & 3);
+	}
+
+	constexpr lbool operator^(lbool b) const noexcept
+	{
+		return unchecked((0b100100011000000000 >> (v_ * 2 + b.v_ * 6)) & 3);
+	}
+
+	constexpr lbool operator^(bool b) const noexcept
+	{
+		return unchecked((0b011000100100 >> (v_ * 2 + b * 6)) & 3);
+	}
+
+	constexpr void operator&=(lbool b) noexcept { *this = *this & b; }
+	constexpr void operator^=(lbool b) noexcept { *this = *this | b; }
+	constexpr void operator|=(lbool b) noexcept { *this = *this ^ b; }
+	constexpr void operator|=(bool b) noexcept { *this = *this ^ b; }
+};
+
+constexpr lbool lundef = lbool::unchecked(0);
+constexpr lbool ltrue = lbool::unchecked(1);
+constexpr lbool lfalse = lbool::unchecked(2);
+
 // partial assignment of variables with some convenience functions
 class Assignment
 {
@@ -34,10 +97,23 @@ class Assignment
 	void unset(Lit a) noexcept;
 
 	// set a variable (overwrite previous assignment if any)
+	// TODO: this should not exist I think
 	void force_set(Lit a) noexcept;
 
 	// returns true if all variables have been assigned
 	bool complete() const noexcept;
+
+	// current value of a variable
+	lbool operator()(int v) const noexcept;
+
+	// current value of clause
+	lbool operator()(Lit a) const noexcept;
+	lbool operator()(Lit a, Lit b) const noexcept;
+	lbool operator()(Lit a, Lit b, Lit c) const noexcept;
+	lbool operator()(util::span<const Lit> cl) const noexcept;
+
+	// backward-compatibility...
+	bool operator[](Lit a) const noexcept { return assign_[a]; }
 
 	// check if a clause is currently satisfied
 	bool satisfied(Lit a) const noexcept;
@@ -73,6 +149,35 @@ inline void Assignment::force_set(Lit a) noexcept
 inline bool Assignment::complete() const noexcept
 {
 	return (int)assign_.count() == var_count();
+}
+
+inline lbool Assignment::operator()(int v) const noexcept
+{
+	static_assert(sizeof(*assign_.data()) == 8);
+	return lbool::unchecked((assign_.data()[v >> 5] >> ((v >> 5) * 2)) & 3);
+}
+
+inline lbool Assignment::operator()(Lit a) const noexcept
+{
+	return (*this)(a.var()) ^ a.sign();
+}
+
+inline lbool Assignment::operator()(Lit a, Lit b) const noexcept
+{
+	return (*this)(a) | (*this)(b);
+}
+
+inline lbool Assignment::operator()(Lit a, Lit b, Lit c) const noexcept
+{
+	return (*this)(a) | (*this)(b) | (*this)(c);
+}
+
+inline lbool Assignment::operator()(util::span<const Lit> cl) const noexcept
+{
+	auto r = lfalse;
+	for (auto a : cl)
+		r |= (*this)(a);
+	return r;
 }
 
 inline bool Assignment::satisfied(Lit a) const noexcept { return assign_[a]; }

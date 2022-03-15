@@ -9,7 +9,7 @@ namespace dawn {
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
       reason(sat.varCount()), binDom(sat.varCount()), trailPos(sat.varCount()),
-      assign(sat.varCount() * 2)
+      assign(sat.varCount())
 {
 	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -48,7 +48,7 @@ void PropEngine::set(Lit x, Reason r)
 {
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
-	assign[x] = true;
+	assign.set(x);
 	reason[x.var()] = r;
 	if (r.isBinary())
 		binDom[x.var()] = binDom[r.lit().var()];
@@ -236,7 +236,7 @@ void PropEngine::unroll(int l)
 	{
 		Lit lit = trail_.back();
 		trail_.pop_back();
-		assign[lit] = false;
+		assign.unset(lit);
 	}
 	mark_.resize(l);
 }
@@ -453,7 +453,7 @@ void PropEngine::printTrail() const
 }
 
 PropEngineLight::PropEngineLight(Sat &sat)
-    : sat(sat), watches(sat.varCount() * 2), assign(sat.varCount() * 2)
+    : sat(sat), watches(sat.varCount() * 2), assign(sat.varCount())
 {
 	// empty clause -> don't bother doing anything
 	if (sat.contradiction)
@@ -502,7 +502,7 @@ void PropEngineLight::propagate(Lit x)
 	}
 
 	size_t pos = trail_.size();
-	assign[x] = true;
+	assign.set(x);
 	trail_.push_back(x);
 
 	while (pos != trail_.size())
@@ -522,7 +522,7 @@ void PropEngineLight::propagate(Lit x)
 			}
 
 			// else -> propagate
-			assign[z] = true;
+			assign.set(z);
 			trail_.push_back(z);
 		}
 
@@ -564,7 +564,7 @@ void PropEngineLight::propagate(Lit x)
 			}
 			else
 			{
-				assign[c[0]] = true;
+				assign.set(c[0]);
 				trail_.push_back(c[0]);
 			}
 
@@ -589,7 +589,7 @@ void PropEngineLight::unroll()
 	{
 		Lit lit = trail_.back();
 		trail_.pop_back();
-		assign[lit] = false;
+		assign.unset(lit);
 	}
 	mark_.pop_back();
 }
