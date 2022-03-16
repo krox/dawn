@@ -210,7 +210,7 @@ int cleanup(Sat &sat)
 
 bool is_normal_form(Sat const &sat)
 {
-	if (sat.contradiction)
+	if (sat.contradiction && sat.varCount() != 0)
 		return false;
 	if (!sat.units.empty())
 		return false;

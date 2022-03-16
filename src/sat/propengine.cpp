@@ -637,7 +637,9 @@ int runUnitPropagation(Sat &sat)
 		for (int i = 0; i < sat.varCount() * 2; ++i)
 			sat.bins[i].resize(0);
 		sat.clauses.clear();
-		return 1;
+		int n = sat.varCount();
+		sat.renumber(std::vector<Lit>(n, Lit::elim()), 0);
+		return n;
 	}
 
 	assert(p.trail().size() != 0);

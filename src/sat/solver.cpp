@@ -331,8 +331,10 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	}
 	if (config.bve > 0)
 	{
-
-		if (run_variable_elimination(sat))
+		EliminationConfig elimConfig = {};
+		elimConfig.level = 5;
+		elimConfig.irred_only = true;
+		if (run_elimination(sat, elimConfig))
 			inprocess(sat, config);
 	}
 

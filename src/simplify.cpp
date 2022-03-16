@@ -22,13 +22,10 @@ int main(int argc, char *argv[])
 	// command line arguments
 	std::string cnfFile, outFile;
 	int level = 99;
-	int weakLevel = 99;
 	CLI::App app{"Run some preprocessing on SAT instance."};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", outFile, "output CNF in dimacs format");
-	app.add_option("-n", level, "equivalence normal form to apply (0-3)");
-	app.add_option("-m", weakLevel,
-	               "clause-removing normal form to apply (0-2)");
+	app.add_option("-n", level, "normal form to apply (0-5)");
 	CLI11_PARSE(app, argc, argv);
 
 	auto [clauses, varCount] = parseCnf(cnfFile);
@@ -50,15 +47,9 @@ int main(int argc, char *argv[])
 	//   level 3:
 	//     * failed literal probing (without LHBR)
 	//   level 4:
-	//     * to be continued (some vivification)
-
-	// clause removal
-	//   level 1:
-	//     * pure literals and unused variables
-	//   level 2:
-	//     * blocked-clause elimination
-	//   level 3:
-	//     * to be continued (BVE that actually requires some resolvents)
+	//     * to be defined (some vivification)
+	//   level 5:
+	//     * simple eliminations
 
 	if (level >= 1)
 		while (true)
@@ -77,24 +68,46 @@ int main(int argc, char *argv[])
 				change |= probe(sat, false, 999999999);
 			}
 
-			if (!change)
+			if (change)
+				continue;
+
+			runBinaryReduction(sat);
+
+			if (level >= 5)
 			{
-				runBinaryReduction(sat);
-				break;
+				EliminationConfig elimConfig = {};
+				elimConfig.level = 2;
+				change |= run_elimination(sat, elimConfig);
 			}
-		}
 
-	if (weakLevel >= 1)
-		while (true)
-		{
-			printStats(sat);
+			if (level >= 6)
+			{
+				probeBinary(sat);
 
-			bool change = false;
+				// currently, binary-probing can create long clauses. sounds
+				// weird, might be reasonable though. But here we dont want it
+				for (auto &cl : sat.clauses.all())
+					if (!cl.irred())
+						cl.remove();
+			}
+			if (change)
+				continue;
 
-			change |= run_pure_literal_elimination(sat);
+			if (level >= 5)
+			{
+				EliminationConfig elimConfig = {};
+				elimConfig.level = 5;
+				change |= run_elimination(sat, elimConfig);
+			}
 
-			if (weakLevel >= 2)
+			if (change)
+				continue;
+
+			// BCE actually looses information, so do it last
+			if (level >= 5)
+			{
 				change |= run_blocked_clause_elimination(sat);
+			}
 
 			if (!change)
 				break;

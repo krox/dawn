@@ -16,8 +16,8 @@ namespace {
  *       will be too pessimistic, but nothing will be broken. Though in the
  *       current implementation, no such thing can happen.
  * TODO: in case the resolvent is not tautological, we could trivially determine
- *       its size. If it is very small, it might me worthwhile to add it as
- *       a learnt clause, even if to variable-elimination takes place.
+ *       its size. If it is very small, it might be worthwhile to add it as
+ *       a learnt clause, even if no variable-elimination takes place.
  */
 bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b)
 {
@@ -100,24 +100,42 @@ std::vector<Lit> resolvent(util::span<const Lit> a, Lit b, Lit c)
 
 struct BVE
 {
-	/**
-	 * NOTE:
-	 *   - all irreducible clauses in sat are sorted
-	 *     (this property is maintained in the resolvent() functions)
-	 *   - occ-lists contain exactly the non-removed irreduble clauses
-	 *     (this property is restored after each variable elimination)
-	 */
+	// score = (non-tautology resolvent) - (removed clauses)
+	//       | or one of the special cases
+	using Score = int;
+	static constexpr Score score_0n = -500'000'000;   // pure/unused variable
+	static constexpr Score score_11 = -400'000'000;   // 1+1 occurence
+	static constexpr Score score_1n = -300'000'000;   // 1+n occurence
+	static constexpr Score score_never = 500'000'000; // never eliminate
+
+	// NOTE:
+	//   - all clauses are sorted (only irreds if config.irred_only = true)
+	//     (this property is maintained in the resolvent() functions)
+	//   - occ-lists only contain non-removed clauses
+	//     (this property is restored after each variable elimination)
+
 	Sat &sat;
+	EliminationConfig config;
 	using occs_t = std::vector<std::vector<CRef>>;
 	occs_t occs;
 	util::bit_vector eliminated;
+	Score cutoff;
+	int nEliminated = 0;
 
-	BVE(Sat &sat_)
-	    : sat(sat_), occs(2 * sat_.varCount()), eliminated(sat_.varCount())
+	BVE(Sat &sat_, EliminationConfig const &config_)
+	    : sat(sat_), config(config_), occs(2 * sat_.varCount()),
+	      eliminated(sat_.varCount())
 	{
+		cutoff = config.level == 0
+		             ? score_0n
+		             : config.level == 1
+		                   ? score_11
+		                   : config.level == 2
+		                         ? score_1n
+		                         : config.level == 5 ? 0 : score_never - 1;
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (cl.irred())
+			if (!config.irred_only || cl.irred())
 			{
 				std::sort(cl.lits().begin(), cl.lits().end());
 				for (Lit a : cl.lits())
@@ -130,31 +148,32 @@ struct BVE
 	 * number of non-tautological resolvents created minus number of removed
 	 * clauses, i.e. lower is better.
 	 */
-	int compute_score(int v)
+	int compute_score(int v) const
 	{
-		// NOTE: only eliminations with negative scores will ever be
-		//       implemented. So as an optimization, we abort as soon as the
-		//       score becomes positive, without computing a precise number.
-
 		// never eliminate a variable that has a unit clause (could break our
 		// implementaion of resolution and would be stupid anyway)
 		for (Lit u : sat.units)
 			if (u.var() == v)
-				return 1000;
+				return score_never;
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
+		auto occsPos = (int)occs[pos].size() + (int)sat.bins[pos].size();
+		auto occsNeg = (int)occs[neg].size() + (int)sat.bins[pos].size();
+
+		// priority for extremely nice cases
+		if (occsPos == 0 || occsNeg == 0)
+			return score_0n;
+		if (occsPos == 1 && occsNeg == 1)
+			return score_11;
+		if (occsPos == 1 || occsNeg == 1)
+			return score_1n;
 
 		// its not worth scoring variables with many occurences
-		if (occs[pos].size() + sat.bins[pos].size() > 10 &&
-		    occs[neg].size() + sat.bins[neg].size() > 10)
-			return 1000;
+		if (config.level < 10 && occsPos > 10 && occsNeg > 10)
+			return score_never;
 
-		int score = 0;
-		score -= (int)occs[pos].size();
-		score -= (int)occs[neg].size();
-		score -= (int)sat.bins[pos].size();
-		score -= (int)sat.bins[neg].size();
+		int score = -(occsPos + occsNeg);
 
 		// binary-binary resolvents
 		// NOTE: If any of these result in a tautology (or unit clause) there
@@ -170,29 +189,28 @@ struct BVE
 		for (Lit x : sat.bins[neg])
 			for (CRef i : occs[pos])
 				if (!sat.clauses[i].contains(x.neg()))
-					if (++score > 0)
-						return 1000;
+					if (++score > cutoff)
+						return score_never;
 		for (Lit x : sat.bins[pos])
 			for (CRef i : occs[neg])
 				if (!sat.clauses[i].contains(x.neg()))
-					if (++score > 0)
-						return 1000;
+					if (++score > cutoff)
+						return score_never;
 
 		// long-long resolvents
 		for (CRef i : occs[pos])
 			for (CRef j : occs[neg])
-				if (!is_resolvent_tautological(sat.clauses[i].lits(),
-				                               sat.clauses[j].lits()))
-					if (++score > 0)
-						return 1000;
+				if (!is_resolvent_tautological(sat.clauses[i], sat.clauses[j]))
+					if (++score > cutoff)
+						return score_never;
 
 		return score;
 	}
 
-	/** add clause to sat and update occ-lists */
-	void add_clause(util::span<const Lit> cl)
+	// add clause to sat and update occ-lists
+	void add_clause(util::span<const Lit> cl, bool irred)
 	{
-		CRef ci = sat.addClause(cl, true);
+		CRef ci = sat.addClause(cl, irred);
 		if (ci == CRef::undef()) // implicit binary clause (or empty/unary?)
 			return;
 
@@ -200,45 +218,58 @@ struct BVE
 			occs[a].push_back(ci);
 	}
 
+	// add binary clause
+	void add_clause(Lit a, Lit b)
+	{
+		if (a == b)
+			sat.addUnary(a);
+		else if (a == b.neg())
+		{} // tautology
+		else
+			sat.addBinary(a, b);
+	}
+
+	// eliminate a variable (add resolents, move clauses to extender)
 	void eliminate(int v)
 	{
+		++nEliminated;
+
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
 
-		// fmt::print("c eliminating variable i={}, o={}\n", pos,
-		// sat.innerToOuter(pos));
+		if (config.verbosity >= 1)
+			fmt::print("c eliminating variable i={}, o={}\n", pos,
+			           sat.to_outer(pos));
+
+		// TODO: there is some overcounting of binaries ?
 
 		// add binary-binary resolvents
 		for (Lit x : sat.bins[pos])
 			for (Lit y : sat.bins[neg])
-				if (x == y)
-					sat.addUnary(x);
-				else if (x != y.neg())
-					sat.addBinary(x, y);
+				add_clause(x, y);
 		for (Lit x : sat.bins[neg])
 			for (Lit y : sat.bins[pos])
-				if (x == y)
-					sat.addUnary(x);
-				else if (x != y.neg())
-					sat.addBinary(x, y);
+				add_clause(x, y);
 
 		// add long-binary resolvents
 		for (CRef i : occs[pos])
 			for (Lit x : sat.bins[neg])
-				if (!sat.clauses[i].contains(x.neg()))
-					add_clause(resolvent(sat.clauses[i].lits(), x, neg));
+				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
+					add_clause(resolvent(cl, x, neg), cl.irred());
 		for (CRef i : occs[neg])
 			for (Lit x : sat.bins[pos])
-				if (!sat.clauses[i].contains(x.neg()))
-					add_clause(resolvent(sat.clauses[i].lits(), x, pos));
+				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
+					add_clause(resolvent(cl, x, pos), cl.irred());
 
 		// add long-long resolvents
 		for (CRef i : occs[pos])
 			for (CRef j : occs[neg])
-				if (!is_resolvent_tautological(sat.clauses[i].lits(),
-				                               sat.clauses[j].lits()))
-					add_clause(resolvent(sat.clauses[i].lits(),
-					                     sat.clauses[j].lits()));
+			{
+				auto &a = sat.clauses[i];
+				auto &b = sat.clauses[j];
+				if (!is_resolvent_tautological(a, b))
+					add_clause(resolvent(a, b), a.irred() || b.irred());
+			}
 
 		// remove old long clauses from the problem
 		std::vector<std::vector<Lit>> removed_clauses;
@@ -282,10 +313,8 @@ struct BVE
 	}
 
 	/** returns number of removed variables */
-	int run()
+	void run()
 	{
-		int nRemovedVariables = 0;
-
 		// the prio-queue contains (score, variable) pairs. Outdated entries
 		// are allowed, so we have to check whenever we are about to
 		// implement a proposal
@@ -297,25 +326,25 @@ struct BVE
 		for (int i = 0; i < sat.varCount(); ++i)
 		{
 			score[i] = compute_score(i);
-			if (score[i] <= 0)
+			if (score[i] <= cutoff)
 				queue.push({score[i], i});
 		}
 
 		// early-out if nothing is happening
 		if (queue.empty())
-			return 0;
+			return;
 
 		// temporaries
 		std::vector<int> todo;
 		auto seen = util::bit_vector(sat.varCount());
 
-		while (!queue.empty())
+		while (!queue.empty() && nEliminated < config.max_eliminations)
 		{
 			auto [s, v] = queue.top();
 			auto pos = Lit(v, false);
 			auto neg = Lit(v, true);
 			queue.pop();
-			assert(s <= 0); // positive scores should have never
+			assert(s <= cutoff);
 
 			// outdated proposal -> skip
 			if (eliminated[v] || score[v] != s)
@@ -330,42 +359,38 @@ struct BVE
 				if (seen.add(x.var()))
 					todo.push_back(x.var());
 			for (CRef k : occs[pos])
-				if (sat.clauses[k].irred())
+				if (!config.irred_only || sat.clauses[k].irred())
 					for (Lit x : sat.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
 			for (CRef k : occs[neg])
-				if (sat.clauses[k].irred())
+				if (!config.irred_only || sat.clauses[k].irred())
 					for (Lit x : sat.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
 
 			// eliminate the variable
 			eliminate(v);
-			++nRemovedVariables;
 			eliminated[v] = true;
+			score[v] = score_never;
 
 			// recalculate scores of affected variables and prune their
 			// occ-lists and implicit binaries
-			score[v] = 1000;
+
 			for (int j : todo)
 			{
 				// prune occ-lists
-				auto &oPos = occs[Lit(j, false)];
-				util::erase_if(oPos, [this](CRef ci) {
+				util::erase_if(occs[Lit(j, false)], [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
-				auto &oNeg = occs[Lit(j, true)];
-				util::erase_if(oNeg, [this](CRef ci) {
+				util::erase_if(occs[Lit(j, true)], [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
 
 				// prune implicit binaries
-				auto &bPos = sat.bins[Lit(j, false)];
-				util::erase_if(bPos,
+				util::erase_if(sat.bins[Lit(j, false)],
 				               [v](Lit other) { return other.var() == v; });
-				auto &bNeg = sat.bins[Lit(j, true)];
-				util::erase_if(bNeg,
+				util::erase_if(sat.bins[Lit(j, true)],
 				               [v](Lit other) { return other.var() == v; });
 
 				seen[j] = false;
@@ -377,8 +402,7 @@ struct BVE
 
 		// remove learnt clauses that contain eliminated variables
 		// TODO: maybe it would be worthwhile to keep at least some
-		// resolvents
-		//       of learnt clauses (need heuristic based on size/glue/...)
+		// resolvents as learnt clauses (need heuristic based on size/glue/...)
 		for (auto &cl : sat.clauses.all())
 		{
 			bool elim = false;
@@ -390,7 +414,8 @@ struct BVE
 				}
 			if (elim)
 			{
-				assert(!cl.irred()); // irred clauses should already be gone
+				// considered clauses should already be gone
+				assert(!config.irred_only && !cl.irred());
 				cl.remove();
 			}
 		}
@@ -404,8 +429,6 @@ struct BVE
 			else
 				trans[i] = Lit(newVarCount++, false);
 		sat.renumber(trans, newVarCount);
-
-		return nRemovedVariables;
 	}
 };
 
@@ -499,69 +522,19 @@ struct BCE
 
 } // namespace
 
-int run_variable_elimination(Sat &sat)
+int run_elimination(Sat &sat, EliminationConfig const &config)
 {
-	if (sat.contradiction)
-		return 0;
+	assert(is_normal_form(sat)); // not strictly necessary
 
 	util::StopwatchGuard swg(sat.stats.swBVE);
 	util::Stopwatch sw;
 	sw.start();
 
-	auto bve = BVE(sat);
-	int nFound = bve.run();
+	auto bve = BVE(sat, config);
+	bve.run();
 	fmt::print("c [BVE          {:#6.2f}] removed {} vars\n", sw.secs(),
-	           nFound);
-	return nFound;
-}
-
-int run_pure_literal_elimination(Sat &sat)
-{
-	// TODO: not sure if we should distinguish red/irred in this routine
-
-	// NOTE: we remove pure/unused vars by adding unit clauses, without putting
-	//       anything in the solution extender. This is simpler/cheaper, but
-	//       violates exact equivalence of course. Also the units added can
-	//       contradict previously removed clauses. The extender will have to
-	//       figure all that out in case a solution is found eventually.
-
-	assert(is_normal_form(sat)); // not strictly necessary...
-
-	util::Stopwatch sw;
-	sw.start();
-
-	// count occurences in long clauses
-	auto occs = std::vector<int>(sat.varCount() * 2, 0);
-	for (auto &cl : sat.clauses.all())
-		for (Lit a : cl.lits())
-			occs[a] += 1;
-
-	int nFound = 0;
-	for (int i = 0; i < sat.varCount(); ++i)
-	{
-		auto pos = Lit(i, false);
-		auto neg = Lit(i, true);
-		if (occs[pos] == 0 && sat.bins[pos].empty())
-		{
-			++nFound;
-			sat.addUnary(neg);
-		}
-		else if (occs[neg] == 0 && sat.bins[neg].empty())
-		{
-			++nFound;
-			sat.addUnary(pos);
-		}
-	}
-
-	// NOTE: removal of pure variables cant trigger anything interesting, so
-	//       cleanup() is overkill, but it works
-	if (nFound)
-		cleanup(sat);
-
-	fmt::print(
-	    "c [pure         {:#6.2f}] removed {} pure or unused variables\n",
-	    sw.secs(), nFound);
-	return nFound;
+	           bve.nEliminated);
+	return bve.nEliminated;
 }
 
 int run_blocked_clause_elimination(Sat &sat)
