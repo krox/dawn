@@ -30,4 +30,7 @@ int run_elimination(Sat &sat, EliminationConfig const &config);
 // returns number of removed clauses
 int run_blocked_clause_elimination(Sat &sat);
 
+// should this be here?
+int run_blocked_clause_addition(Sat &sat);
+
 } // namespace dawn

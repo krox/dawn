@@ -1,5 +1,6 @@
 #include "sat/elimination.h"
 
+#include "sat/propengine.h"
 #include "util/bit_vector.h"
 #include <algorithm>
 #include <queue>
@@ -551,6 +552,81 @@ int run_blocked_clause_elimination(Sat &sat)
 		nFound += bce.run();
 	fmt::print("c [BCE          {:#6.2f}] removed {} clauses\n", sw.secs(),
 	           nFound);
+	return nFound;
+}
+
+int run_blocked_clause_addition(Sat &sat)
+{
+	assert(is_normal_form(sat));
+	util::Stopwatch sw;
+	sw.start();
+
+	for (auto &cl : sat.clauses.all())
+		if (!cl.irred())
+			cl.remove();
+
+	auto p = PropEngineLight(sat);
+	auto seen = util::bit_vector(sat.varCount() * 2);
+	int nFound = 0;
+	bool failing_lit_found = false;
+	for (int i = 0; i < sat.varCount() * 2; ++i)
+	{
+		auto a = Lit(i);
+		if (p.assign[a] || p.assign[a.neg()])
+			continue;
+
+		// skip non-roots. not really sufficint, but some optimization is needed
+		// if (sat.bins[a.neg()].empty() || !sat.bins[a].empty())
+		//	continue;
+
+		// fmt::print("c propagating {}\n", a);
+		p.mark();
+		p.propagate(a);
+		if (p.conflict)
+		{
+			// a is a failing literal. we cant do any reason-analysis here, so
+			// we just learn '-a' and skip out. Probably should be smarter...
+			failing_lit_found = true;
+			p.unroll();
+			sat.addUnary(a.neg());
+			break;
+		}
+
+		// mark literals that might eventually need to be set from here
+		seen.clear();
+		for (auto &cl : sat.clauses.all())
+			if (!p.assign.satisfied(cl))
+				for (Lit x : cl)
+					seen[x] = true;
+
+		for (int j = 0; j < sat.varCount() * 2; ++j)
+		{
+			auto b = Lit(j);
+			if (p.assign[b] || p.assign[b.neg()])
+				continue;
+			if (seen[b])
+				continue;
+
+			for (Lit x : sat.bins[b])
+				if (!p.assign[x])
+					goto next;
+
+			nFound++;
+			sat.addBinary(a.neg(), b.neg());
+			{
+				auto r = p.propagate(b.neg());
+				assert(r == 1);
+			}
+			assert(!p.conflict);
+
+		next:;
+		}
+
+		p.unroll();
+	}
+
+	fmt::print("c [BCA          {:#6.2f}] added {} bins{}\n", sw.secs(), nFound,
+	           failing_lit_found ? " (quit early due to failing literal)" : "");
 	return nFound;
 }
 

@@ -486,22 +486,23 @@ PropEngineLight::PropEngineLight(Sat &sat)
 	}
 }
 
-void PropEngineLight::propagate(Lit x)
+int PropEngineLight::propagate(Lit x)
 {
 	assert(!conflict);
 	assert(x.proper());
 
 	// propagating an already-assigned variable is allowed (and does nothing)
 	if (assign[x])
-		return;
+		return 0;
 
 	if (assign[x.neg()])
 	{
 		conflict = true;
-		return;
+		return -1;
 	}
 
 	size_t pos = trail_.size();
+	int trail_old = (int)trail_.size();
 	assign.set(x);
 	trail_.push_back(x);
 
@@ -518,7 +519,7 @@ void PropEngineLight::propagate(Lit x)
 			if (assign[z.neg()]) // already assigned false -> conflict
 			{
 				conflict = true;
-				return;
+				return -1;
 			}
 
 			// else -> propagate
@@ -560,7 +561,7 @@ void PropEngineLight::propagate(Lit x)
 			if (assign[c[0].neg()])
 			{
 				conflict = true;
-				return;
+				return -1;
 			}
 			else
 			{
@@ -571,6 +572,7 @@ void PropEngineLight::propagate(Lit x)
 		next_watch:;
 		}
 	}
+	return (int)trail_.size() - trail_old;
 }
 
 void PropEngineLight::mark()
@@ -598,8 +600,7 @@ int PropEngineLight::probe(Lit a)
 {
 	assert(!conflict);
 	mark();
-	propagate(a);
-	int r = conflict ? -1 : (int)trail(level()).size();
+	int r = propagate(a);
 	unroll();
 	return r;
 }

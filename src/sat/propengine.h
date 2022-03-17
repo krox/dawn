@@ -189,13 +189,13 @@ class PropEngineLight
 	/** constructor */
 	PropEngineLight(Sat &sat);
 
-	// assign literal and perform unit propagation (already set does nothing)
-	void propagate(Lit x);
-
-	// propagate and immediately backtracks.
-	//     - returns number of propagated variabls (including x)
-	//     - returns 0 if already set
+	// assign literal and perform unit propagation
+	//     - returns number of set propagations (including x)
+	//     - does nothing and returns 0 if already set
 	//     - returns -1 on conflict
+	int propagate(Lit x);
+
+	// propagate and immediately backtracks. same return as propagate()
 	int probe(Lit x);
 
 	void mark();       // create a new level

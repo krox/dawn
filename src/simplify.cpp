@@ -25,93 +25,105 @@ int main(int argc, char *argv[])
 	CLI::App app{"Run some preprocessing on SAT instance."};
 	app.add_option("input", cnfFile, "input CNF in dimacs format");
 	app.add_option("output", outFile, "output CNF in dimacs format");
-	app.add_option("-n", level, "normal form to apply (0-5)");
+	app.add_option("-n", level, "normal form to apply (0-3)");
 	CLI11_PARSE(app, argc, argv);
 
 	auto [clauses, varCount] = parseCnf(cnfFile);
 	Sat sat = Sat(varCount, std::move(clauses));
 
 	// equivalence normals forms:
-	//   level 0:
+	//   level 0: purely syntactical (to satisfy strict parsers)
 	//     * check input for variable count and syntax
 	//     * remove tautologies and repeated literals
-	//   level 1:
+	//   level 1: confluent / equivalence preserving / cheap
 	//     * unit propagation
 	//     * equivalent literals
-	//     * transitive binary reduction
-	//   level 2:
-	//     * subsumption (also removes duplicate clauses)
-	//     * self-subsuming resolution
-	//     * also subsumes long clauses with (virtual) binaries
-	//     * (subsumption withing binaries is already implied by SCC+TBR)
-	//   level 3:
-	//     * failed literal probing (without LHBR)
-	//   level 4:
-	//     * to be defined (some vivification)
-	//   level 5:
-	//     * simple eliminations
+	//     * remove pure/unused variables, duplicate/redundant binaries (TBR)
+	//     * TODO: subsumption (without SSR) and duplicate longs
+	//     * failed literal probing
+	//     * TODO: binary probing with proper cutoff
+	//     * TODO: full HBR, if that is possible in reasonable runtime
+	//   level 2: not strictly confluent but non-decreasing strength
+	//     * some LHBR
+	//     * subsumption (+ self subsuming resolution, including virtual
+	//       binaries). Note that binary<->binary is already implied by SCC+TBR
+	//     * UP-based strengthening (called "vivification" here, though
+	//       probably a superset of what the literature calls vivification)
+	//     * TODO: strengthening of virtual binaries along binaries. Is this
+	//             possible in somewhat reasonable runtime?
+	//   level 3: only satisfiability is preserved. hope for the best.
+	//     * bounded variable elimination/addition
+	//     * blocked clause elimination/addition
 
-	if (level >= 1)
-		while (true)
+	while (true)
+	{
+		printStats(sat);
+
+		if (level >= 1)
 		{
 			cleanup(sat);
-			printStats(sat);
-			bool change = false;
-			if (level >= 2)
-			{
-				change |= subsumeBinary(sat);
-				change |= subsumeLong(sat);
-			}
-
-			if (level >= 3)
-			{
-				change |= probe(sat, false, 999999999);
-			}
-
-			if (change)
-				continue;
-
-			runBinaryReduction(sat);
-
-			if (level >= 5)
-			{
-				EliminationConfig elimConfig = {};
-				elimConfig.level = 2;
-				change |= run_elimination(sat, elimConfig);
-			}
-
-			if (level >= 6)
-			{
-				probeBinary(sat);
-
-				// currently, binary-probing can create long clauses. sounds
-				// weird, might be reasonable though. But here we dont want it
-				for (auto &cl : sat.clauses.all())
-					if (!cl.irred())
-						cl.remove();
-			}
-			if (change)
-				continue;
-
-			if (level >= 5)
-			{
-				EliminationConfig elimConfig = {};
-				elimConfig.level = 5;
-				change |= run_elimination(sat, elimConfig);
-			}
-
-			if (change)
-				continue;
-
-			// BCE actually looses information, so do it last
-			if (level >= 5)
-			{
-				change |= run_blocked_clause_elimination(sat);
-			}
-
-			if (!change)
-				break;
 		}
+
+		bool change = false;
+
+		if (level >= 1)
+		{
+			// LHBR can violate confluency (full HBR would not), so we need to
+			// deactivate it on level=1.
+			change |= probe(sat, level >= 2, 999999999);
+		}
+
+		if (level >= 2)
+		{
+			change |= subsumeBinary(sat);
+			change |= subsumeLong(sat);
+		}
+
+		if (change)
+			continue;
+
+		if (level >= 2)
+		{
+			// NOTE: redundant binaries can slow down vivification a lot, even
+			//       though subsumption does not care much.
+			// TODO: this can probably be solved  as a side effect of
+			//       optimizing the "strengthen along binaries" part of vivify
+			runBinaryReduction(sat);
+			change |= runVivification(sat, true);
+		}
+
+		if (change)
+			continue;
+
+		if (level == 2)
+		{
+			EliminationConfig elimConfig = {};
+			elimConfig.level = 0; // only removes pure/unused
+			change |= run_elimination(sat, elimConfig);
+		}
+		else if (level >= 3)
+		{
+			EliminationConfig elimConfig = {};
+			elimConfig.level = 5; // full classic BVE
+			change |= run_elimination(sat, elimConfig);
+			change |= run_blocked_clause_elimination(sat);
+			change |= run_blocked_clause_addition(sat);
+		}
+
+		if (change)
+			continue;
+
+		if (false) // brute-force resolution
+		{
+			EliminationConfig elimConfig = {};
+			elimConfig.level = 10;
+			elimConfig.max_eliminations = 50;
+			change |= run_elimination(sat, elimConfig);
+		}
+
+		if (!change)
+			break;
+	}
 
 	printStats(sat);
 	if (outFile == "")
