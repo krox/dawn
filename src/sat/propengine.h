@@ -195,8 +195,13 @@ class PropEngineLight
 	//     - returns -1 on conflict
 	int propagate(Lit x);
 
+	// propagate the negation of multiple literals.
+	int propagate_neg(util::span<const Lit> xs);
+
 	// propagate and immediately backtracks. same return as propagate()
 	int probe(Lit x);
+
+	int probe_neg(util::span<const Lit> xs);
 
 	void mark();       // create a new level
 	void unroll();     // unrolls one level

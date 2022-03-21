@@ -25,26 +25,24 @@ struct Vivification
 		assert(p.level() == 0);
 		assert(!p.conflict);
 
+		bool change = false;
+
 		p.mark();
 		for (size_t i = 0; i < cl.size(); ++i)
 		{
 			p.mark();
-
-			for (size_t j = i + 1; j < cl.size(); ++j)
-			{
-				p.propagate(cl[j].neg());
-				if (p.conflict)
-					break;
-			}
+			p.propagate_neg(util::span(cl).subspan(i + 1));
 
 			if (p.conflict)
 			{
 				shortened += 1;
 				std::swap(cl[i], cl.back());
 				cl.pop_back();
+				--i;
 				p.unroll();
-				p.unroll();
-				return true;
+				shortened += 1;
+				change = true;
+				continue;
 			}
 
 			// at this point, everything except cl[i] propagated without
@@ -52,8 +50,11 @@ struct Vivification
 			// literal (using some binary clause)
 			if (withBinary)
 			{
+			again:
 				for (Lit a : sat.bins[cl[i]]) // a.neg => cl[i]
 				{
+					// this is some tautology or subsumption case we dont want
+					// to handle right here... maybe we should
 					for (size_t j = 0; j < cl.size(); ++j)
 						if (i != j && cl[j].var() == a.var())
 							goto next_try;
@@ -62,10 +63,9 @@ struct Vivification
 					{
 						cl[i] = a.neg();
 						strengthened += 1;
+						change = true;
 
-						p.unroll();
-						p.unroll();
-						return true;
+						goto again;
 					}
 
 				next_try:;
@@ -81,12 +81,12 @@ struct Vivification
 			{
 				shortened += cl.size() - (i + 1);
 				cl.resize(i + 1);
-				p.unroll();
-				return true;
+				change = true;
+				break;
 			}
 		}
 		p.unroll();
-		return false;
+		return change;
 	}
 };
 

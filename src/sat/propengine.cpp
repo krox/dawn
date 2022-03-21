@@ -575,6 +575,17 @@ int PropEngineLight::propagate(Lit x)
 	return (int)trail_.size() - trail_old;
 }
 
+int PropEngineLight::propagate_neg(util::span<const Lit> xs)
+{
+	int r = 0;
+	for (Lit x : xs)
+		if (int s = propagate(x.neg()); s == -1)
+			return -1;
+		else
+			r += s;
+	return r;
+}
+
 void PropEngineLight::mark()
 {
 	assert(!conflict);
@@ -601,6 +612,15 @@ int PropEngineLight::probe(Lit a)
 	assert(!conflict);
 	mark();
 	int r = propagate(a);
+	unroll();
+	return r;
+}
+
+int PropEngineLight::probe_neg(util::span<const Lit> xs)
+{
+	assert(!conflict);
+	mark();
+	int r = propagate_neg(xs);
 	unroll();
 	return r;
 }

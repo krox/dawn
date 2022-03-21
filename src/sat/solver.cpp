@@ -314,6 +314,10 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		if (!change)
 			break;
 	}
+
+	// Very rarely, normal form is destroyed without the passes itself noticing.
+	// Not sure why, guessing lhbr in probing/vivification?
+	cleanup(sat);
 }
 
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
