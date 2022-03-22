@@ -525,7 +525,7 @@ struct BCE
 
 int run_elimination(Sat &sat, EliminationConfig const &config)
 {
-	assert(is_normal_form(sat)); // not strictly necessary
+	// assert(is_normal_form(sat)); // not strictly necessary
 
 	util::StopwatchGuard swg(sat.stats.swBVE);
 	util::Stopwatch sw;

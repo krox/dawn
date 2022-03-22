@@ -1,6 +1,5 @@
 #include "sat/dimacs.h"
 #include "sat/sat.h"
-#include "sat/solution.h"
 #include <random>
 #include <string>
 
@@ -20,7 +19,7 @@ int main(int argc, char *argv[])
 	Sat sat(n * (n + 1));
 
 	// 1) each pigeon needs a hole
-	std::vector<Lit> cl;
+	std::vector<Lit>  cl;
 	for (int p = 0; p < n + 1; ++p)
 	{
 		cl.resize(0);
@@ -41,5 +40,5 @@ int main(int argc, char *argv[])
 			for (int h2 = h1 + 1; h2 < n; ++h2)
 				sat.addBinary(Lit(p * n + h1, true), Lit(p * n + h2, true));
 
-	dump(sat);
+	fmt::print("{}", sat);
 }
