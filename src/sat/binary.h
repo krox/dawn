@@ -63,15 +63,15 @@ class TopOrder
 
   public:
 	TopOrder(Sat const &sat)
-	    : sat_(sat), visited_(2 * sat.varCount()),
-	      visitedTemp_(2 * sat.varCount())
+	    : sat_(sat), visited_(2 * sat.var_count()),
+	      visitedTemp_(2 * sat.var_count())
 	{
-		lits_.reserve(2 * sat.varCount());
-		order_.resize(2 * sat.varCount());
+		lits_.reserve(2 * sat.var_count());
+		order_.resize(2 * sat.var_count());
 
-		for (int i = 0; i < 2 * sat.varCount(); ++i)
-			dfs(Lit(i));
-		assert((int)lits_.size() == 2 * sat.varCount());
+		for (Lit a : sat.all_lits())
+			dfs(a);
+		assert((int)lits_.size() == 2 * sat.var_count());
 		// TODO: release memory of visited[Temp] arrays (which is negligible)
 	}
 

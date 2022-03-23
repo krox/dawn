@@ -67,7 +67,7 @@ class Subsumption
 	size_t nRemovedClsBin = 0, nRemovedLitsBin = 0;
 
 	Subsumption(Sat &sat)
-	    : sat(sat), occs(sat.varCount() * 2), seen(sat.varCount() * 2)
+	    : sat(sat), occs(sat.var_count() * 2), seen(sat.var_count() * 2)
 	{
 		for (auto [ci, cl] : sat.clauses.enumerate())
 			for (Lit a : cl.lits())
@@ -111,7 +111,7 @@ class Subsumption
 		// if a implies ~a, we have a failed literal (should be rare here)
 		if (seen[a.neg()])
 		{
-			sat.addUnary(a.neg());
+			sat.add_unary(a.neg());
 			return;
 		}
 
@@ -140,7 +140,7 @@ class Subsumption
 							++nRemovedLitsBin;
 							if (cl.size() == 2)
 							{
-								sat.addBinary(cl[0], cl[1]);
+								sat.add_binary(cl[0], cl[1]);
 								cl.remove();
 							}
 						}
@@ -158,8 +158,8 @@ bool subsumeBinary(Sat &sat)
 	sw.start();
 
 	Subsumption sub(sat);
-	for (int i = 0; i < sat.varCount() * 2; ++i)
-		sub.subsumeBinary(Lit(i));
+	for (Lit a : sat.all_lits())
+		sub.subsumeBinary(a);
 	if (sub.nRemovedClsBin + sub.nRemovedLitsBin == 0)
 		fmt::print("c [subsumption  {:#6.2f}] - (binary)\n", sw.secs());
 	else
@@ -195,7 +195,7 @@ bool subsumeLong(Sat &sat)
 	// sort variables in clauses (to simplify 'trySubsume()')
 	// and list clauses by size
 	std::array<std::vector<CRef>, 128> clauses;
-	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.varCount());
+	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.var_count());
 	for (auto [ci, cl] : sat.clauses.enumerate())
 	{
 		std::sort(cl.lits().begin(), cl.lits().end());
@@ -237,11 +237,11 @@ bool subsumeLong(Sat &sat)
 						if (cl2.size() <= 2)
 						{
 							if (cl2.size() == 0)
-								sat.addEmpty(); // dont think this can happen
+								sat.add_empty(); // dont think this can happen
 							else if (cl2.size() == 1)
-								sat.addUnary(cl2[0]);
+								sat.add_unary(cl2[0]);
 							else if (cl2.size() == 2)
-								sat.addBinary(cl2[0], cl2[1]);
+								sat.add_binary(cl2[0], cl2[1]);
 							cl2.remove();
 						}
 					}

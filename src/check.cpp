@@ -12,9 +12,9 @@ bool check(const Sat &sat, const Solution &sol)
 	for (Lit a : sat.units)
 		if (!sol.satisfied(a))
 			return false;
-	for (int i = 0; i < 2 * (int)sat.varCount(); ++i)
-		for (Lit b : sat.bins[Lit(i)])
-			if (!sol.satisfied(Lit(i), b))
+	for (Lit a : sat.all_lits())
+		for (Lit b : sat.bins[a])
+			if (!sol.satisfied(a, b))
 				return false;
 	for (auto [_, c] : sat.clauses)
 	{
@@ -37,7 +37,7 @@ int main(int argc, char *argv[])
 	parseCnf(argv[1], sat);
 
 	Solution sol;
-	sol.varCount(sat.varCount());
+	sol.varCount(sat.var_count());
 	parseSolution(argv[2], sol);
 
 	if (check(sat, sol))

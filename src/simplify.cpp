@@ -13,8 +13,8 @@ using namespace dawn;
 
 void printStats(Sat const &sat)
 {
-	fmt::print("c {} vars with {} + {} + {} clauses\n", sat.varCount(),
-	           sat.unaryCount(), sat.binaryCount(), sat.longCount());
+	fmt::print("c {} vars with {} + {} + {} clauses\n", sat.var_count(),
+	           sat.unary_count(), sat.binary_count(), sat.long_count());
 }
 
 int main(int argc, char *argv[])

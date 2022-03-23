@@ -21,8 +21,8 @@ class Tarjan
 	int nComps = 0; // number of SCC's
 
 	Tarjan(Sat &sat)
-	    : sat(sat), visited(sat.varCount() * 2), back(sat.varCount() * 2, 0),
-	      equ(sat.varCount(), Lit::undef())
+	    : sat(sat), visited(sat.var_count() * 2), back(sat.var_count() * 2, 0),
+	      equ(sat.var_count(), Lit::undef())
 	{}
 
 	void dfs(Lit v)
@@ -65,7 +65,7 @@ class Tarjan
 
 		if (comp.size() >= 2 && comp[0] == comp[1].neg())
 		{
-			sat.addEmpty();
+			sat.add_empty();
 			return;
 		}
 
@@ -89,15 +89,15 @@ int runSCC(Sat &sat)
 	auto tarjan = Tarjan(sat);
 
 	// run tarjan
-	for (int i = 0; i < sat.varCount() * 2 && !sat.contradiction; ++i)
-		tarjan.dfs(Lit(i));
+	for (Lit a : sat.all_lits())
+		tarjan.dfs(a);
 
 	// contradiction found -> don't bother to renumber (also equ[] is not fully
 	// built)
 	if (sat.contradiction)
 		return 1;
 
-	int nFound = sat.varCount() - tarjan.nComps;
+	int nFound = sat.var_count() - tarjan.nComps;
 
 	// no equivalences -> quit
 	if (nFound == 0)
@@ -116,9 +116,8 @@ void printBinaryStats(Sat const &sat)
 	int nFrom = 0;     // vertices with >=2 outging edges
 	int nTo = 0;       // vertices with >= 2 incoming edges
 
-	for (int i = 0; i < 2 * sat.varCount(); ++i)
+	for (Lit a : sat.all_lits())
 	{
-		Lit a = Lit(i);
 		if (sat.bins[a.neg()].empty() && sat.bins[a].empty())
 		{
 			++nIsolated;
@@ -140,7 +139,7 @@ void printBinaryStats(Sat const &sat)
 	assert(nRoots == nSinks);
 	assert(nFrom == nTo);
 
-	int nVertices = sat.varCount() * 2 - nIsolated;
+	int nVertices = sat.var_count() * 2 - nIsolated;
 	fmt::print("c vars with binaries: {} ({:.2f} GiB for transitive closure)\n",
 	           nVertices / 2,
 	           (double)nVertices * nVertices * 8 / 1024 / 1024 / 1024);
@@ -149,21 +148,18 @@ void printBinaryStats(Sat const &sat)
 	    "c non-trivial nodes: 2 x {} ({:.2f} GiB for transitive closure)\n",
 	    nFrom, (double)nFrom * nFrom / 8 / 1024 / 1024 / 1024);
 
-	auto uf = util::UnionFind(sat.varCount());
-	for (int i = 0; i < 2 * sat.varCount(); ++i)
-	{
-		Lit a = Lit(i);
+	auto uf = util::UnionFind(sat.var_count());
+	for (Lit a : sat.all_lits())
 		for (auto b : sat.bins[a])
 			uf.join(a.var(), b.var());
-	}
 
 	auto top = TopOrder(sat);
 	fmt::print("c acyclic: {}\n", top.valid());
 
 	// roots have level=0, increasing from there
 	// height = 1 + max(level)
-	auto level = std::vector<int>(2 * sat.varCount());
-	auto height = std::vector<int>(sat.varCount());
+	auto level = std::vector<int>(2 * sat.var_count());
+	auto height = std::vector<int>(sat.var_count());
 	for (Lit a : top.lits())
 	{
 		for (Lit b : sat.bins[a])
@@ -177,7 +173,7 @@ void printBinaryStats(Sat const &sat)
 	}
 	std::vector<std::pair<int, int>> comps;
 
-	for (int i = 0; i < sat.varCount(); ++i)
+	for (int i : sat.all_vars())
 		if (uf.root(i) == i)
 			if (uf.compSize(i) > 1)
 				comps.push_back({uf.compSize(i), height[i]});
@@ -201,9 +197,8 @@ void runBinaryReduction(Sat &sat)
 		throw std::runtime_error("tried to run TBR without SCC first");
 
 	// sort clauses by topological order
-	for (int i = 0; i < sat.varCount() * 2; ++i)
+	for (Lit a : sat.all_lits())
 	{
-		auto a = Lit(i);
 		auto &bins = sat.bins[a.neg()];
 
 		std::sort(bins.begin(), bins.end(), [&top](Lit a, Lit b) -> bool {
@@ -211,22 +206,15 @@ void runBinaryReduction(Sat &sat)
 		});
 
 		bins.erase(std::unique(bins.begin(), bins.end()), bins.end());
-
-		for (int j = 0; j < (int)bins.size(); ++j)
-		{
-			assert(top.order(Lit(i)) < top.order(bins[j]));
-			assert(j == 0 || top.order(bins[j - 1]) < top.order(bins[j]));
-		}
 	}
 
 	// start transitive reduction from pretty much all places
-	auto seen = util::bit_vector(2 * sat.varCount());
+	auto seen = util::bit_vector(2 * sat.var_count());
 	auto stack = std::vector<Lit>{};
 	int nFound = 0;
 	int64_t propCount = 0;
-	for (int i = 0; i < sat.varCount() * 2; ++i)
+	for (Lit a : sat.all_lits())
 	{
-		auto a = Lit(i);
 		if (sat.bins[a.neg()].size() < 2)
 			continue;
 

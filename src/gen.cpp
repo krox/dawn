@@ -52,7 +52,7 @@ int main(int argc, char *argv[])
 		if (sol.satisfied(cl))
 		{
 			++ci;
-			sat.addClause(cl, true);
+			sat.add_clause(cl, true);
 		}
 
 		cl.resize(0);

@@ -106,17 +106,15 @@ bool runVivification(Sat &sat, bool withBinary)
 
 	ClauseStorage newClauses;
 
-	for (int i = 0; i < sat.varCount() * 2; ++i)
-	{
-		for (Lit b : sat.bins[i])
+	for (Lit a : sat.all_lits())
+		for (Lit b : sat.bins[a])
 		{
-			if (Lit(i) > b)
+			if (a > b)
 				continue;
-			buf = {Lit(i), b};
+			buf = {a, b};
 			if (viv.vivifyClause(buf, withBinary))
 				newClauses.addClause(buf, true);
 		}
-	}
 
 	for (auto &cl : sat.clauses.all())
 	{
@@ -135,7 +133,7 @@ bool runVivification(Sat &sat, bool withBinary)
 	}
 
 	for (auto &cl : newClauses.all())
-		sat.addClause(cl.lits(), cl.irred());
+		sat.add_clause(cl.lits(), cl.irred());
 
 	if (withBinary)
 	{

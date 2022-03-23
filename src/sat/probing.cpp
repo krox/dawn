@@ -18,9 +18,8 @@ int probe(Sat &sat, bool lhbr, int maxTries)
 
 	// list and shuffle candidates
 	std::vector<Lit> candidates;
-	for (int i = 0; i < 2 * sat.varCount(); ++i)
+	for (Lit l : sat.all_lits())
 	{
-		auto l = Lit(i);
 		if (sat.bins[l.neg()].empty())
 			continue;
 		if (!sat.bins[l].empty())
@@ -102,8 +101,8 @@ int probeBinary(Sat &sat)
 		return 0;
 
 	auto top = TopOrder(sat);
-	auto seenA = util::bit_vector(sat.varCount() * 2);
-	auto seenB = util::bit_vector(sat.varCount() * 2);
+	auto seenA = util::bit_vector(sat.var_count() * 2);
+	auto seenB = util::bit_vector(sat.var_count() * 2);
 	std::vector<Lit> buf;
 	int nTries = 0;
 	int nFails = 0;

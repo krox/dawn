@@ -12,7 +12,7 @@ namespace dawn {
 void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 {
 	// check input
-	assert(trans.size() == (size_t)varCount());
+	assert(trans.size() == (size_t)var_count());
 	for (Lit l : trans)
 		assert(l.fixed() || l == Lit::elim() ||
 		       (l.proper() && l.var() < newVarCount));
@@ -27,9 +27,9 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 			if (a == Lit::one())
 				continue;
 			else if (a == Lit::zero())
-				addEmpty();
+				add_empty();
 			else if (a.proper())
-				addUnary(a);
+				add_unary(a);
 			else
 				assert(false); // disallows elim
 		}
@@ -60,19 +60,19 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 
 				// (false, false) -> ()
 				else if (c == Lit::zero() && d == Lit::zero())
-					addEmpty();
+					add_empty();
 
 				// (false, x), (x, x) -> (x)
 				else if (c == Lit::zero())
-					addUnary(d);
+					add_unary(d);
 				else if (d == Lit::zero())
-					addUnary(c);
+					add_unary(c);
 				else if (c == d)
-					addUnary(c);
+					add_unary(c);
 
 				// actual binary clause left
 				else
-					addBinary(c, d);
+					add_binary(c, d);
 			}
 		}
 	}
@@ -86,11 +86,11 @@ void Sat::renumber(util::span<const Lit> trans, int newVarCount)
 		if (cl.isRemoved())
 			continue;
 		if (cl.size() == 0)
-			addEmpty();
+			add_empty();
 		if (cl.size() == 1)
-			addUnary(cl[0]);
+			add_unary(cl[0]);
 		if (cl.size() == 2)
-			addBinary(cl[0], cl[1]);
+			add_binary(cl[0], cl[1]);
 		if (cl.size() <= 2)
 			cl.remove();
 	}
@@ -157,8 +157,8 @@ size_t Sat::memory_usage() const
 	size_t r = 0;
 	r += to_outer_.capacity() * sizeof(Lit);
 	r += units.capacity() * sizeof(Lit);
-	for (int i = 0; i < varCount() * 2; ++i)
-		r += bins[i].capacity() * sizeof(Lit);
+	for (auto &b : bins)
+		r += b.capacity() * sizeof(Lit);
 	r += clauses.memory_usage();
 	r += extender.memory_usage();
 	return r;
@@ -166,14 +166,14 @@ size_t Sat::memory_usage() const
 
 void shuffleVariables(Sat &sat)
 {
-	auto trans = std::vector<Lit>(sat.varCount());
-	for (int i = 0; i < sat.varCount(); ++i)
+	auto trans = std::vector<Lit>(sat.var_count());
+	for (int i : sat.all_vars())
 	{
 		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.rng));
 		int j = std::uniform_int_distribution<int>(0, i)(sat.rng);
 		std::swap(trans[i], trans[j]);
 	}
-	sat.renumber(trans, sat.varCount());
+	sat.renumber(trans, sat.var_count());
 }
 
 int runUnitPropagation(Sat &sat);
@@ -210,7 +210,7 @@ int cleanup(Sat &sat)
 
 bool is_normal_form(Sat const &sat)
 {
-	if (sat.contradiction && sat.varCount() != 0)
+	if (sat.contradiction && sat.var_count() != 0)
 		return false;
 	if (!sat.units.empty())
 		return false;

@@ -113,7 +113,7 @@ int main(int argc, char *argv[])
 		int branch = -1;
 		int bestScore = 0;
 		bool change = false;
-		for (int i = 0; i < sat.varCount(); ++i)
+		for (int i = 0; i < sat.var_count(); ++i)
 		{
 			Lit a = Lit(i, false);
 			if (p.assign[a] || p.assign[a.neg()])

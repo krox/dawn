@@ -12,7 +12,7 @@ namespace {
 /** does NOT clear 'seen' */
 int markImplied(Sat const &sat, util::bit_vector &seen, Lit root)
 {
-	assert((int)seen.size() == sat.varCount() * 2);
+	assert((int)seen.size() == sat.var_count() * 2);
 	if (seen[root])
 		return 0;
 
@@ -97,10 +97,10 @@ int makeDisjunctions(Sat &sat)
 		nFound += 1;
 
 		// add new variable "a <-> pair.first v pair.second"
-		Lit a = Lit(sat.addVar(), false);
-		sat.addBinary(a, pair.first.neg());
-		sat.addBinary(a, pair.second.neg());
-		sat.addClause({a.neg(), pair.first, pair.second}, true);
+		Lit a = Lit(sat.add_var(), false);
+		sat.add_binary(a, pair.first.neg());
+		sat.add_binary(a, pair.second.neg());
+		sat.add_clause({a.neg(), pair.first, pair.second}, true);
 
 		// replace all the occurances of the pair
 		int replaced = 0;
@@ -135,9 +135,9 @@ int makeDisjunctions(Sat &sat)
 		if (cl.size() >= 3)
 			continue;
 		if (cl.size() == 2)
-			sat.addBinary(cl[0], cl[1]);
+			sat.add_binary(cl[0], cl[1]);
 		else if (cl.size() == 1)
-			sat.addUnary(cl[0]);
+			sat.add_unary(cl[0]);
 		else
 			assert(false);
 		cl.remove();
@@ -150,17 +150,16 @@ int makeDisjunctions(Sat &sat)
 void substituteDisjunctions(Sat &sat)
 {
 	// build occ lists (per lit)
-	auto occs = std::vector<std::vector<CRef>>(sat.varCount() * 2);
+	auto occs = std::vector<std::vector<CRef>>(sat.var_count() * 2);
 	for (auto [ci, cl] : sat.clauses.enumerate())
 		for (Lit a : cl.lits())
 			occs[a].push_back(ci);
 
 	// look for definitions a <=> b1 v b2 v ... v bn
 	int count = 0;
-	auto seen = util::bit_vector(2 * sat.varCount());
-	for (int i = 0; i < sat.varCount() * 2; ++i)
+	auto seen = util::bit_vector(2 * sat.var_count());
+	for (Lit a : sat.all_lits())
 	{
-		auto a = Lit(i);
 		seen.clear();
 		markImplied(sat, seen, a.neg());
 

@@ -48,7 +48,7 @@ static void printLine(Sat &sat)
 
 	fmt::print(
 	    "c {:#8} {:#8} {:#8} {:#8} {:5.2f} {:#8} {:5.2f} {:5.2f} {:8.2f} MiB\n",
-	    sat.varCount(), unaryCount, binaryCount, longCount,
+	    sat.var_count(), unaryCount, binaryCount, longCount,
 	    (double)longLits / longCount, learntCount,
 	    (double)learntLits / learntCount, (double)learntGlue / learntCount,
 	    sat.memory_usage() / 1024. / 1024.);
@@ -87,8 +87,8 @@ Assignment buildSolution(const PropEngine &p)
 	//       variables. For eliminated vars this is necessary because the
 	//       extension clauses may not force either value. Alternative would
 	//       be to make the extension rules forcing whenever we eliminate a var
-	auto a = Assignment(p.sat.varCountOuter());
-	for (int i = 0; i < p.sat.varCountOuter(); ++i)
+	auto a = Assignment(p.sat.var_count_outer());
+	for (int i = 0; i < p.sat.var_count_outer(); ++i)
 		a.set(Lit(i, true));
 	for (Lit l : p.trail())
 		a.force_set(p.sat.to_outer(l));
@@ -108,7 +108,7 @@ std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
 	util::StopwatchGuard _(sat.stats.swSearch);
 
 	ActivityHeap activityHeap(sat);
-	for (int i = 0; i < sat.varCount(); ++i)
+	for (int i : sat.all_vars())
 		activityHeap.push(i);
 
 	p.config.otf = config.otf;
@@ -130,7 +130,7 @@ std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
 			// level 0 conflict -> UNSAT
 			if (p.level() == 0)
 			{
-				sat.addEmpty();
+				sat.add_empty();
 				return std::nullopt;
 			}
 
@@ -146,7 +146,7 @@ std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
 			else
 				glue = p.calcGlue(buf);
 
-			sat.decayVariableActivity();
+			sat.decay_variable_activity();
 			sat.stats.nLearnt += 1;
 			sat.stats.nLitsLearnt += buf.size();
 
@@ -343,7 +343,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	}
 
 	fmt::print("c after preprocessing: {} vars and {} clauses\n",
-	           sat.varCount(), sat.clauseCount());
+	           sat.var_count(), sat.clause_count());
 
 	printHeader();
 	int64_t lastPrint = sat.stats.nConfls();
@@ -407,7 +407,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 				    cl.glue > config.max_learnt_glue)
 					cl.remove();
 			}
-			if ((int64_t)sat.longCountRed() > config.max_learnt)
+			if ((int64_t)sat.long_count_red() > config.max_learnt)
 			{
 				if (config.use_glue)
 					cleanClausesGlue(sat.clauses, config.max_learnt);
@@ -415,7 +415,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 					cleanClausesSize(sat.clauses, config.max_learnt);
 				sat.clauses.compactify();
 			}
-			if (sat.longCountRed() > (size_t)sat.stats.nConfls() / 4)
+			if (sat.long_count_red() > (size_t)sat.stats.nConfls() / 4)
 			{
 				if (config.use_glue)
 					cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);

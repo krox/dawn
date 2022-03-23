@@ -7,9 +7,9 @@
 namespace dawn {
 
 PropEngine::PropEngine(Sat &sat)
-    : sat(sat), seen(sat.varCount()), watches(sat.varCount() * 2),
-      reason(sat.varCount()), binDom(sat.varCount()), trailPos(sat.varCount()),
-      assign(sat.varCount())
+    : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
+      reason(sat.var_count()), binDom(sat.var_count()),
+      trailPos(sat.var_count()), assign(sat.var_count())
 {
 	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -184,7 +184,7 @@ void PropEngine::branch(Lit x)
 Reason PropEngine::addLearntClause(Lit c0, Lit c1)
 {
 	assert(c0.var() != c1.var());
-	sat.addBinary(c0, c1);
+	sat.add_binary(c0, c1);
 	return Reason(c1);
 }
 
@@ -193,17 +193,17 @@ Reason PropEngine::addLearntClause(const std::vector<Lit> &cl, uint8_t glue)
 	switch (cl.size())
 	{
 	case 0:
-		sat.addEmpty();
+		sat.add_empty();
 		conflict = true;
 		return Reason::undef();
 	case 1:
-		sat.addUnary(cl[0]);
+		sat.add_unary(cl[0]);
 		return Reason::undef();
 	case 2:
-		sat.addBinary(cl[0], cl[1]);
+		sat.add_binary(cl[0], cl[1]);
 		return Reason(cl[1]);
 	default:
-		CRef cref = sat.addLong(cl, false);
+		CRef cref = sat.add_long(cl, false);
 		watches[cl[0]].push_back(cref);
 		watches[cl[1]].push_back(cref);
 		assert(2 <= glue && glue <= cl.size());
@@ -214,7 +214,7 @@ Reason PropEngine::addLearntClause(const std::vector<Lit> &cl, uint8_t glue)
 
 int PropEngine::unassignedVariable() const
 {
-	for (int i = 0; i < sat.varCount(); ++i)
+	for (int i : sat.all_vars())
 		if (!assign[Lit(i, false)] && !assign[Lit(i, true)])
 			return i;
 	return -1;
@@ -271,7 +271,7 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 
 		if (activity_heap != nullptr)
 		{
-			sat.bumpVariableActivity(l.var());
+			sat.bump_variable_activity(l.var());
 			activity_heap->update(l.var());
 		}
 
@@ -453,7 +453,7 @@ void PropEngine::printTrail() const
 }
 
 PropEngineLight::PropEngineLight(Sat &sat)
-    : sat(sat), watches(sat.varCount() * 2), assign(sat.varCount())
+    : sat(sat), watches(sat.var_count() * 2), assign(sat.var_count())
 {
 	// empty clause -> don't bother doing anything
 	if (sat.contradiction)
@@ -653,26 +653,26 @@ int runUnitPropagation(Sat &sat)
 	// conflict -> add empty clause and remove everything else
 	if (p.conflict)
 	{
-		sat.addEmpty();
+		sat.add_empty();
 		sat.units.resize(0);
-		for (int i = 0; i < sat.varCount() * 2; ++i)
+		for (int i = 0; i < sat.var_count() * 2; ++i)
 			sat.bins[i].resize(0);
 		sat.clauses.clear();
-		int n = sat.varCount();
+		int n = sat.var_count();
 		sat.renumber(std::vector<Lit>(n, Lit::elim()), 0);
 		return n;
 	}
 
 	assert(p.trail().size() != 0);
 
-	auto trans = std::vector<Lit>(sat.varCount(), Lit::undef());
+	auto trans = std::vector<Lit>(sat.var_count(), Lit::undef());
 	for (Lit u : p.trail())
 	{
 		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
 		trans[u.var()] = Lit::fixed(u.sign());
 	}
 	int newVarCount = 0;
-	for (int i = 0; i < sat.varCount(); ++i)
+	for (int i : sat.all_vars())
 	{
 		if (trans[i] == Lit::undef())
 			trans[i] = Lit(newVarCount++, false);

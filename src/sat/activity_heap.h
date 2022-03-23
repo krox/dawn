@@ -55,9 +55,9 @@ class ActivityHeap
 	}
 
   public:
-	ActivityHeap(Sat &sat) : sat(sat), location(sat.varCount(), -1)
+	ActivityHeap(Sat &sat) : sat(sat), location(sat.var_count(), -1)
 	{
-		arr.reserve(sat.varCount());
+		arr.reserve(sat.var_count());
 	}
 
 	/** returns true if heap is empty */

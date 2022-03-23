@@ -124,8 +124,8 @@ struct BVE
 	int nEliminated = 0;
 
 	BVE(Sat &sat_, EliminationConfig const &config_)
-	    : sat(sat_), config(config_), occs(2 * sat_.varCount()),
-	      eliminated(sat_.varCount())
+	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
+	      eliminated(sat_.var_count())
 	{
 		cutoff = config.level == 0
 		             ? score_0n
@@ -211,7 +211,7 @@ struct BVE
 	// add clause to sat and update occ-lists
 	void add_clause(util::span<const Lit> cl, bool irred)
 	{
-		CRef ci = sat.addClause(cl, irred);
+		CRef ci = sat.add_clause(cl, irred);
 		if (ci == CRef::undef()) // implicit binary clause (or empty/unary?)
 			return;
 
@@ -223,11 +223,11 @@ struct BVE
 	void add_clause(Lit a, Lit b)
 	{
 		if (a == b)
-			sat.addUnary(a);
+			sat.add_unary(a);
 		else if (a == b.neg())
 		{} // tautology
 		else
-			sat.addBinary(a, b);
+			sat.add_binary(a, b);
 	}
 
 	// eliminate a variable (add resolents, move clauses to extender)
@@ -323,8 +323,8 @@ struct BVE
 		std::priority_queue<PII, std::vector<PII>, std::greater<PII>> queue;
 
 		// compute elimination scores of of all variables
-		auto score = std::vector<int>(sat.varCount());
-		for (int i = 0; i < sat.varCount(); ++i)
+		auto score = std::vector<int>(sat.var_count());
+		for (int i : sat.all_vars())
 		{
 			score[i] = compute_score(i);
 			if (score[i] <= cutoff)
@@ -337,7 +337,7 @@ struct BVE
 
 		// temporaries
 		std::vector<int> todo;
-		auto seen = util::bit_vector(sat.varCount());
+		auto seen = util::bit_vector(sat.var_count());
 
 		while (!queue.empty() && nEliminated < config.max_eliminations)
 		{
@@ -422,9 +422,9 @@ struct BVE
 		}
 
 		// renumber (inner variables cant stay in eliminated state)
-		std::vector<Lit> trans(sat.varCount());
+		std::vector<Lit> trans(sat.var_count());
 		int newVarCount = 0;
-		for (int i = 0; i < sat.varCount(); ++i)
+		for (int i : sat.all_vars())
 			if (eliminated[i])
 				trans[i] = Lit::elim();
 			else
@@ -446,7 +446,7 @@ struct BCE
 	using occs_t = std::vector<std::vector<CRef>>;
 	occs_t occs;
 
-	BCE(Sat &sat_) : sat(sat_), occs(2 * sat_.varCount())
+	BCE(Sat &sat_) : sat(sat_), occs(2 * sat_.var_count())
 	{
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
@@ -515,7 +515,7 @@ struct BCE
 	int run()
 	{
 		int nFound = 0;
-		for (int v = 0; v < sat.varCount(); ++v)
+		for (int v : sat.all_vars())
 			nFound += run_on_variable(v);
 		return nFound;
 	}
@@ -566,12 +566,11 @@ int run_blocked_clause_addition(Sat &sat)
 			cl.remove();
 
 	auto p = PropEngineLight(sat);
-	auto seen = util::bit_vector(sat.varCount() * 2);
+	auto seen = util::bit_vector(sat.var_count() * 2);
 	int nFound = 0;
 	bool failing_lit_found = false;
-	for (int i = 0; i < sat.varCount() * 2; ++i)
+	for (Lit a : sat.all_lits())
 	{
-		auto a = Lit(i);
 		if (p.assign[a] || p.assign[a.neg()])
 			continue;
 
@@ -588,7 +587,7 @@ int run_blocked_clause_addition(Sat &sat)
 			// we just learn '-a' and skip out. Probably should be smarter...
 			failing_lit_found = true;
 			p.unroll();
-			sat.addUnary(a.neg());
+			sat.add_unary(a.neg());
 			break;
 		}
 
@@ -599,9 +598,8 @@ int run_blocked_clause_addition(Sat &sat)
 				for (Lit x : cl)
 					seen[x] = true;
 
-		for (int j = 0; j < sat.varCount() * 2; ++j)
+		for (Lit b : sat.all_lits())
 		{
-			auto b = Lit(j);
 			if (p.assign[b] || p.assign[b.neg()])
 				continue;
 			if (seen[b])
@@ -612,7 +610,7 @@ int run_blocked_clause_addition(Sat &sat)
 					goto next;
 
 			nFound++;
-			sat.addBinary(a.neg(), b.neg());
+			sat.add_binary(a.neg(), b.neg());
 			{
 				auto r = p.propagate(b.neg());
 				assert(r == 1);
