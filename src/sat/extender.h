@@ -30,6 +30,8 @@ class Extender
 	// by '.extend()' in the future
 	void add_rule(util::span<const Lit> cl);
 
+	size_t clause_count() const { return clauses_.count(); }
+
 	// convenience functions to add one or more rules, effectively "defining"
 	// a variable in terms of others
 	void set_literal(Lit a);

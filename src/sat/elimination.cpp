@@ -1,5 +1,6 @@
 #include "sat/elimination.h"
 
+#include "fmt/format.h"
 #include "sat/propengine.h"
 #include "util/bit_vector.h"
 #include <algorithm>
@@ -127,21 +128,20 @@ struct BVE
 	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
 	      eliminated(sat_.var_count())
 	{
-		cutoff = config.level == 0
-		             ? score_0n
-		             : config.level == 1
-		                   ? score_11
-		                   : config.level == 2
-		                         ? score_1n
-		                         : config.level == 5 ? 0 : score_never - 1;
+		cutoff = config.level == 0   ? score_0n
+		         : config.level == 1 ? score_11
+		         : config.level == 2 ? score_1n
+		         : config.level == 5 ? 0
+		                             : score_never - 1;
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (!config.irred_only || cl.irred())
-			{
-				std::sort(cl.lits().begin(), cl.lits().end());
-				for (Lit a : cl.lits())
-					occs[a].push_back(ci);
-			}
+		// if (!config.irred_only || cl.irred())
+		{
+			assert(cl.irred() && !cl.isRemoved());
+			std::sort(cl.lits().begin(), cl.lits().end());
+			for (Lit a : cl.lits())
+				occs[a].push_back(ci);
+		}
 	}
 
 	/**
@@ -160,7 +160,7 @@ struct BVE
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
 		auto occsPos = (int)occs[pos].size() + (int)sat.bins[pos].size();
-		auto occsNeg = (int)occs[neg].size() + (int)sat.bins[pos].size();
+		auto occsNeg = (int)occs[neg].size() + (int)sat.bins[neg].size();
 
 		// priority for extremely nice cases
 		if (occsPos == 0 || occsNeg == 0)
@@ -238,18 +238,9 @@ struct BVE
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
 
-		if (config.verbosity >= 1)
-			fmt::print("c eliminating variable i={}, o={}\n", pos,
-			           sat.to_outer(pos));
-
-		// TODO: there is some overcounting of binaries ?
-
 		// add binary-binary resolvents
 		for (Lit x : sat.bins[pos])
 			for (Lit y : sat.bins[neg])
-				add_clause(x, y);
-		for (Lit x : sat.bins[neg])
-			for (Lit y : sat.bins[pos])
 				add_clause(x, y);
 
 		// add long-binary resolvents
@@ -351,6 +342,8 @@ struct BVE
 			if (eliminated[v] || score[v] != s)
 				continue;
 
+			assert(score[v] == s && s == compute_score(v));
+
 			// determine other variables whose score will have to be
 			// recalculated
 			for (Lit x : sat.bins[pos])
@@ -371,6 +364,10 @@ struct BVE
 							todo.push_back(x.var());
 
 			// eliminate the variable
+			if (config.verbosity >= 1)
+				fmt::print("c eliminating variable i={}, o={}, score={}, ",
+				           Lit(v, false), sat.to_outer(Lit(v, false)),
+				           score[v]);
 			eliminate(v);
 			eliminated[v] = true;
 			score[v] = score_never;

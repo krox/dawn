@@ -300,10 +300,11 @@ void inprocess(Sat &sat, SolverConfig const &config)
 			change |= runVivification(sat, config.vivify >= 2);
 
 		if (config.bva >= 1)
+		{
 			change |= makeDisjunctions(sat);
-
-		if (config.vivify >= 1)
-			change |= runVivification(sat, config.vivify >= 2);
+			if (config.vivify >= 1)
+				change |= runVivification(sat, config.vivify >= 2);
+		}
 
 		// cleanup
 		// (do this last, because it cant lead to anything new for the other
@@ -320,32 +321,52 @@ void inprocess(Sat &sat, SolverConfig const &config)
 	cleanup(sat);
 }
 
+void preprocess(Sat &sat)
+{
+	// cheap search/strengthening
+	probe(sat, true, 10000);
+	subsumeBinary(sat);
+	subsumeLong(sat);
+
+	// clause elimination (no resolution)
+	// (pure/unused)
+	// TODO: stroger BCE would be nice
+	runBinaryReduction(sat);
+	EliminationConfig elimConfig = {};
+	elimConfig.level = 1;
+	run_elimination(sat, elimConfig);
+	run_blocked_clause_elimination(sat);
+
+	// classic BVE with resolution
+	// TODO: allow limited growth
+	elimConfig.level = 5;
+	run_elimination(sat, elimConfig);
+
+	// little bit of searching
+	probe(sat, true, 10000);
+	subsumeBinary(sat);
+	subsumeLong(sat);
+	runBinaryReduction(sat);
+}
+
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 {
+	// NOTE: dont do too much preprocessing before the first round a searching.
+	//       CDCL tends to be quite efficient compared to exhaustive probing.
+
 	util::StopwatchGuard _(sat.stats.swTotal);
 
-	int64_t lastInprocess = sat.stats.nConfls();
-	inprocess(sat, config);
-	// run BVE only once at the beginning, not at every inprocessing
-	// (it ignores and removes learnt clauses, so can be very harmful)
-	if (config.bce > 0)
-	{
-		if (run_blocked_clause_elimination(sat))
-			inprocess(sat, config);
-	}
-	if (config.bve > 0)
-	{
-		EliminationConfig elimConfig = {};
-		elimConfig.level = 5;
-		elimConfig.irred_only = true;
-		if (run_elimination(sat, elimConfig))
-			inprocess(sat, config);
-	}
-
-	fmt::print("c after preprocessing: {} vars and {} clauses\n",
+	cleanup(sat);
+	fmt::print("c [solver             ] starting with {} vars and {} clauses\n",
 	           sat.var_count(), sat.clause_count());
+	preprocess(sat);
+
+	fmt::print(
+	    "c [solver             ] after preprocessing {} vars and {} clauses\n",
+	    sat.var_count(), sat.clause_count());
 
 	printHeader();
+	int64_t lastInprocess = sat.stats.nConfls();
 	int64_t lastPrint = sat.stats.nConfls();
 
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
