@@ -13,12 +13,12 @@ namespace {
  *    - do nothing (return false)
  *    - shorten b (return true, b.isRemoved()=false)
  *    - remove b (return true, b.isRemoved()=true)
- * In the last case, a can become irreducible if b was before.
+ * In the last case, a can become irreducible if b was irreducible previously.
  * NOTE: this method assumes that the lits in both clauses are sorted. If they
  *       are not, it just produces some false-negatives. This means some
  *       possible subsumptions will stay undetected, but nothing will break.
  */
-bool trySubsume(Clause &a, Clause &b)
+bool try_subsume(Clause &a, Clause &b)
 {
 	if (a.size() > b.size())
 		return false;
@@ -50,7 +50,7 @@ bool trySubsume(Clause &a, Clause &b)
 		b.remove();
 	}
 	else
-		b.removeLiteral(x);
+		b.removeLiteral(x); // TODO: slightly subptimal performance...
 	return true;
 }
 
@@ -74,8 +74,8 @@ class Subsumption
 				occs[a].push_back(ci);
 	}
 
-	/** mark all literals implied by a */
-	void markReachable(Lit a)
+	// mark all literals implied by a
+	void mark_reachable(Lit a)
 	{
 		seen.clear();
 		assert(stack.empty());
@@ -94,10 +94,8 @@ class Subsumption
 		}
 	}
 
-	/**
-	 * perform subsumption and self-subsuming resolution using
-	 * implications a -> X (also find failed literals)
-	 */
+	// perform subsumption and self-subsuming resolution using
+	// implications a -> X (also finds some failed literals)
 	void subsumeBinary(Lit a)
 	{
 		// early-out for literals without any implications
@@ -105,7 +103,7 @@ class Subsumption
 			return;
 
 		// mark all literals reachable from a
-		markReachable(a);
+		mark_reachable(a);
 		seen[a] = false;
 
 		// if a implies ~a, we have a failed literal (should be rare here)
@@ -115,71 +113,60 @@ class Subsumption
 			return;
 		}
 
+		// NOTE: occ lists are not updated, so they can contain removed clauses
+		//       and removed literals. Need to check each time.
+
 		// remove clauses subsumed by some implication a -> *
 		for (CRef k : occs[a.neg()])
-			if (!sat.clauses[k].isRemoved()) // might already have bee subsumed
-				for (Lit x : sat.clauses[k].lits())
-					if (seen[x])
-					{
-						sat.clauses[k].remove();
-						++nRemovedClsBin;
-						break;
-					}
+		{
+			auto &cl = sat.clauses[k];
+			if (cl.isRemoved())
+				continue;
+
+			for (Lit x : sat.clauses[k].lits())
+				if (seen[x])
+				{
+					sat.clauses[k].remove();
+					++nRemovedClsBin;
+					break;
+				}
+		}
 
 		// strengthen clauses using implications a -> *
 		for (CRef k : occs[a])
 		{
-			Clause &cl = sat.clauses[k];
+			auto &cl = sat.clauses[k];
+			if (cl.isRemoved())
+				continue;
 
-			if (!cl.isRemoved())
-				for (Lit x : cl.lits())
-					if (seen[x])
+			for (Lit x : cl.lits())
+				if (seen[x])
+				{
+					if (cl.removeLiteral(a))
 					{
-						if (cl.removeLiteral(a))
+						++nRemovedLitsBin;
+						if (cl.size() == 2)
 						{
-							++nRemovedLitsBin;
-							if (cl.size() == 2)
-							{
-								sat.add_binary(cl[0], cl[1]);
-								cl.remove();
-							}
+							sat.add_binary(cl[0], cl[1]);
+							cl.remove();
 						}
-						break;
 					}
+					break;
+				}
 		}
 	}
-};
-} // namespace
 
-bool subsumeBinary(Sat &sat)
-{
-	util::StopwatchGuard swg(sat.stats.swSubsumeBin);
-	util::Stopwatch sw;
-	sw.start();
-
-	Subsumption sub(sat);
-	for (Lit a : sat.all_lits())
-		sub.subsumeBinary(a);
-	if (sub.nRemovedClsBin + sub.nRemovedLitsBin == 0)
-		fmt::print("c [subsumption  {:#6.2f}] - (binary)\n", sw.secs());
-	else
+	void subsumeBinary()
 	{
-		int nRemovedVars = cleanup(sat);
-		fmt::print("c [subsumption  {:#6.2f}] removed {} clauses and {} lits "
-		           "(binary) (removed {} vars)\n",
-		           sw.secs(), sub.nRemovedClsBin, sub.nRemovedLitsBin,
-		           nRemovedVars);
+		// TODO: checking them in a clever order could allow to make
+		//       'mark_reachable' incremental, thus saving some work
+		for (Lit a : sat.all_lits())
+			subsumeBinary(a);
 	}
+};
 
-	return sub.nRemovedClsBin || sub.nRemovedLitsBin;
-}
-
-bool subsumeLong(Sat &sat)
+std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 {
-	util::StopwatchGuard swg(sat.stats.swSubsumeLong);
-	util::Stopwatch sw;
-	sw.start();
-
 	// NOTE: Clauses can only subsume clauses of the same or larger size and
 	//       subsumption between clauses of the same size is symmetric.
 	//       Therefore we iterate through the clauses from long to short
@@ -227,7 +214,7 @@ bool subsumeLong(Sat &sat)
 				Clause &cl2 = sat.clauses[j];
 				if (cl2.isRemoved())
 					continue; // already removed by different subsumption
-				if (trySubsume(cl, cl2))
+				if (try_subsume(cl, cl2))
 				{
 					if (cl2.isRemoved())
 						nRemovedClsLong += 1;
@@ -253,16 +240,31 @@ bool subsumeLong(Sat &sat)
 				occs[a.var()].push_back(i);
 		}
 	}
-	if (nRemovedClsLong + nRemovedLitsLong == 0)
-		fmt::print("c [subsumption  {:#6.2f}] - (long)\n", sw.secs());
-	else
-	{
-		int nRemovedVars = cleanup(sat);
-		fmt::print("c [subsumption  {:#6.2f}] removed {} clauses and {} lits "
-		           "(long) (removed {} vars)\n",
-		           sw.secs(), nRemovedClsLong, nRemovedLitsLong, nRemovedVars);
-	}
-	return nRemovedClsLong || nRemovedLitsLong;
+
+	return {nRemovedClsLong, nRemovedLitsLong};
+}
+
+} // namespace
+
+bool run_subsumption(Sat &sat)
+{
+	util::StopwatchGuard swg(sat.stats.swSubsume);
+	util::Stopwatch sw;
+	sw.start();
+
+	Subsumption sub(sat);
+	sub.subsumeBinary();
+
+	auto [nRemovedClsLong, nRemovedLitsLong] = subsumeLong(sat);
+
+	int nRemovedVars = cleanup(sat);
+	fmt::print("c [subsumption  {:#6.2f}] removed {} + {} clauses and {} + {} "
+	           "lits (removed {} vars)\n",
+	           sw.secs(), sub.nRemovedClsBin, nRemovedClsLong,
+	           sub.nRemovedLitsBin, nRemovedLitsLong, nRemovedVars);
+
+	return sub.nRemovedClsBin || sub.nRemovedLitsBin || nRemovedClsLong ||
+	       nRemovedLitsLong;
 }
 
 } // namespace dawn

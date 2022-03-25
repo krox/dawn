@@ -60,10 +60,8 @@ void Stats::dump()
 	           100. * swCleanup.secs() / swTotal.secs());
 	fmt::print("c probing      {:#6.2f} s ({:#4.1f} %)\n", swProbing.secs(),
 	           100. * swProbing.secs() / swTotal.secs());
-	fmt::print("c subsume bin  {:#6.2f} s ({:#4.1f} %)\n", swSubsumeBin.secs(),
-	           100. * swSubsumeBin.secs() / swTotal.secs());
-	fmt::print("c subsume long {:#6.2f} s ({:#4.1f} %)\n", swSubsumeLong.secs(),
-	           100. * swSubsumeLong.secs() / swTotal.secs());
+	fmt::print("c subsume      {:#6.2f} s ({:#4.1f} %)\n", swSubsume.secs(),
+	           100. * swSubsume.secs() / swTotal.secs());
 	fmt::print("c vivification {:#6.2f} s ({:#4.1f} %)\n",
 	           swVivification.secs(),
 	           100. * swVivification.secs() / swTotal.secs());

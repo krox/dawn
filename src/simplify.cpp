@@ -74,10 +74,7 @@ int main(int argc, char *argv[])
 		}
 
 		if (level >= 2)
-		{
-			change |= subsumeBinary(sat);
-			change |= subsumeLong(sat);
-		}
+			change |= run_subsumption(sat);
 
 		if (change)
 			continue;
@@ -89,7 +86,7 @@ int main(int argc, char *argv[])
 			// TODO: this can probably be solved  as a side effect of
 			//       optimizing the "strengthen along binaries" part of vivify
 			runBinaryReduction(sat);
-			change |= runVivification(sat, true);
+			change |= run_vivification(sat);
 		}
 
 		if (change)

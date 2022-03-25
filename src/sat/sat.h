@@ -71,6 +71,7 @@ class Sat
 	size_t clause_count() const;
 	size_t long_count_irred() const;
 	size_t long_count_red() const;
+	size_t lit_count_irred() const;
 
 	// ranges for convenient iteration
 	auto all_vars() const { return util::iota_view(0, var_count()); }
@@ -264,6 +265,15 @@ inline size_t Sat::long_count_red() const
 	for (auto &cl : clauses.all())
 		if (!cl.irred())
 			++r;
+	return r;
+}
+
+inline size_t Sat::lit_count_irred() const
+{
+	size_t r = 0;
+	for (auto &cl : clauses.all())
+		if (cl.irred())
+			r += cl.size();
 	return r;
 }
 

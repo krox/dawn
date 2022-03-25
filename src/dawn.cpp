@@ -75,9 +75,10 @@ int main(int argc, char *argv[])
 	app.add_option("--tbr", config.tbr,
 	               "transitive reduction for binaries"
 	               "(0=off, 2=full)");
-	app.add_option("--vivify", config.vivify,
-	               "clause vivification"
-	               "(0=off, 1=normal, 2=also binary strengthen)");
+	app.add_option(
+	    "--vivify", config.vivify,
+	    "clause vivification"
+	    "(0=off, 1=normal, 2=also binary strengthen, 3=also learnt)");
 	app.add_option("--bve", config.bve, "bounded variable elimination");
 	app.add_option("--bva", config.bva, "bounded variable addition");
 	app.add_option("--inprocess-iters", config.inprocessIters,

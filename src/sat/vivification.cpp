@@ -1,6 +1,7 @@
 #include "sat/vivification.h"
 
 #include "sat/propengine.h"
+#include <unordered_set>
 
 namespace dawn {
 
@@ -12,6 +13,9 @@ struct Vivification
 	PropEngineLight p;
 	int64_t shortened = 0;    // number of lits removed
 	int64_t strengthened = 0; // number of lits replaced by stronger one
+
+	/*std::unordered_set<std::pair<Lit, Lit>, util::hash<pair<Lit, Lit>>>
+	    bins_seen;*/
 
 	Vivification(Sat &s) : sat(s), p(s) {}
 
@@ -92,7 +96,7 @@ struct Vivification
 
 } // namespace
 
-bool runVivification(Sat &sat, bool withBinary)
+bool run_vivification(Sat &sat, VivifyConfig const &config)
 {
 	if (!is_normal_form(sat))
 		return false;
@@ -106,25 +110,29 @@ bool runVivification(Sat &sat, bool withBinary)
 
 	ClauseStorage newClauses;
 
-	for (Lit a : sat.all_lits())
-		for (Lit b : sat.bins[a])
-		{
-			if (a > b)
-				continue;
-			buf = {a, b};
-			if (viv.vivifyClause(buf, withBinary))
-				newClauses.addClause(buf, true);
-		}
+	// shortening binaries is essentially probing, which is done elsewhere
+	if (config.with_binary)
+	{
+		for (Lit a : sat.all_lits())
+			for (Lit b : sat.bins[a])
+			{
+				if (a > b)
+					continue;
+				buf = {a, b};
+				if (viv.vivifyClause(buf, config.with_binary))
+					newClauses.addClause(buf, true);
+			}
+	}
 
 	for (auto &cl : sat.clauses.all())
 	{
-		if (!(cl.irred() || cl.size() < 8))
+		if (config.irred_only && !cl.irred())
 			continue;
 		if (interrupt)
 			break;
 
 		buf.assign(cl.begin(), cl.end());
-		if (viv.vivifyClause(buf, withBinary))
+		if (viv.vivifyClause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
 			newClauses.addClause(buf, cl.irred());
@@ -135,7 +143,7 @@ bool runVivification(Sat &sat, bool withBinary)
 	for (auto &cl : newClauses.all())
 		sat.add_clause(cl.lits(), cl.irred());
 
-	if (withBinary)
+	if (config.with_binary)
 	{
 		int nRemoved = cleanup(sat);
 		fmt::print("c [vivification {:#6.2f}] removed {} lits and replaced {} "

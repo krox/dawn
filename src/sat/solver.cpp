@@ -268,6 +268,32 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 			clauses[ci].remove();
 }
 
+void maybe_clause_clean(Sat &sat, SolverConfig const &config)
+{
+	for (auto &cl : sat.clauses.all())
+	{
+		if (cl.irred())
+			continue;
+		if (cl.size() > config.max_learnt_size ||
+		    cl.glue > config.max_learnt_glue)
+			cl.remove();
+	}
+	if ((int64_t)sat.long_count_red() > config.max_learnt)
+	{
+		if (config.use_glue)
+			cleanClausesGlue(sat.clauses, config.max_learnt);
+		else
+			cleanClausesSize(sat.clauses, config.max_learnt);
+	}
+	if (sat.long_count_red() > (size_t)sat.stats.nConfls() / 4)
+	{
+		if (config.use_glue)
+			cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
+		else
+			cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
+	}
+}
+
 /** run the full inprocessing */
 void inprocess(Sat &sat, SolverConfig const &config)
 {
@@ -288,22 +314,26 @@ void inprocess(Sat &sat, SolverConfig const &config)
 			change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
 
 		if (config.subsume >= 1)
-			change |= subsumeBinary(sat);
-
-		if (config.subsume >= 2)
-			change |= subsumeLong(sat);
+			change |= run_subsumption(sat);
 
 		if (config.probing >= 3)
 			change |= probeBinary(sat);
 
+		VivifyConfig vivConfig;
+		vivConfig.with_binary = config.vivify >= 2;
+		vivConfig.irred_only = config.vivify <= 2;
 		if (config.vivify >= 1)
-			change |= runVivification(sat, config.vivify >= 2);
+		{
+			if (vivConfig.with_binary)
+				runBinaryReduction(sat);
+			change |= run_vivification(sat, vivConfig);
+		}
 
 		if (config.bva >= 1)
 		{
 			change |= makeDisjunctions(sat);
 			if (config.vivify >= 1)
-				change |= runVivification(sat, config.vivify >= 2);
+				change |= run_vivification(sat, vivConfig);
 		}
 
 		// cleanup
@@ -325,8 +355,7 @@ void preprocess(Sat &sat)
 {
 	// cheap search/strengthening
 	probe(sat, true, 10000);
-	subsumeBinary(sat);
-	subsumeLong(sat);
+	run_subsumption(sat);
 
 	// clause elimination (no resolution)
 	// (pure/unused)
@@ -344,8 +373,7 @@ void preprocess(Sat &sat)
 
 	// little bit of searching
 	probe(sat, true, 10000);
-	subsumeBinary(sat);
-	subsumeLong(sat);
+	run_subsumption(sat);
 	runBinaryReduction(sat);
 }
 
@@ -369,6 +397,11 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	int64_t lastInprocess = sat.stats.nConfls();
 	int64_t lastPrint = sat.stats.nConfls();
 
+	// we use "total length of irreducible long clauses" as metric for progress,
+	// as it always decreases with serching/subsumption/... . After some
+	// progress is made, we run elimination again.
+	int64_t lastElimination = sat.lit_count_irred();
+
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
 	std::unique_ptr<PropEngine> propEngine = nullptr;
@@ -387,8 +420,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			propEngine = std::make_unique<PropEngine>(sat);
 
 		// search for a number of conflicts
-		if (auto tmp =
-		        search(*propEngine.get(), restartSize(iter, config), config);
+		if (auto tmp = search(*propEngine, restartSize(iter, config), config);
 		    tmp)
 		{
 			assert(!sat.contradiction);
@@ -419,31 +451,24 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			lastInprocess = sat.stats.nConfls();
 			inprocess(sat, config);
 
-			// clause cleaning
-			for (auto &cl : sat.clauses.all())
+			if (sat.lit_count_irred() <= 0.95 * lastElimination)
 			{
-				if (cl.irred())
-					continue;
-				if (cl.size() > config.max_learnt_size ||
-				    cl.glue > config.max_learnt_glue)
-					cl.remove();
+				fmt::print("c [solver             ] removing all learnt and "
+				           "restart everything\n");
+				for (auto &cl : sat.clauses.all())
+					if (!cl.irred())
+						cl.remove();
+				cleanup(sat);
+				preprocess(sat);
+				fmt::print("c [solver             ] after preprocessing {} "
+				           "vars and {} clauses\n",
+				           sat.var_count(), sat.clause_count());
+				lastElimination = sat.lit_count_irred();
 			}
-			if ((int64_t)sat.long_count_red() > config.max_learnt)
-			{
-				if (config.use_glue)
-					cleanClausesGlue(sat.clauses, config.max_learnt);
-				else
-					cleanClausesSize(sat.clauses, config.max_learnt);
-				sat.clauses.compactify();
-			}
-			if (sat.long_count_red() > (size_t)sat.stats.nConfls() / 4)
-			{
-				if (config.use_glue)
-					cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
-				else
-					cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
-				sat.clauses.compactify();
-			}
+			else
+				maybe_clause_clean(sat, config);
+
+			sat.clauses.compactify();
 
 			printHeader();
 			printLine(sat);
