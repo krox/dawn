@@ -359,22 +359,26 @@ void preprocess(Sat &sat)
 
 	// clause elimination (no resolution)
 	// (pure/unused)
-	// TODO: stroger BCE would be nice
 	runBinaryReduction(sat);
 	EliminationConfig elimConfig = {};
 	elimConfig.level = 1;
 	run_elimination(sat, elimConfig);
-	run_blocked_clause_elimination(sat);
 
-	// classic BVE with resolution
-	// TODO: allow limited growth
-	elimConfig.level = 5;
-	run_elimination(sat, elimConfig);
+	// elimination and subsumption influence each other quite a bit. SatELite
+	// alternatates them until fixed point. Cryptominisat seems to do multiple
+	// passes with increasing max-growth. For now, we just copy that strategy...
+	for (int growth : {0, 8, 16})
+	{
+		run_blocked_clause_elimination(sat);
+		elimConfig.level = 5;
+		elimConfig.growth = growth;
+		run_elimination(sat, elimConfig);
 
-	// little bit of searching
-	probe(sat, true, 10000);
-	run_subsumption(sat);
-	runBinaryReduction(sat);
+		// little bit of searching
+		probe(sat, true, 10000);
+		run_subsumption(sat);
+		runBinaryReduction(sat);
+	}
 }
 
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config)

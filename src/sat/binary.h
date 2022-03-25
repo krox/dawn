@@ -6,6 +6,14 @@
 
 namespace dawn {
 
+// TODO: a more unified "do binary stuff" function would be nice, that
+//    - finds equivalent variables
+//    - finds some failed literals (finding all binary-restriced fails is
+//      potentially expensive. But finding some on the fly should be essentially
+//      free)
+//    - removes duplicate and redundant binaries
+//    - sorts binaries w.r.t. some (approximate) top-order
+
 /**
  * explicit solving of the two-sat sub-problem. I.e. looking for equivalent
  * variables. very fast (linear in problem size), implemented using tarjan's
@@ -69,16 +77,77 @@ class TopOrder
 		lits_.reserve(2 * sat.var_count());
 		order_.resize(2 * sat.var_count());
 
+		// TODO: the topological order is usually not unique, so some
+		//       (reproducible) randomization would be suitable, so that
+		//       stamping based passes can be more effective when repeated
+		//       multiple times
+
 		for (Lit a : sat.all_lits())
 			dfs(a);
 		assert((int)lits_.size() == 2 * sat.var_count());
-		// TODO: release memory of visited[Temp] arrays (which is negligible)
+		visited_ = util::bit_vector{};
+		visitedTemp_ = util::bit_vector{};
 	}
 
 	std::vector<Lit> const &lits() const { return lits_; }
 	std::vector<int> const &order() const { return order_; }
 	int order(Lit a) const { return order_[a]; }
 	bool valid() const { return valid_; }
+};
+
+// Approximate reachability information using "stamping".
+//     - O(n) setup and O(1) queries, thus faster than full closure
+class Stamps
+{
+	int time_ = 0; // temporary during construction
+	Sat const &sat_;
+
+	std::vector<int> start_, end_;
+
+	void dfs(Lit a)
+	{
+		if (start_[a] != -1)
+			return;
+		start_[a] = time_++;
+		for (Lit b : sat_.bins[a.neg()])
+			dfs(b);
+		end_[a] = time_++;
+	}
+
+  public:
+	Stamps(Sat &sat)
+	    : sat_(sat), start_(sat.var_count() * 2, -1),
+	      end_(sat.var_count() * 2, -1)
+	{
+		// Sort binaries by topological order. Not strictly necessary, but
+		// makes it more efficient.
+		// TODO: skip this step if known to already have been done
+		auto top = TopOrder(sat);
+		if (!top.valid())
+			throw std::runtime_error(
+			    "tried to compute stamps with non-acyclic graph");
+		auto comp = [&top](Lit a, Lit b) {
+			return top.order(a) < top.order(b);
+		};
+		for (auto &bs : sat.bins)
+			std::sort(bs.begin(), bs.end(), comp);
+
+		// compute stamps (a recursive lambda would look very sleek here^^)
+		for (Lit a : top.lits())
+			dfs(a);
+	}
+
+	bool has_path(Lit a, Lit b) const
+	{
+		// the full implication graph is symmetric, so we can use the one forest
+		// in both direction, increasing effectivity
+		if (start_[a] <= start_[b] && start_[b] <= end_[a])
+			return true;
+		if (start_[b.neg()] <= start_[a.neg()] &&
+		    start_[a.neg()] <= end_[b.neg()])
+			return true;
+		return false;
+	}
 };
 
 } // namespace dawn

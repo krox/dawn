@@ -1,8 +1,10 @@
 #include "sat/elimination.h"
 
 #include "fmt/format.h"
+#include "sat/binary.h"
 #include "sat/propengine.h"
 #include "util/bit_vector.h"
+#include "util/static_vector.h"
 #include <algorithm>
 #include <queue>
 #include <vector>
@@ -40,6 +42,41 @@ bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b)
 			++j;
 		}
 	}
+
+	assert(count == 1);
+	return false;
+}
+
+bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b,
+                               Stamps const &stamps)
+{
+	util::static_vector<Lit, 256> r;
+	if (a.size() + b.size() > 256)
+		return false;
+
+	int count = 0;
+
+	for (size_t i = 0, j = 0; i < a.size() && j < b.size();)
+	{
+		if (a[i].var() < b[j].var())
+			r.push_back(a[i++]);
+		else if (a[i].var() > b[j].var())
+			r.push_back(b[j++]);
+		else
+		{
+			if (a[i] == b[j].neg())
+				if (++count >= 2)
+					return true;
+			r.push_back(a[i]);
+			++i;
+			++j;
+		}
+	}
+
+	for (Lit x : r)
+		for (Lit y : r)
+			if (x.var() != y.var() && stamps.has_path(x.neg(), y))
+				return true;
 
 	assert(count == 1);
 	return false;
@@ -128,11 +165,14 @@ struct BVE
 	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
 	      eliminated(sat_.var_count())
 	{
-		cutoff = config.level == 0   ? score_0n
-		         : config.level == 1 ? score_11
-		         : config.level == 2 ? score_1n
-		         : config.level == 5 ? 0
-		                             : score_never - 1;
+		cutoff = config.level == 0
+		             ? score_0n
+		             : config.level == 1
+		                   ? score_11
+		                   : config.level == 2
+		                         ? score_1n
+		                         : config.level == 5 ? config.growth
+		                                             : score_never - 1;
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
 		// if (!config.irred_only || cl.irred())
@@ -171,7 +211,8 @@ struct BVE
 			return score_1n;
 
 		// its not worth scoring variables with many occurences
-		if (config.level < 10 && occsPos > 10 && occsNeg > 10)
+		// (this cutoff is suggested in minisat.se/downloads/SatELite.pdf)
+		if (occsPos > 10 && occsNeg > 10)
 			return score_never;
 
 		int score = -(occsPos + occsNeg);
@@ -440,10 +481,11 @@ struct BCE
 	 *     (this property is restored after each variable elimination)
 	 */
 	Sat &sat;
+	Stamps stamps;
 	using occs_t = std::vector<std::vector<CRef>>;
 	occs_t occs;
 
-	BCE(Sat &sat_) : sat(sat_), occs(2 * sat_.var_count())
+	BCE(Sat &sat_) : sat(sat_), stamps(sat), occs(2 * sat_.var_count())
 	{
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
@@ -482,10 +524,17 @@ struct BCE
 				if (!sat.clauses[i].contains(x.neg()))
 					goto next;
 			for (CRef j : occs[neg])
-				if (!sat.clauses[j].isRemoved()) // could have been blocked
-					if (!is_resolvent_tautological(sat.clauses[i].lits(),
-					                               sat.clauses[j].lits()))
-						goto next;
+			{
+
+				if (sat.clauses[j].isRemoved())
+					continue;
+				if (is_resolvent_tautological(sat.clauses[i].lits(),
+				                              sat.clauses[j].lits(), stamps))
+					continue;
+
+				// non-tautology found -> no BCE for us :(
+				goto next;
+			}
 
 			// remove clause and add it to the extender
 			{
