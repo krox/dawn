@@ -1,5 +1,5 @@
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 #include <random>
 #include <string>
 
@@ -16,7 +16,7 @@ int main(int argc, char *argv[])
 	// n holes and n+1 pigeons
 	int n = std::stoi(argv[1]);
 
-	Sat sat(n * (n + 1));
+	Cnf sat(n * (n + 1));
 
 	// 1) each pigeon needs a hole
 	std::vector<Lit> cl;

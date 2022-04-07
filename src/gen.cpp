@@ -1,7 +1,7 @@
 #include "fmt/format.h"
 #include "sat/assignment.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 #include <random>
 #include <string>
 
@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
 		sol.set(Lit(i, coinDist(rng)));
 
 	// generate clauses that are satisfied by the solution
-	Sat sat(varCount);
+	Cnf sat(varCount);
 	std::vector<Lit> cl;
 	for (int ci = 0; ci < clauseCount;)
 	{
