@@ -102,8 +102,7 @@ bool run_vivification(Sat &sat, VivifyConfig const &config)
 		return false;
 
 	util::StopwatchGuard swg(sat.stats.swVivification);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("vivification");
 
 	auto viv = Vivification(sat);
 	std::vector<Lit> buf;
@@ -146,16 +145,13 @@ bool run_vivification(Sat &sat, VivifyConfig const &config)
 	if (config.with_binary)
 	{
 		int nRemoved = cleanup(sat);
-		fmt::print("c [vivification {:#6.2f}] removed {} lits and replaced {} "
-		           "lits (removed {} vars)\n",
-		           sw.secs(), viv.shortened, viv.strengthened, nRemoved);
+		log.info("removed {} lits and replaced {} lits (removed {} vars)",
+		         viv.shortened, viv.strengthened, nRemoved);
 	}
 	else
 	{
 		int nRemoved = cleanup(sat);
-		fmt::print(
-		    "c [vivification {:#6.2f}] removed {} lits (removed {} vars)\n",
-		    sw.secs(), viv.shortened, nRemoved);
+		log.info("removed {} lits (removed {} vars)", viv.shortened, nRemoved);
 	}
 
 	return viv.shortened + viv.strengthened;

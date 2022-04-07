@@ -1,5 +1,6 @@
 #include "sat/disjunction.h"
 
+#include "sat/logging.h"
 #include "util/bit_vector.h"
 #include "util/hash_map.h"
 #include <queue>
@@ -41,8 +42,7 @@ int markImplied(Sat const &sat, util::bit_vector &seen, Lit root)
 int makeDisjunctions(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swBVA);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("BVA");
 
 	int minOccs = 10; // arbitrary cutoff. should be configurable
 	int nFound = 0;
@@ -143,7 +143,7 @@ int makeDisjunctions(Sat &sat)
 		cl.remove();
 	}
 
-	fmt::print("c [BVA          {:#6.2f}] added {} vars\n", sw.secs(), nFound);
+	log.info("added {} vars", nFound);
 	return nFound;
 }
 

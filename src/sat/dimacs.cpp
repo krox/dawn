@@ -1,6 +1,6 @@
 #include "sat/dimacs.h"
 
-#include "util/stopwatch.h"
+#include "sat/logging.h"
 #include <cctype>
 #include <climits>
 #include <cstdio>
@@ -130,13 +130,11 @@ class Parser
 
 std::pair<ClauseStorage, int> parseCnf(std::string filename)
 {
-	util::Stopwatch sw;
-	sw.start();
-
+	auto log = Logger("parser");
 	if (filename != "")
-		fmt::print("c reading {}\n", filename);
+		log.info("reading {}", filename);
 	else
-		fmt::print("c reading from stdin\n");
+		log.info("reading from stdin");
 	auto parser = Parser(filename);
 	ClauseStorage clauses;
 
@@ -213,8 +211,7 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 	    fmt::format("wrong number of clauses: header said {}, actually got {}",
 	                headerClauseCount, clauseCount));
 
-	fmt::print("c [parser       {:#6.2f}] read {} vars and {} clauses\n",
-	           sw.secs(), varCount, clauseCount);
+	log.info("read {} vars and {} clauses", varCount, clauseCount);
 
 	return {clauses, varCount};
 }

@@ -8,8 +8,7 @@ namespace dawn {
 int probe(Sat &sat, bool lhbr, int maxTries)
 {
 	util::StopwatchGuard swg(sat.stats.swProbing);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("probing");
 
 	PropEngine p(sat);
 	p.config.lhbr = lhbr;
@@ -69,13 +68,12 @@ int probe(Sat &sat, bool lhbr, int maxTries)
 	}
 
 	if (nFails == 0)
-		fmt::print("c [probing      {:#6.2f}] -\n", sw.secs());
+		log.info("-");
 	else
 	{
 		int nRemoved = cleanup(sat);
-		fmt::print("c [probing      {:#6.2f}] found {} failing literals "
-		           "(removed {} vars)\n",
-		           sw.secs(), nFails, nRemoved);
+		log.info("found {} failing literals (removed {} vars)", nFails,
+		         nRemoved);
 	}
 	return nFails;
 }
@@ -93,8 +91,7 @@ int probeBinary(Sat &sat)
 	   topological order.
 	 */
 	util::StopwatchGuard swg(sat.stats.swProbing);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("bin-probing");
 
 	PropEngine p(sat);
 	if (p.conflict)
@@ -194,13 +191,12 @@ int probeBinary(Sat &sat)
 	}
 
 	if (nFails == 0)
-		fmt::print("c [bin-probing  {:#6.2f}] -\n", sw.secs());
+		log.info("-");
 	else
 	{
 		int nRemoved = cleanup(sat);
-		fmt::print("c [bin-probing  {:#6.2f}] found {} failing bins using "
-		           "{:.2f}M tries (removed {} vars)\n",
-		           sw.secs(), nFails, nTries / 1024. / 1024., nRemoved);
+		log.info("found {} failing bins using {:.2f}M tries (removed {} vars)",
+		         nFails, nTries / 1024. / 1024., nRemoved);
 	}
 
 	return nFails;

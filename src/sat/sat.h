@@ -2,6 +2,7 @@
 
 #include "sat/clause.h"
 #include "sat/extender.h"
+#include "sat/logging.h"
 #include "sat/stats.h"
 #include "util/bit_vector.h"
 #include "util/small_vector.h"

@@ -387,15 +387,15 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	//       CDCL tends to be quite efficient compared to exhaustive probing.
 
 	util::StopwatchGuard _(sat.stats.swTotal);
+	auto log = Logger("solver");
 
 	cleanup(sat);
-	fmt::print("c [solver             ] starting with {} vars and {} clauses\n",
-	           sat.var_count(), sat.clause_count());
+	log.info("starting with {} vars and {} clauses", sat.var_count(),
+	         sat.clause_count());
 	preprocess(sat);
 
-	fmt::print(
-	    "c [solver             ] after preprocessing {} vars and {} clauses\n",
-	    sat.var_count(), sat.clause_count());
+	log.info("after preprocessing {} vars and {} clauses", sat.var_count(),
+	         sat.clause_count());
 
 	printHeader();
 	int64_t lastInprocess = sat.stats.nConfls();
@@ -416,7 +416,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		// check limit
 		if (sat.stats.nConfls() >= config.max_confls)
 		{
-			fmt::print("c conflict limit reached. abort solver.\n");
+			log.info("conflict limit reached. abort solver.");
 			return 30;
 		}
 
@@ -437,7 +437,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 
 		if (interrupt)
 		{
-			fmt::print("c interrupted. abort solver.\n");
+			log.info("interrupted. abort solver.");
 			return 30;
 		}
 		bool needInprocess = sat.stats.nConfls() > lastInprocess + 20000;
@@ -457,16 +457,14 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 
 			if (sat.lit_count_irred() <= 0.95 * lastElimination)
 			{
-				fmt::print("c [solver             ] removing all learnt and "
-				           "restart everything\n");
+				log.info("removing all learnt and restart everything\n");
 				for (auto &cl : sat.clauses.all())
 					if (!cl.irred())
 						cl.remove();
 				cleanup(sat);
 				preprocess(sat);
-				fmt::print("c [solver             ] after preprocessing {} "
-				           "vars and {} clauses\n",
-				           sat.var_count(), sat.clause_count());
+				log.info("after preprocessing {} vars and {} clauses\n",
+				         sat.var_count(), sat.clause_count());
 				lastElimination = sat.lit_count_irred();
 			}
 			else

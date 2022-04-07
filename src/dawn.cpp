@@ -1,6 +1,7 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
 #include "sat/dimacs.h"
+#include "sat/logging.h"
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include <csignal>
@@ -92,6 +93,17 @@ int main(int argc, char *argv[])
 	    "seed for random number generator (default=0, unpredictable=-1)");
 	app.add_flag("--shuffle", shuffle,
 	             "shuffle the variables and their polarities before solving");
+	app.add_flag_function(
+	    "--silent", [](int64_t) { Logger::set_level(Logger::Level::warn); },
+	    "remove most logging");
+	app.add_option("--debug", "increase verbosity of some component")
+	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
+	    ->each(
+	        [](std::string s) { Logger::set_level(s, Logger::Level::debug); });
+	app.add_option("--trace", "increase verbosity of some component even more")
+	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
+	    ->each(
+	        [](std::string s) { Logger::set_level(s, Logger::Level::trace); });
 	CLI11_PARSE(app, argc, argv);
 
 	// read CNF from file or stdin

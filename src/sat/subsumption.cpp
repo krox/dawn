@@ -249,8 +249,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 bool run_subsumption(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swSubsume);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("subsumption");
 
 	Subsumption sub(sat);
 	sub.subsumeBinary();
@@ -258,10 +257,9 @@ bool run_subsumption(Sat &sat)
 	auto [nRemovedClsLong, nRemovedLitsLong] = subsumeLong(sat);
 
 	int nRemovedVars = cleanup(sat);
-	fmt::print("c [subsumption  {:#6.2f}] removed {} + {} clauses and {} + {} "
-	           "lits (removed {} vars)\n",
-	           sw.secs(), sub.nRemovedClsBin, nRemovedClsLong,
-	           sub.nRemovedLitsBin, nRemovedLitsLong, nRemovedVars);
+	log.info("removed {} + {} clauses and {} + {} lits (removed {} vars)",
+	         sub.nRemovedClsBin, nRemovedClsLong, sub.nRemovedLitsBin,
+	         nRemovedLitsLong, nRemovedVars);
 
 	return sub.nRemovedClsBin || sub.nRemovedLitsBin || nRemovedClsLong ||
 	       nRemovedLitsLong;

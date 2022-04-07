@@ -25,7 +25,6 @@ struct EliminationConfig
 	bool irred_only = true;
 
 	int max_eliminations = INT_MAX;
-	bool verbosity = 0; // 0 = summary only, 1 = announce each elimination
 };
 
 // returns number of removed variables

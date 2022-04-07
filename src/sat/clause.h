@@ -233,10 +233,7 @@ class ClauseStorage
 	CRef addClause(util::span<const Lit> lits, bool irred)
 	{
 		if (lits.size() > UINT16_MAX)
-		{
-			fmt::print("ERROR: clause to long for storage\n");
-			exit(-1);
-		}
+			throw std::runtime_error("clause to long for storage");
 
 		Clause header;
 		header.size_ = (uint16_t)lits.size();
@@ -247,10 +244,7 @@ class ClauseStorage
 			header.makeIrred();
 		auto index = store.size();
 		if (index > CREF_MAX)
-		{
-			fmt::print("ERROR: clause storage full\n");
-			exit(-1);
-		}
+			throw std::runtime_error("clause storage overflow");
 
 		store.push_back(*(uint32_t *)&header);
 		for (auto l : lits)

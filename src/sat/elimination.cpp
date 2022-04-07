@@ -160,19 +160,17 @@ struct BVE
 	util::bit_vector eliminated;
 	Score cutoff;
 	int nEliminated = 0;
+	Logger log{"BVE"};
 
 	BVE(Sat &sat_, EliminationConfig const &config_)
 	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
 	      eliminated(sat_.var_count())
 	{
-		cutoff = config.level == 0
-		             ? score_0n
-		             : config.level == 1
-		                   ? score_11
-		                   : config.level == 2
-		                         ? score_1n
-		                         : config.level == 5 ? config.growth
-		                                             : score_never - 1;
+		cutoff = config.level == 0   ? score_0n
+		         : config.level == 1 ? score_11
+		         : config.level == 2 ? score_1n
+		         : config.level == 5 ? config.growth
+		                             : score_never - 1;
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
 		// if (!config.irred_only || cl.irred())
@@ -405,10 +403,8 @@ struct BVE
 							todo.push_back(x.var());
 
 			// eliminate the variable
-			if (config.verbosity >= 1)
-				fmt::print("c eliminating variable i={}, o={}, score={}, ",
-				           Lit(v, false), sat.to_outer(Lit(v, false)),
-				           score[v]);
+			log.debug("eliminating variable i={}, o={}, score={}",
+			          Lit(v, false), sat.to_outer(Lit(v, false)), score[v]);
 			eliminate(v);
 			eliminated[v] = true;
 			score[v] = score_never;
@@ -574,13 +570,10 @@ int run_elimination(Sat &sat, EliminationConfig const &config)
 	// assert(is_normal_form(sat)); // not strictly necessary
 
 	util::StopwatchGuard swg(sat.stats.swBVE);
-	util::Stopwatch sw;
-	sw.start();
 
 	auto bve = BVE(sat, config);
 	bve.run();
-	fmt::print("c [BVE          {:#6.2f}] removed {} vars\n", sw.secs(),
-	           bve.nEliminated);
+	bve.log.info("removed {} vars", bve.nEliminated);
 	return bve.nEliminated;
 }
 
@@ -589,23 +582,20 @@ int run_blocked_clause_elimination(Sat &sat)
 	assert(is_normal_form(sat)); // not strictly necessary...
 
 	util::StopwatchGuard swg(sat.stats.swBCE);
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("BCE");
 
 	auto bce = BCE(sat);
 	int nFound = bce.run();
 	if (nFound)
 		nFound += bce.run();
-	fmt::print("c [BCE          {:#6.2f}] removed {} clauses\n", sw.secs(),
-	           nFound);
+	log.info("removed {} clauses", nFound);
 	return nFound;
 }
 
 int run_blocked_clause_addition(Sat &sat)
 {
 	assert(is_normal_form(sat));
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("BCA");
 
 	for (auto &cl : sat.clauses.all())
 		if (!cl.irred())
@@ -669,8 +659,8 @@ int run_blocked_clause_addition(Sat &sat)
 		p.unroll();
 	}
 
-	fmt::print("c [BCA          {:#6.2f}] added {} bins{}\n", sw.secs(), nFound,
-	           failing_lit_found ? " (quit early due to failing literal)" : "");
+	log.info("added {} bins{}\n", nFound,
+	         failing_lit_found ? " (quit early due to failing literal)" : "");
 	return nFound;
 }
 

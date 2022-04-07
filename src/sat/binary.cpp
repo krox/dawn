@@ -1,5 +1,6 @@
 #include "sat/binary.h"
 
+#include "sat/logging.h"
 #include "util/unionfind.h"
 #include <algorithm>
 #include <vector>
@@ -189,8 +190,7 @@ void printBinaryStats(Sat const &sat)
 
 void runBinaryReduction(Sat &sat)
 {
-	util::Stopwatch sw;
-	sw.start();
+	auto log = Logger("TBR");
 
 	auto top = TopOrder(sat);
 	if (!top.valid()) // require acyclic
@@ -250,9 +250,8 @@ void runBinaryReduction(Sat &sat)
 		});
 	}
 	assert(nFound % 2 == 0);
-	fmt::print("c [TBR          {:#6.2f}] removed {} redundant binaries (using "
-	           "{:.2f}M props)\n",
-	           sw.secs(), nFound / 2, propCount / 1024. / 1024.);
+	log.info("removed {} redundant binaries (using {:.2f}M props)", nFound / 2,
+	         propCount / 1024. / 1024.);
 }
 
 } // namespace dawn
