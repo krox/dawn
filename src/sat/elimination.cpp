@@ -4,7 +4,7 @@
 #include "sat/binary.h"
 #include "sat/propengine.h"
 #include "util/bit_vector.h"
-#include "util/static_vector.h"
+#include "util/vector.h"
 #include <algorithm>
 #include <queue>
 #include <vector>
@@ -50,8 +50,8 @@ bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b)
 bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b,
                                Stamps const &stamps)
 {
-	util::static_vector<Lit, 256> r;
-	if (a.size() + b.size() > 256)
+	util::static_vector<Lit, 255> r;
+	if (a.size() + b.size() > r.max_size())
 		return false;
 
 	int count = 0;

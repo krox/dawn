@@ -8,6 +8,7 @@
 #include "sat/propengine.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
+#include <optional>
 
 namespace dawn {
 

@@ -83,7 +83,7 @@ class PropEngine
 	std::vector<int> mark_;  // indices into trail
 
   public:
-	using watches_t = std::vector<util::small_vector<CRef, 6>>;
+	using watches_t = std::vector<util::small_vector<CRef, 7>>;
 	watches_t watches;
 
 	std::vector<Reason> reason; // only valid for assigned vars
@@ -179,7 +179,7 @@ class PropEngineLight
 	std::vector<int> mark_;  // indices into trail
 
   public:
-	using watches_t = std::vector<util::small_vector<CRef, 6>>;
+	using watches_t = std::vector<util::small_vector<CRef, 7>>;
 	watches_t watches;
 
   public:

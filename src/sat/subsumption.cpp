@@ -60,7 +60,7 @@ class Subsumption
 
   public:
 	Sat &sat;
-	std::vector<util::small_vector<CRef, 6>> occs;
+	std::vector<util::small_vector<CRef, 7>> occs;
 	util::bit_vector seen;
 
 	// statistics
@@ -182,7 +182,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 	// sort variables in clauses (to simplify 'trySubsume()')
 	// and list clauses by size
 	std::array<std::vector<CRef>, 128> clauses;
-	auto occs = std::vector<util::small_vector<CRef, 6>>(sat.var_count());
+	auto occs = std::vector<util::small_vector<CRef, 7>>(sat.var_count());
 	for (auto [ci, cl] : sat.clauses.enumerate())
 	{
 		std::sort(cl.lits().begin(), cl.lits().end());

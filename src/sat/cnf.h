@@ -2,7 +2,7 @@
 
 #include "sat/clause.h"
 #include "util/iterator.h"
-#include "util/small_vector.h"
+#include "util/vector.h"
 #include <cassert>
 #include <string_view>
 #include <vector>
@@ -17,7 +17,7 @@ class Cnf
   public:
 	bool contradiction = false;
 	std::vector<Lit> units;
-	using bins_t = std::vector<util::small_vector<Lit, 6>>;
+	using bins_t = std::vector<util::small_vector<Lit, 7>>;
 	bins_t bins;
 	ClauseStorage clauses;
 
