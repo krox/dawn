@@ -486,7 +486,38 @@ PropEngineLight::PropEngineLight(Sat &sat)
 	}
 }
 
-int PropEngineLight::propagate(Lit x)
+void PropEngineLight::propagate_binary(Lit x)
+{
+	assert(!conflict);
+	assert(x.proper() && !assign[x] && !assign[x.neg()]);
+
+	size_t pos = trail_.size();
+	assign.set(x);
+	trail_.push_back(x);
+
+	while (pos != trail_.size())
+	{
+		Lit y = trail_[pos++];
+
+		for (Lit z : sat.bins[y.neg()])
+		{
+			if (assign[z])
+				continue;
+
+			if (assign[z.neg()])
+			{
+				conflict = true;
+				return;
+			}
+
+			// else -> propagate
+			assign.set(z);
+			trail_.push_back(z);
+		}
+	}
+}
+
+int PropEngineLight::propagate_impl(Lit x, bool with_hbr)
 {
 	assert(!conflict);
 	assert(x.proper());
@@ -494,7 +525,6 @@ int PropEngineLight::propagate(Lit x)
 	// propagating an already-assigned variable is allowed (and does nothing)
 	if (assign[x])
 		return 0;
-
 	if (assign[x.neg()])
 	{
 		conflict = true;
@@ -503,29 +533,14 @@ int PropEngineLight::propagate(Lit x)
 
 	size_t pos = trail_.size();
 	int trail_old = (int)trail_.size();
-	assign.set(x);
-	trail_.push_back(x);
+
+	propagate_binary(x);
+	if (conflict)
+		return -1;
 
 	while (pos != trail_.size())
 	{
 		Lit y = trail_[pos++];
-
-		// propagate binary clauses
-		for (Lit z : sat.bins[y.neg()])
-		{
-			if (assign[z]) // already assigned true -> do nothing
-				continue;
-
-			if (assign[z.neg()]) // already assigned false -> conflict
-			{
-				conflict = true;
-				return -1;
-			}
-
-			// else -> propagate
-			assign.set(z);
-			trail_.push_back(z);
-		}
 
 		// propagate long clauses
 		auto &ws = watches[y.neg()];
@@ -565,14 +580,27 @@ int PropEngineLight::propagate(Lit x)
 			}
 			else
 			{
-				assign.set(c[0]);
-				trail_.push_back(c[0]);
+				if (with_hbr)
+				{
+					nHbr += 1;
+					sat.add_binary(c[0], x.neg());
+				}
+				propagate_binary(c[0]);
+				if (conflict)
+					return -1;
 			}
 
 		next_watch:;
 		}
 	}
 	return (int)trail_.size() - trail_old;
+}
+
+int PropEngineLight::propagate(Lit x) { return propagate_impl(x, false); }
+
+int PropEngineLight::propagate_with_hbr(Lit x)
+{
+	return propagate_impl(x, true);
 }
 
 int PropEngineLight::propagate_neg(util::span<const Lit> xs)

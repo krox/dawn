@@ -14,9 +14,12 @@ int probe(Sat &sat, bool lhbr, int maxTries);
 
 /**
  * Probe for binaries. Quite expensive and probably not woth it for most
- * problems. The naive version is especially slow and just for debugging.
+ * problems.
  */
-int probeBinaryNaive(Sat &sat);
 int probeBinary(Sat &sat);
+
+// One full sweep of in-tree probing. Possibly faster than probing all roots and
+// includes full hyper-binary resolution.
+bool intree_probing(Sat &, int maxTries = 0);
 
 } // namespace dawn

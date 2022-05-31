@@ -20,6 +20,7 @@
     - [ ] luby
     - [ ] dynamic
 * preprocessing / inprocessing
+  - [x] top-level in-tree probing
   - [x] subsumption / self-subsuming resolution (includes HTE)
   - [x] vivification
   - [x] transitive reduction of binary clauses

@@ -311,8 +311,10 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		// 1 = only run while very successful
 		// 2 = run until everything is found
 		// 3 = also run binary probing
-		if (config.probing > 0)
-			change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
+		// if (config.probing > 0)
+		//	change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
+		if (config.probing)
+			change |= intree_probing(sat);
 
 		if (config.subsume >= 1)
 			change |= run_subsumption(sat);
@@ -355,7 +357,8 @@ void inprocess(Sat &sat, SolverConfig const &config)
 void preprocess(Sat &sat)
 {
 	// cheap search/strengthening
-	probe(sat, true, 10000);
+	intree_probing(sat, 10000);
+	// probe(sat, true, 10000);
 	run_subsumption(sat);
 
 	// clause elimination (no resolution)
@@ -376,7 +379,8 @@ void preprocess(Sat &sat)
 		run_elimination(sat, elimConfig);
 
 		// little bit of searching
-		probe(sat, true, 10000);
+		intree_probing(sat);
+		// probe(sat, true, 10000);
 		run_subsumption(sat);
 		runBinaryReduction(sat);
 	}

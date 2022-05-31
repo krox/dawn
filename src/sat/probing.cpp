@@ -2,6 +2,7 @@
 
 #include "sat/binary.h"
 #include "sat/propengine.h"
+#include <climits>
 
 namespace dawn {
 
@@ -200,6 +201,83 @@ int probeBinary(Sat &sat)
 	}
 
 	return nFails;
+}
+
+struct IntreeProbing
+{
+	Sat &sat;
+	PropEngineLight p;
+	util::bit_vector done;
+	int tries_todo;
+	IntreeProbing(Sat &s, int m)
+	    : sat(s), p(s), done(s.var_count() * 2), tries_todo(m ? m : INT_MAX)
+	{}
+
+	Lit probe(Lit a)
+	{
+		assert(a.proper());
+		if (done[a])
+			return Lit::undef();
+		if (tries_todo <= 0)
+			return Lit::undef();
+		tries_todo -= 1;
+		done[a] = true;
+
+		assert(!p.conflict);
+		p.mark();
+		p.propagate_with_hbr(a);
+		if (p.conflict)
+		{
+			p.unroll();
+			return a.neg();
+		}
+
+		for (Lit b : sat.bins[a])
+			if (Lit u = probe(b.neg()); u != Lit::undef())
+			{
+				p.unroll();
+				return u;
+			}
+
+		p.unroll();
+		return Lit::undef();
+	}
+};
+
+bool intree_probing(Sat &sat, int maxTries)
+{
+	util::StopwatchGuard swg(sat.stats.swProbing);
+	auto log = Logger("intree-probe");
+	cleanup(sat);
+	auto p = IntreeProbing(sat, maxTries);
+
+	if (p.p.conflict)
+		return false;
+
+	int64_t nUnits = 0;
+	for (Lit a : sat.all_lits())
+		if (!sat.bins[a].empty() && sat.bins[a.neg()].empty())
+			if (Lit u = p.probe(a); u != Lit::undef())
+			{
+				nUnits += 1;
+				sat.add_unary(u);
+				p.p.propagate(u);
+				if (p.p.conflict)
+					return true;
+			}
+
+	if (nUnits || p.p.nHbr)
+	{
+		int nRemoved = cleanup(sat);
+		log.info("found {} failing lits and {} hyper bins (removed {} vars)",
+		         nUnits, p.p.nHbr, nRemoved);
+		return true;
+	}
+	else
+	{
+		log.info("-");
+		return false;
+	}
 }
 
 } // namespace dawn

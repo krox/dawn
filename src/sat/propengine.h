@@ -178,6 +178,9 @@ class PropEngineLight
 	std::vector<Lit> trail_; // assigned variables
 	std::vector<int> mark_;  // indices into trail
 
+	void propagate_binary(Lit);
+	int propagate_impl(Lit, bool hbr);
+
   public:
 	using watches_t = std::vector<util::small_vector<CRef, 7>>;
 	watches_t watches;
@@ -185,6 +188,8 @@ class PropEngineLight
   public:
 	Assignment assign;
 	bool conflict = false;
+
+	int64_t nHbr = 0;
 
 	/** constructor */
 	PropEngineLight(Sat &sat);
@@ -194,6 +199,11 @@ class PropEngineLight
 	//     - does nothing and returns 0 if already set
 	//     - returns -1 on conflict
 	int propagate(Lit x);
+
+	// same as propagate(), but also create binary x->* clauses for any long
+	// propagations found. This is only correct to use if everything currently
+	// assigned follows from x.
+	int propagate_with_hbr(Lit x);
 
 	// propagate the negation of multiple literals.
 	int propagate_neg(util::span<const Lit> xs);

@@ -70,7 +70,9 @@ int main(int argc, char *argv[])
 		{
 			// LHBR can violate confluency (full HBR would not), so we need to
 			// deactivate it on level=1.
-			change |= probe(sat, level >= 2, 999999999);
+			change |= intree_probing(sat);
+			runBinaryReduction(sat);
+			// change |= probe(sat, level >= 2, 999999999);
 		}
 
 		if (level >= 2)
