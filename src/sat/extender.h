@@ -28,7 +28,7 @@ class Extender
 
 	// add a transformation rule, which will be applied (in reverse order)
 	// by '.extend()' in the future
-	void add_rule(util::span<const Lit> cl);
+	void add_rule(std::span<const Lit> cl);
 
 	size_t clause_count() const { return clauses_.count(); }
 
@@ -43,7 +43,7 @@ class Extender
 	size_t memory_usage() const;
 };
 
-inline void Extender::add_rule(util::span<const Lit> cl)
+inline void Extender::add_rule(std::span<const Lit> cl)
 {
 	assert(cl.size() >= 1);
 	for (auto a : cl)
@@ -56,13 +56,13 @@ inline void Extender::add_rule(util::span<const Lit> cl)
 	//       output of a problem that has not been fully solved
 }
 
-inline void Extender::set_literal(Lit a) { add_rule({a}); }
+inline void Extender::set_literal(Lit a) { add_rule({{a}}); }
 
 inline void Extender::set_equivalence(Lit a, Lit b)
 {
 	assert(a.var() != b.var());
-	add_rule({a, b.neg()});
-	add_rule({a.neg(), b});
+	add_rule({{a, b.neg()}});
+	add_rule({{a.neg(), b}});
 }
 
 inline void Extender::extend(Assignment &a) const

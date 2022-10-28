@@ -47,7 +47,7 @@ class Sat : public Cnf
 	 * - suggested to call clauses.compacitfy() afterwards
 	 * - if trans[v] is Lit::elim(), the variable v may not appear in any clause
 	 */
-	void renumber(util::span<const Lit> trans, int newVarCount);
+	void renumber(std::span<const Lit> trans, int newVarCount);
 
 	// tracking of variable activity and polarity
 	std::vector<double> activity;

@@ -153,7 +153,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 
 				// lazy hyper-binary resolution
 				if (config.lhbr)
-					if (Lit dom = analyzeBin(c.lits().slice(1, c.size()));
+					if (Lit dom = analyzeBin(c.lits().subspan(1));
 					    dom != Lit::undef())
 					{
 						sat.stats.nLhbr += 1;
@@ -341,7 +341,7 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 }
 
 /** similar to analyzeConflict, but for lhbr */
-Lit PropEngine::analyzeBin(util::span<const Lit> tail)
+Lit PropEngine::analyzeBin(std::span<const Lit> tail)
 {
 	if (level() == 0)
 		return Lit::undef();
@@ -410,7 +410,7 @@ bool PropEngine::isRedundant(Lit lit)
 	}
 }
 
-uint8_t PropEngine::calcGlue(util::span<const Lit> cl) const
+uint8_t PropEngine::calcGlue(std::span<const Lit> cl) const
 {
 	int glue = 1;
 	for (int lev = 1; lev < level(); ++lev)
@@ -603,7 +603,7 @@ int PropEngineLight::propagate_with_hbr(Lit x)
 	return propagate_impl(x, true);
 }
 
-int PropEngineLight::propagate_neg(util::span<const Lit> xs)
+int PropEngineLight::propagate_neg(std::span<const Lit> xs)
 {
 	int r = 0;
 	for (Lit x : xs)
@@ -644,7 +644,7 @@ int PropEngineLight::probe(Lit a)
 	return r;
 }
 
-int PropEngineLight::probe_neg(util::span<const Lit> xs)
+int PropEngineLight::probe_neg(std::span<const Lit> xs)
 {
 	assert(!conflict);
 	mark();
@@ -653,20 +653,20 @@ int PropEngineLight::probe_neg(util::span<const Lit> xs)
 	return r;
 }
 
-util::span<const Lit> PropEngineLight::trail() const { return trail_; }
+std::span<const Lit> PropEngineLight::trail() const { return trail_; }
 
-util::span<const Lit> PropEngineLight::trail(int l) const
+std::span<const Lit> PropEngineLight::trail(int l) const
 {
 	assert(0 <= l && l <= level());
 	auto t = trail();
 	if (l == 0 && level() == 0)
 		return t;
 	else if (l == 0)
-		return t.slice(0, mark_[0]);
+		return t.subspan(0, mark_[0]);
 	else if (l == level())
-		return t.slice(mark_[l - 1], t.size());
+		return t.subspan(mark_[l - 1]);
 	else
-		return t.slice(mark_[l - 1], mark_[l]);
+		return t.subspan(mark_[l - 1], mark_[l] - mark_[l - 1]);
 }
 
 int runUnitPropagation(Sat &sat)

@@ -100,7 +100,7 @@ int makeDisjunctions(Sat &sat)
 		Lit a = Lit(sat.add_var(), false);
 		sat.add_binary(a, pair.first.neg());
 		sat.add_binary(a, pair.second.neg());
-		sat.add_clause({a.neg(), pair.first, pair.second}, true);
+		sat.add_ternary(a.neg(), pair.first, pair.second, true);
 
 		// replace all the occurances of the pair
 		int replaced = 0;

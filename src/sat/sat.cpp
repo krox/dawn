@@ -9,7 +9,7 @@
 
 namespace dawn {
 
-void Sat::renumber(util::span<const Lit> trans, int newVarCount)
+void Sat::renumber(std::span<const Lit> trans, int newVarCount)
 {
 	// checks input and renumbers actual clauses
 	Cnf::renumber(trans, newVarCount);

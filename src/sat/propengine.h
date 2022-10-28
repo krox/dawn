@@ -95,7 +95,7 @@ class PropEngine
 	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
-	Lit analyzeBin(util::span<const Lit> reason); // helper for LHBR
+	Lit analyzeBin(std::span<const Lit> reason); // helper for LHBR
 
   public:
 	Assignment assign;
@@ -109,8 +109,8 @@ class PropEngine
 	void propagateFull(Lit x, Reason r); // stays on current level
 
 	/** read-only view (into trail_) of assignments */
-	util::span<const Lit> trail() const;      // all levels
-	util::span<const Lit> trail(int l) const; // level l
+	std::span<const Lit> trail() const;      // all levels
+	std::span<const Lit> trail(int l) const; // level l
 
 	/**
 	 * Add clause to underlying ClauseSet without propagating.
@@ -142,26 +142,26 @@ class PropEngine
 	int analyzeConflict(std::vector<Lit> &learnt);
 
 	/** compute glue, i.e. number of distinct decision levels of clause */
-	uint8_t calcGlue(util::span<const Lit> cl) const;
+	uint8_t calcGlue(std::span<const Lit> cl) const;
 
 	/** for debugging */
 	void printTrail() const;
 };
 
-inline util::span<const Lit> PropEngine::trail() const { return trail_; }
+inline std::span<const Lit> PropEngine::trail() const { return trail_; }
 
-inline util::span<const Lit> PropEngine::trail(int l) const
+inline std::span<const Lit> PropEngine::trail(int l) const
 {
 	assert(0 <= l && l <= level());
 	auto t = trail();
 	if (l == 0 && level() == 0)
 		return t;
 	else if (l == 0)
-		return t.slice(0, mark_[0]);
+		return t.subspan(0, mark_[0]);
 	else if (l == level())
-		return t.slice(mark_[l - 1], t.size());
+		return t.subspan(mark_[l - 1]);
 	else
-		return t.slice(mark_[l - 1], mark_[l]);
+		return t.subspan(mark_[l - 1], mark_[l] - mark_[l - 1]);
 }
 
 /**
@@ -206,19 +206,19 @@ class PropEngineLight
 	int propagate_with_hbr(Lit x);
 
 	// propagate the negation of multiple literals.
-	int propagate_neg(util::span<const Lit> xs);
+	int propagate_neg(std::span<const Lit> xs);
 
 	// propagate and immediately backtracks. same return as propagate()
 	int probe(Lit x);
 
-	int probe_neg(util::span<const Lit> xs);
+	int probe_neg(std::span<const Lit> xs);
 
 	void mark();       // create a new level
 	void unroll();     // unrolls one level
 	int level() const; // current level (starts at 0)
 
-	util::span<const Lit> trail() const;
-	util::span<const Lit> trail(int l) const;
+	std::span<const Lit> trail() const;
+	std::span<const Lit> trail(int l) const;
 };
 
 /** run unit propagation and remove all fixed variables */

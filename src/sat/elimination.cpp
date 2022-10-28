@@ -23,7 +23,7 @@ namespace {
  *       its size. If it is very small, it might be worthwhile to add it as
  *       a learnt clause, even if no variable-elimination takes place.
  */
-bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b)
+bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b)
 {
 	int count = 0; // number of shared variables with opposite sign
 
@@ -47,7 +47,7 @@ bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b)
 	return false;
 }
 
-bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b,
+bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b,
                                Stamps const &stamps)
 {
 	util::static_vector<Lit, 255> r;
@@ -88,7 +88,7 @@ bool is_resolvent_tautological(util::span<const Lit> a, util::span<const Lit> b,
  *   - asserts resolvent not tautological
  *   - produces sorted clause
  */
-std::vector<Lit> resolvent(util::span<const Lit> a, util::span<const Lit> b)
+std::vector<Lit> resolvent(std::span<const Lit> a, std::span<const Lit> b)
 {
 	for (size_t i = 1; i < a.size(); ++i)
 		assert(a[i - 1].var() < a[i].var());
@@ -129,7 +129,7 @@ std::vector<Lit> resolvent(util::span<const Lit> a, util::span<const Lit> b)
 }
 
 /** resolvent of a with the binary clause b,c */
-std::vector<Lit> resolvent(util::span<const Lit> a, Lit b, Lit c)
+std::vector<Lit> resolvent(std::span<const Lit> a, Lit b, Lit c)
 {
 	assert(b.var() != c.var());
 	if (b.var() > c.var())
@@ -248,7 +248,7 @@ struct BVE
 	}
 
 	// add clause to sat and update occ-lists
-	void add_clause(util::span<const Lit> cl, bool irred)
+	void add_clause(std::span<const Lit> cl, bool irred)
 	{
 		CRef ci = sat.add_clause(cl, irred);
 		if (ci == CRef::undef()) // implicit binary clause (or empty/unary?)
@@ -415,18 +415,18 @@ struct BVE
 			for (int j : todo)
 			{
 				// prune occ-lists
-				util::erase_if(occs[Lit(j, false)], [this](CRef ci) {
+				erase_if(occs[Lit(j, false)], [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
-				util::erase_if(occs[Lit(j, true)], [this](CRef ci) {
+				erase_if(occs[Lit(j, true)], [this](CRef ci) {
 					return sat.clauses[ci].isRemoved();
 				});
 
 				// prune implicit binaries
-				util::erase_if(sat.bins[Lit(j, false)],
-				               [v](Lit other) { return other.var() == v; });
-				util::erase_if(sat.bins[Lit(j, true)],
-				               [v](Lit other) { return other.var() == v; });
+				erase_if(sat.bins[Lit(j, false)],
+				         [v](Lit other) { return other.var() == v; });
+				erase_if(sat.bins[Lit(j, true)],
+				         [v](Lit other) { return other.var() == v; });
 
 				seen[j] = false;
 				score[j] = compute_score(j);

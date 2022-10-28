@@ -19,7 +19,7 @@ void Cnf::add_clause_safe(std::string_view cl)
 	add_clause_safe(lits);
 }
 
-void Cnf::renumber(util::span<const Lit> trans, int newVarCount)
+void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 {
 	// check input
 	assert(trans.size() == (size_t)var_count());

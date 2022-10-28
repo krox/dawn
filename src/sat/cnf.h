@@ -37,11 +37,12 @@ class Cnf
 	void add_empty();
 	void add_unary(Lit a);
 	void add_binary(Lit a, Lit b);
-	CRef add_long(util::span<const Lit> lits, bool irred);
-	CRef add_clause(util::span<const Lit> lits, bool irred);
+	CRef add_ternary(Lit a, Lit b, Lit c, bool irred);
+	CRef add_long(std::span<const Lit> lits, bool irred);
+	CRef add_clause(std::span<const Lit> lits, bool irred);
 
 	// add clause (normalizes clause)
-	void add_clause_safe(util::span<const Lit> lits);
+	void add_clause_safe(std::span<const Lit> lits);
 	void add_clause_safe(std::string_view lits);
 
 	// number of clauses
@@ -65,7 +66,7 @@ class Cnf
 	//     - invalidates all CRefs
 	//     - suggested to call clauses.compacitfy() afterwards
 	//     - if trans[v] is Lit::elim(), v may not appear in any clause
-	void renumber(util::span<const Lit> trans, int newVarCount);
+	void renumber(std::span<const Lit> trans, int newVarCount);
 
 	// sort clauses and literals in clauses. Invalidates all CRefs, just
 	// intended for nicer human-readable output
@@ -126,7 +127,17 @@ inline void Cnf::add_binary(Lit a, Lit b)
 	bins[b].push_back(a);
 }
 
-inline CRef Cnf::add_long(util::span<const Lit> lits, bool irred)
+inline CRef Cnf::add_ternary(Lit a, Lit b, Lit c, bool irred)
+{
+	assert(a.proper() && a.var() < var_count());
+	assert(b.proper() && b.var() < var_count());
+	assert(c.proper() && c.var() < var_count());
+	assert(a.var() != b.var() && a.var() != c.var() && b.var() != c.var());
+
+	return clauses.addClause({{a, b, c}}, irred);
+}
+
+inline CRef Cnf::add_long(std::span<const Lit> lits, bool irred)
 {
 	for (size_t i = 0; i < lits.size(); ++i)
 	{
@@ -141,7 +152,7 @@ inline CRef Cnf::add_long(util::span<const Lit> lits, bool irred)
 	return clauses.addClause(lits, irred);
 }
 
-inline CRef Cnf::add_clause(util::span<const Lit> lits, bool irred)
+inline CRef Cnf::add_clause(std::span<const Lit> lits, bool irred)
 {
 	if (lits.size() >= 3)
 		return add_long(lits, irred);
@@ -157,7 +168,7 @@ inline CRef Cnf::add_clause(util::span<const Lit> lits, bool irred)
 	return CRef::undef();
 }
 
-inline void Cnf::add_clause_safe(util::span<const Lit> lits)
+inline void Cnf::add_clause_safe(std::span<const Lit> lits)
 {
 	util::small_vector<Lit, 16> buf;
 	for (auto a : lits)

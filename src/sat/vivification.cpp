@@ -35,7 +35,7 @@ struct Vivification
 		for (size_t i = 0; i < cl.size(); ++i)
 		{
 			p.mark();
-			p.propagate_neg(util::span(cl).subspan(i + 1));
+			p.propagate_neg(std::span(cl).subspan(i + 1));
 
 			if (p.conflict)
 			{

@@ -110,7 +110,7 @@ class Assignment
 	lbool operator()(Lit a) const noexcept;
 	lbool operator()(Lit a, Lit b) const noexcept;
 	lbool operator()(Lit a, Lit b, Lit c) const noexcept;
-	lbool operator()(util::span<const Lit> cl) const noexcept;
+	lbool operator()(std::span<const Lit> cl) const noexcept;
 
 	// backward-compatibility...
 	bool operator[](Lit a) const noexcept { return assign_[a]; }
@@ -119,7 +119,7 @@ class Assignment
 	bool satisfied(Lit a) const noexcept;
 	bool satisfied(Lit a, Lit b) const noexcept;
 	bool satisfied(Lit a, Lit b, Lit c) const noexcept;
-	bool satisfied(util::span<const Lit> cl) const noexcept;
+	bool satisfied(std::span<const Lit> cl) const noexcept;
 	bool satisfied(ClauseStorage const &cls) const noexcept;
 };
 
@@ -172,7 +172,7 @@ inline lbool Assignment::operator()(Lit a, Lit b, Lit c) const noexcept
 	return (*this)(a) | (*this)(b) | (*this)(c);
 }
 
-inline lbool Assignment::operator()(util::span<const Lit> cl) const noexcept
+inline lbool Assignment::operator()(std::span<const Lit> cl) const noexcept
 {
 	auto r = lfalse;
 	for (auto a : cl)
@@ -192,7 +192,7 @@ inline bool Assignment::satisfied(Lit a, Lit b, Lit c) const noexcept
 	return assign_[a] || assign_[b] || assign_[c];
 }
 
-inline bool Assignment::satisfied(util::span<const Lit> cl) const noexcept
+inline bool Assignment::satisfied(std::span<const Lit> cl) const noexcept
 {
 	for (Lit lit : cl)
 		if (assign_[lit])
@@ -222,7 +222,9 @@ template <> struct fmt::formatter<dawn::Assignment>
 		for (int i = 0; i < a.var_count() * 2; ++i)
 			if (a.satisfied(dawn::Lit(i)))
 			{
-				it = format_to(it, first ? "{}" : " {}", dawn::Lit(i));
+				if (!first)
+					*it++ = ' ';
+				it = format_to(it, "{}", dawn::Lit(i));
 				first = false;
 			}
 		return it;

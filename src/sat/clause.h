@@ -4,10 +4,13 @@
 
 #pragma once
 
+#include "fmt/format.h"
+#include "fmt/ranges.h"
 #include "util/iterator.h"
-#include "util/span.h"
+#include <cassert>
 #include <cstdint>
 #include <functional>
+#include <span>
 #include <tuple>
 #include <vector>
 
@@ -60,7 +63,7 @@ class Lit
  * - returns -1 for tautologies and Lit::one()
  * - otherwiese, returns new size
  */
-inline int normalizeClause(util::span<Lit> lits)
+inline int normalizeClause(std::span<Lit> lits)
 {
 	int j = 0;
 	for (int i = 0; i < (int)lits.size(); ++i)
@@ -104,18 +107,18 @@ class Clause
 	Clause(const Clause &) = delete;
 
 	/** array-like access to literals */
-	util::span<Lit> lits() { return util::span<Lit>{(Lit *)(this + 1), size_}; }
-	util::span<const Lit> lits() const
+	std::span<Lit> lits() { return std::span<Lit>{(Lit *)(this + 1), size_}; }
+	std::span<const Lit> lits() const
 	{
-		return util::span<const Lit>{(Lit *)(this + 1), size_};
+		return std::span<const Lit>{(Lit *)(this + 1), size_};
 	}
 
 	/** make Clause usable as span<Lit> without calling '.lits()' explicitly */
 	uint16_t size() const { return size_; }
 	Lit &operator[](size_t i) { return lits()[i]; }
 	const Lit &operator[](size_t i) const { return lits()[i]; }
-	operator util::span<Lit>() { return lits(); }
-	operator util::span<const Lit>() const { return lits(); }
+	operator std::span<Lit>() { return lits(); }
+	operator std::span<const Lit>() const { return lits(); }
 	auto begin() { return lits().begin(); }
 	auto begin() const { return lits().begin(); }
 	auto end() { return lits().end(); }
@@ -230,7 +233,7 @@ class ClauseStorage
 
   public:
 	/** add a new clause, no checking of lits done */
-	CRef addClause(util::span<const Lit> lits, bool irred)
+	CRef addClause(std::span<const Lit> lits, bool irred)
 	{
 		if (lits.size() > UINT16_MAX)
 			throw std::runtime_error("clause to long for storage");
@@ -348,7 +351,7 @@ template <> struct fmt::formatter<dawn::Lit>
 	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
 
 	template <typename FormatContext>
-	auto format(dawn::Lit a, FormatContext &ctx)
+	auto format(dawn::Lit a, FormatContext &ctx) const
 	{
 		// NOTE: '-elim' and '-undef' should never happen, just for debugging
 		if (a.proper())
@@ -375,12 +378,9 @@ template <> struct fmt::formatter<dawn::Clause>
 	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
 
 	template <typename FormatContext>
-	auto format(dawn::Clause const &cl, FormatContext &ctx)
+	auto format(dawn::Clause const &cl, FormatContext &ctx) const
 	{
-		auto it = ctx.out();
-		for (size_t i = 0; i < cl.size(); ++i)
-			it = format_to(it, i == 0 ? "{}" : " {}", cl[i]);
-		return it;
+		return format_to(ctx.out(), "{}", fmt::join(cl.lits(), " "));
 	}
 };
 
