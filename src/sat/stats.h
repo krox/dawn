@@ -63,10 +63,6 @@ struct Stats
 	util::IntHistogram watchHistogram;      // length of watch-list
 	util::IntHistogram clauseSizeHistogram; // length of visited long clauses
 
-	Stats()
-	    : binHistogram(0, 21), watchHistogram(0, 21), clauseSizeHistogram(0, 21)
-	{}
-
 	bool watch_stats = false; // print histogram of watchlist size
 
 	// statistics on the search process

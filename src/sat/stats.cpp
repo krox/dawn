@@ -6,13 +6,10 @@ namespace dawn {
 
 static void dumpHistogram(const util::IntHistogram &h)
 {
-	if (h.underflow())
-		fmt::print("<{:#2}: {:#12}\n", h.min(), h.underflow());
-	for (int i = h.min(); i < h.max(); ++i)
-		if (h.count(i))
-			fmt::print("{:#3}: {:#12}\n", i, h.count(i));
-	if (h.overflow())
-		fmt::print(">{:#2}: {:#12}\n", h.max() - 1, h.overflow());
+	for (int i = 0; i <= h.max(); ++i)
+		if (h.bin(i))
+			fmt::print("{:#3}: {:#12}\n", i, h.bin(i));
+	fmt::print("average: {:#12.2f}\n", h.mean());
 }
 
 void Stats::dump()
