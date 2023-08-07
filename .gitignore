@@ -11,4 +11,5 @@ sat16/*
 cryptominisat*
 *.log
 *.bak
+.vscode
 *~

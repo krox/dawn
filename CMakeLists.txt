@@ -29,11 +29,9 @@ target_include_directories(sat PUBLIC src)
 target_link_libraries(sat PUBLIC util)
 target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 
-foreach(bin "dawn" "simplify" "gen" "gen_pigeonhole")
-	add_executable(${bin} src/${bin}.cpp)
-	target_link_libraries(${bin} PRIVATE sat CLI11::CLI11)
-	target_compile_options(${bin} PRIVATE -O2 -Wall -Wextra -Werror -march=native)
-endforeach(bin)
+add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/stats.cpp)
+target_link_libraries(dawn PRIVATE sat CLI11::CLI11)
+target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 
 # fuzz testing
 add_custom_target(fuzz
