@@ -6,13 +6,19 @@ include(cmake/CPM.cmake)
 CPMAddPackage(
 	NAME util
 	GITHUB_REPOSITORY krox/util
-	GIT_TAG 56bb6d87b7f67f7e47a859f1141d986065d4f39c
+	GIT_TAG dbc2b40084b8940dfeaa780375de818de5a8fbc0
 )
 
 CPMAddPackage(
 	NAME cli11
 	GITHUB_REPOSITORY CLIUtils/CLI11
 	GIT_TAG 291c58789c031208f08f4f261a858b5b7083e8e2 # v2.3.2
+)
+
+CPMAddPackage(
+	NAME ftxui
+	GITHUB_REPOSITORY ArthurSonzogni/ftxui
+	GIT_TAG 513ec6c5e1e71c8a1366e0db5a61400466697f73 # v4.1.1
 )
 
 CPMAddPackage(
@@ -29,8 +35,8 @@ target_include_directories(sat PUBLIC src)
 target_link_libraries(sat PUBLIC util)
 target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 
-add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/stats.cpp)
-target_link_libraries(dawn PRIVATE sat CLI11::CLI11)
+add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/stats.cpp src/commands/ui.cpp)
+target_link_libraries(dawn PRIVATE sat CLI11::CLI11 ftxui::screen ftxui::dom ftxui::component)
 target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 
 # fuzz testing

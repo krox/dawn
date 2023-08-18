@@ -82,145 +82,6 @@ int restartSize(int iter, SolverConfig const &config)
 	}
 }
 
-Assignment buildSolution(const PropEngine &p)
-{
-	// TODO: right now we set an arbitrary default value here for unassigned
-	//       variables. For eliminated vars this is necessary because the
-	//       extension clauses may not force either value. Alternative would
-	//       be to make the extension rules forcing whenever we eliminate a var
-	auto a = Assignment(p.sat.var_count_outer());
-	for (int i = 0; i < p.sat.var_count_outer(); ++i)
-		a.set(Lit(i, true));
-	for (Lit l : p.trail())
-		a.force_set(p.sat.to_outer(l));
-	assert(a.complete());
-	p.sat.extender.extend(a);
-	assert(a.complete());
-	return a;
-}
-
-/** returns solution if found, or std::nullopt if limits reached or
- * contradiction */
-std::optional<Assignment> search(PropEngine &p, int64_t maxConfl,
-                                 SolverConfig const &config)
-{
-	Sat &sat = p.sat;
-
-	util::StopwatchGuard _(sat.stats.swSearch);
-
-	ActivityHeap activityHeap(sat);
-	for (int i : sat.all_vars())
-		activityHeap.push(i);
-
-	p.config.otf = config.otf;
-	p.config.lhbr = config.lhbr;
-	p.config.full_resolution = config.full_resolution;
-	p.activity_heap = &activityHeap;
-
-	int64_t nConfl = 0;
-
-	std::vector<Lit> buf;
-
-	while (true)
-	{
-		// handle conflicts
-		while (p.conflict)
-		{
-			nConfl += 1;
-
-			// level 0 conflict -> UNSAT
-			if (p.level() == 0)
-			{
-				sat.add_empty();
-				return std::nullopt;
-			}
-
-			// analyze conflict
-			int backLevel;
-			uint8_t glue;
-			backLevel = p.analyzeConflict(buf);
-			if (config.full_resolution)
-			{
-				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
-				assert(glue == p.calcGlue(buf));
-			}
-			else
-				glue = p.calcGlue(buf);
-
-			sat.decay_variable_activity();
-			sat.stats.nLearnt += 1;
-			sat.stats.nLitsLearnt += buf.size();
-
-			// unroll to apropriate level and propagate new learnt clause
-			p.unroll(backLevel);
-			Reason r = p.addLearntClause(buf, glue);
-			p.propagateFull(buf[0], r);
-			for (Lit x : p.trail(p.level()))
-				sat.polarity[x.var()] = x.sign();
-
-			buf.resize(0);
-		}
-
-		/** maxConfl reached -> unroll and exit */
-		if (nConfl > maxConfl || interrupt)
-		{
-			if (p.level() > 0)
-				p.unroll(0);
-			return std::nullopt;
-		}
-
-		// choose a branching variable
-		// int branch = p.unassignedVariable();
-		int branch = -1;
-
-		while (!activityHeap.empty())
-		{
-			int v = activityHeap.pop();
-			if (p.assign[Lit(v, false)] || p.assign[Lit(v, true)])
-				continue;
-
-			// check the heap(very expensive, debug only)
-			// for (int i = 0; i < sat.varCount(); ++i)
-			//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
-			//	       sat.activity[i] <= sat.activity[v]);
-
-			branch = v;
-			break;
-		}
-
-		// no unassigned left -> solution is found
-		if (branch == -1)
-			return buildSolution(p);
-
-		Lit branchLit = Lit(branch, sat.polarity[branch]);
-
-		if (config.branch_dom >= 1)
-		{
-			// NOTE: the counter avoids infinite loop due to equivalent vars
-			// TODO: think again about the order of binary clauses. That has an
-			//       influence here
-			int counter = 0;
-		again:
-			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
-				if (!p.assign[l])
-					if (config.branch_dom >= 2 ||
-					    sat.polarity[l.var()] == l.neg().sign())
-					{
-						branchLit = l.neg();
-						if (++counter < 5)
-							goto again;
-						else
-							break;
-					}
-		}
-
-		// propagate branch
-		p.branch(branchLit);
-		for (Lit x : p.trail(p.level()))
-			sat.polarity[x.var()] = x.sign();
-	}
-}
-
 void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 {
 	std::vector<std::vector<CRef>> list(200);
@@ -426,11 +287,16 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 
 		if (propEngine == nullptr)
+		{
 			propEngine = std::make_unique<PropEngine>(sat);
+			propEngine->config.otf = config.otf;
+			propEngine->config.lhbr = config.lhbr;
+			propEngine->config.full_resolution = config.full_resolution;
+			propEngine->config.branch_dom = config.branch_dom;
+		}
 
 		// search for a number of conflicts
-		if (auto tmp = search(*propEngine, restartSize(iter, config), config);
-		    tmp)
+		if (auto tmp = propEngine->search(restartSize(iter, config)); tmp)
 		{
 			assert(!sat.contradiction);
 			sol = *tmp;

@@ -2,9 +2,28 @@
 
 #include "fmt/format.h"
 #include <cassert>
+#include <optional>
 #include <queue>
 
 namespace dawn {
+namespace {
+Assignment buildSolution(const PropEngine &p)
+{
+	// TODO: right now we set an arbitrary default value here for unassigned
+	//       variables. For eliminated vars this is necessary because the
+	//       extension clauses may not force either value. Alternative would
+	//       be to make the extension rules forcing whenever we eliminate a var
+	auto a = Assignment(p.sat.var_count_outer());
+	for (int i = 0; i < p.sat.var_count_outer(); ++i)
+		a.set(Lit(i, true));
+	for (Lit l : p.trail())
+		a.force_set(p.sat.to_outer(l));
+	assert(a.complete());
+	p.sat.extender.extend(a);
+	assert(a.complete());
+	return a;
+}
+} // namespace
 
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
@@ -449,6 +468,121 @@ void PropEngine::printTrail() const
 			else
 				assert(false);
 		}
+	}
+}
+
+std::optional<Assignment> PropEngine::search(int64_t maxConfl)
+{
+	util::StopwatchGuard _(sat.stats.swSearch);
+
+	// TODO: no, this is not the right place for the activity heap
+	ActivityHeap activityHeap(sat);
+	for (int i : sat.all_vars())
+		activityHeap.push(i);
+
+	activity_heap = &activityHeap;
+
+	int64_t nConfl = 0;
+
+	std::vector<Lit> buf;
+
+	while (true)
+	{
+		// handle conflicts
+		while (conflict)
+		{
+			nConfl += 1;
+
+			// level 0 conflict -> UNSAT
+			if (level() == 0)
+			{
+				sat.add_empty();
+				return std::nullopt;
+			}
+
+			// analyze conflict
+			int backLevel;
+			uint8_t glue;
+			backLevel = analyzeConflict(buf);
+			if (config.full_resolution)
+			{
+				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
+				assert(glue == calcGlue(buf));
+			}
+			else
+				glue = calcGlue(buf);
+
+			sat.decay_variable_activity();
+			sat.stats.nLearnt += 1;
+			sat.stats.nLitsLearnt += buf.size();
+
+			// unroll to apropriate level and propagate new learnt clause
+			unroll(backLevel);
+			Reason r = addLearntClause(buf, glue);
+			propagateFull(buf[0], r);
+			for (Lit x : trail(level()))
+				sat.polarity[x.var()] = x.sign();
+
+			buf.resize(0);
+		}
+
+		/** maxConfl reached -> unroll and exit */
+		if (nConfl > maxConfl || interrupt)
+		{
+			if (level() > 0)
+				unroll(0);
+			return std::nullopt;
+		}
+
+		// choose a branching variable
+		// int branch = p.unassignedVariable();
+		int branchVar = -1;
+
+		while (!activityHeap.empty())
+		{
+			int v = activityHeap.pop();
+			if (assign[Lit(v, false)] || assign[Lit(v, true)])
+				continue;
+
+			// check the heap(very expensive, debug only)
+			// for (int i = 0; i < sat.varCount(); ++i)
+			//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
+			//	       sat.activity[i] <= sat.activity[v]);
+
+			branchVar = v;
+			break;
+		}
+
+		// no unassigned left -> solution is found
+		if (branchVar == -1)
+			return buildSolution(*this);
+
+		Lit branchLit = Lit(branchVar, sat.polarity[branchVar]);
+
+		if (config.branch_dom >= 1)
+		{
+			// NOTE: the counter avoids infinite loop due to equivalent vars
+			// TODO: think again about the order of binary clauses. That has an
+			//       influence here
+			int counter = 0;
+		again:
+			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
+				if (!assign[l])
+					if (config.branch_dom >= 2 ||
+					    sat.polarity[l.var()] == l.neg().sign())
+					{
+						branchLit = l.neg();
+						if (++counter < 5)
+							goto again;
+						else
+							break;
+					}
+		}
+
+		// propagate branch
+		branch(branchLit);
+		for (Lit x : trail(level()))
+			sat.polarity[x.var()] = x.sign();
 	}
 }
 

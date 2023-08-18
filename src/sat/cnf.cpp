@@ -1,6 +1,7 @@
 #include "sat/cnf.h"
 
 #include "fmt/format.h"
+#include "util/stats.h"
 #include <algorithm>
 #include <cassert>
 #include <random>
@@ -116,4 +117,58 @@ size_t Cnf::memory_usage() const
 	return r;
 }
 
+size_t Cnf::unary_count() const { return units.size(); }
+
+size_t Cnf::binary_count() const
+{
+	size_t r = 0;
+	for (auto &b : bins)
+		r += b.size();
+	return r / 2;
+}
+
+size_t Cnf::long_count() const { return clauses.count(); }
+
+size_t Cnf::long_count_irred() const
+{
+	size_t r = 0;
+	for (auto &cl : clauses.all())
+		if (cl.irred())
+			++r;
+	return r;
+}
+
+size_t Cnf::long_count_red() const
+{
+	size_t r = 0;
+	for (auto &cl : clauses.all())
+		if (!cl.irred())
+			++r;
+	return r;
+}
+
+size_t Cnf::lit_count_irred() const
+{
+	size_t r = 0;
+	for (auto &cl : clauses.all())
+		if (cl.irred())
+			r += cl.size();
+	return r;
+}
+
+size_t Cnf::clause_count() const
+{
+	return unary_count() + binary_count() + long_count() + contradiction;
+}
+
+util::IntHistogram Cnf::clause_histogram() const
+{
+	util::IntHistogram r;
+	r.add(0, contradiction ? 1 : 0);
+	r.add(1, unary_count());
+	r.add(2, binary_count());
+	for (auto &cl : clauses.all())
+		r.add(cl.size());
+	return r;
+}
 } // namespace dawn

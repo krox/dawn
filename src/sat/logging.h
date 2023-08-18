@@ -47,9 +47,12 @@ class Logger
 	};
 
   private:
+	static void default_sink(std::string_view msg) { fmt::print("{}", msg); }
+
 	inline static Level g_default_level_ = Level::info;
 	inline static util::hash_map<std::string, Level> g_custom_level_;
 	inline static std::mutex g_mutex_;
+	inline static std::function<void(std::string_view)> g_sink_ = default_sink;
 
   public:
 	static void set_level(Level level)
@@ -65,6 +68,11 @@ class Logger
 		g_custom_level_[std::string(name)] = level;
 	}
 
+	static void set_sink(std::function<void(std::string_view)> sink)
+	{
+		g_sink_ = sink;
+	}
+
   private:
 	std::string name_;
 	Level level_;
@@ -72,8 +80,9 @@ class Logger
 
 	void do_log(std::string_view str, fmt::format_args &&args) const noexcept
 	{
-		fmt::print("c [{:12} {:#6.2f}] {}\n", name_, sw.secs(),
-		           fmt::vformat(str, std::move(args)));
+		std::string msg = fmt::vformat(str, std::move(args));
+		msg = fmt::format("c [{:12} {:#6.2f}] {}\n", name_, sw.secs(), msg);
+		g_sink_(msg);
 	}
 
   public:

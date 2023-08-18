@@ -22,6 +22,7 @@ void setup_solve_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);
 void setup_stats_command(CLI::App &app);
+void setup_ui_command(CLI::App &app);
 
 int main(int argc, char *argv[])
 {
@@ -36,6 +37,8 @@ int main(int argc, char *argv[])
 	setup_gen_command(*cmd);
 	cmd = app.add_subcommand("stats", "print statistics about a CNF formula");
 	setup_stats_command(*cmd);
+	cmd = app.add_subcommand("ui", "start the UI for interactive solving");
+	setup_ui_command(*cmd);
 
 	try
 	{

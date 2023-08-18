@@ -2,6 +2,7 @@
 
 #include "sat/clause.h"
 #include "util/iterator.h"
+#include "util/stats.h"
 #include "util/vector.h"
 #include <cassert>
 #include <string_view>
@@ -53,6 +54,7 @@ class Cnf
 	size_t long_count_irred() const;
 	size_t long_count_red() const;
 	size_t lit_count_irred() const;
+	util::IntHistogram clause_histogram() const;
 
 	// ranges for convenient iteration
 	auto all_vars() const { return util::iota_view(0, var_count()); }
@@ -182,50 +184,6 @@ inline void Cnf::add_clause_safe(std::span<const Lit> lits)
 		buf.resize(s);
 		add_clause({buf.begin(), buf.end()}, true);
 	}
-}
-
-inline size_t Cnf::unary_count() const { return units.size(); }
-
-inline size_t Cnf::binary_count() const
-{
-	size_t r = 0;
-	for (auto &b : bins)
-		r += b.size();
-	return r / 2;
-}
-
-inline size_t Cnf::long_count() const { return clauses.count(); }
-
-inline size_t Cnf::long_count_irred() const
-{
-	size_t r = 0;
-	for (auto &cl : clauses.all())
-		if (cl.irred())
-			++r;
-	return r;
-}
-
-inline size_t Cnf::long_count_red() const
-{
-	size_t r = 0;
-	for (auto &cl : clauses.all())
-		if (!cl.irred())
-			++r;
-	return r;
-}
-
-inline size_t Cnf::lit_count_irred() const
-{
-	size_t r = 0;
-	for (auto &cl : clauses.all())
-		if (cl.irred())
-			r += cl.size();
-	return r;
-}
-
-inline size_t Cnf::clause_count() const
-{
-	return unary_count() + binary_count() + long_count() + contradiction;
 }
 
 } // namespace dawn

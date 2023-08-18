@@ -4,6 +4,7 @@
 #include "sat/activity_heap.h"
 #include "util/bit_vector.h"
 #include <cassert>
+#include <optional>
 #include <queue>
 #include <vector>
 
@@ -73,6 +74,8 @@ class PropEngine
 		                  // (0=off, 1=basic, 2=recursive)
 		bool lhbr = true; // lazy hyper-binary resolution
 		bool full_resolution = false; // learn by full resolution instead of UIP
+		int branch_dom = 0; // branch on dominator instead of chosen literal
+		                    // (0=off, 1=only matching polarity, 2=always)s
 	} config;
 
   private:
@@ -143,6 +146,16 @@ class PropEngine
 
 	/** compute glue, i.e. number of distinct decision levels of clause */
 	uint8_t calcGlue(std::span<const Lit> cl) const;
+
+	// run CDCL for up to maxConfl conflicts (or until solution is found)
+	//   - does not perform restarts, such searches on from whatever the current
+	//     state (i.e. partial assignment) is.
+	//   - maxConflicts can be slightly exceeded in case a learnt clause
+	//     immediately leads to another conflict
+	//   - returns solution if found, or std::nullopt if limits reached or
+	//     contradiction is found
+	//   - behaviour is controlled by config (see above)
+	std::optional<Assignment> search(int64_t maxConfl);
 
 	/** for debugging */
 	void printTrail() const;
