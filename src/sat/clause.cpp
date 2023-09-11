@@ -12,25 +12,26 @@ void ClauseStorage::compactify()
 	for (size_t i = 0; i < clauses_.size(); ++i)
 	{
 		Clause &cl = (*this)[clauses_[i]];
-		if (cl.isRemoved())
+		if (cl.removed())
 			continue;
 
 		auto size = cl.size();
 
 		// NOTE: the memmove() might invalidate cl
-		std::memmove(&store[pos], &cl, size * sizeof(Lit) + sizeof(Clause));
+		std::memmove((void *)&store_[pos], (void *)&cl,
+		             size * sizeof(Lit) + sizeof(Clause));
 		clauses_[ii++] = CRef(pos);
 		pos += size + sizeof(Clause) / sizeof(Lit);
 	}
 
 	clauses_.resize(ii);
-	store.resize(pos);
+	store_.resize(pos);
 }
 
 void ClauseStorage::clear()
 {
+	store_.resize(0);
 	clauses_.resize(0);
-	store.resize(0);
 }
 
 } // namespace dawn

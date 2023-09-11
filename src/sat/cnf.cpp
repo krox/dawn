@@ -94,7 +94,7 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 		for (Lit &a : cl.lits())
 			a = trans[a.var()] ^ a.sign();
 		cl.normalize();
-		if (cl.isRemoved())
+		if (cl.removed())
 			continue;
 		if (cl.size() == 0)
 			add_empty();
@@ -103,7 +103,7 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 		if (cl.size() == 2)
 			add_binary(cl[0], cl[1]);
 		if (cl.size() <= 2)
-			cl.remove();
+			cl.set_removed();
 	}
 }
 

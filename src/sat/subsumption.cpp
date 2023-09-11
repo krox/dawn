@@ -46,11 +46,11 @@ bool try_subsume(Clause &a, Clause &b)
 	if (x == Lit::undef())
 	{
 		if (b.irred())
-			a.makeIrred();
-		b.remove();
+			a.set_irred();
+		b.set_removed();
 	}
 	else
-		b.removeLiteral(x); // TODO: slightly subptimal performance...
+		b.remove_literal(x); // TODO: slightly subptimal performance...
 	return true;
 }
 
@@ -120,13 +120,13 @@ class Subsumption
 		for (CRef k : occs[a.neg()])
 		{
 			auto &cl = sat.clauses[k];
-			if (cl.isRemoved())
+			if (cl.removed())
 				continue;
 
 			for (Lit x : sat.clauses[k].lits())
 				if (seen[x])
 				{
-					sat.clauses[k].remove();
+					sat.clauses[k].set_removed();
 					++nRemovedClsBin;
 					break;
 				}
@@ -136,19 +136,19 @@ class Subsumption
 		for (CRef k : occs[a])
 		{
 			auto &cl = sat.clauses[k];
-			if (cl.isRemoved())
+			if (cl.removed())
 				continue;
 
 			for (Lit x : cl.lits())
 				if (seen[x])
 				{
-					if (cl.removeLiteral(a))
+					if (cl.remove_literal(a))
 					{
 						++nRemovedLitsBin;
 						if (cl.size() == 2)
 						{
 							sat.add_binary(cl[0], cl[1]);
-							cl.remove();
+							cl.set_removed();
 						}
 					}
 					break;
@@ -197,7 +197,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 		for (CRef i : clauses[size])
 		{
 			Clause &cl = sat.clauses[i];
-			if (cl.isRemoved())
+			if (cl.removed())
 				continue; // can this happen at all here?
 
 			// choose variable in cl with shortest occ-list
@@ -212,11 +212,11 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 				if (i == j)   // dont subsume clauses with itself
 					continue; // can this happen here at all?
 				Clause &cl2 = sat.clauses[j];
-				if (cl2.isRemoved())
+				if (cl2.removed())
 					continue; // already removed by different subsumption
 				if (try_subsume(cl, cl2))
 				{
-					if (cl2.isRemoved())
+					if (cl2.removed())
 						nRemovedClsLong += 1;
 					else
 					{
@@ -229,7 +229,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 								sat.add_unary(cl2[0]);
 							else if (cl2.size() == 2)
 								sat.add_binary(cl2[0], cl2[1]);
-							cl2.remove();
+							cl2.set_removed();
 						}
 					}
 				}

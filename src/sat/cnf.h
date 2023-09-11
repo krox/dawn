@@ -83,7 +83,7 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 	for (auto &cl : clauses.all())
 	{
 		cl.normalize();
-		if (cl.isRemoved() || cl.size() >= 3)
+		if (cl.removed() || cl.size() >= 3)
 			continue;
 		if (cl.size() == 0)
 			add_empty();
@@ -93,7 +93,7 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 			add_binary(cl[0], cl[1]);
 		else
 			assert(false);
-		cl.remove();
+		cl.set_removed();
 	}
 }
 
@@ -136,7 +136,7 @@ inline CRef Cnf::add_ternary(Lit a, Lit b, Lit c, bool irred)
 	assert(c.proper() && c.var() < var_count());
 	assert(a.var() != b.var() && a.var() != c.var() && b.var() != c.var());
 
-	return clauses.addClause({{a, b, c}}, irred);
+	return clauses.add_clause({{a, b, c}}, irred);
 }
 
 inline CRef Cnf::add_long(std::span<const Lit> lits, bool irred)
@@ -151,7 +151,7 @@ inline CRef Cnf::add_long(std::span<const Lit> lits, bool irred)
 			assert(lits[i].var() != lits[j].var());
 	assert(lits.size() >= 3);
 
-	return clauses.addClause(lits, irred);
+	return clauses.add_clause(lits, irred);
 }
 
 inline CRef Cnf::add_clause(std::span<const Lit> lits, bool irred)
@@ -178,7 +178,7 @@ inline void Cnf::add_clause_safe(std::span<const Lit> lits)
 		assert(a.proper() || a.fixed());
 		buf.push_back(a);
 	}
-	int s = normalizeClause({buf.begin(), buf.end()});
+	int s = normalize_clause({buf.begin(), buf.end()});
 	if (s != -1)
 	{
 		buf.resize(s);

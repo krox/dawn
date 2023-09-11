@@ -108,7 +108,7 @@ int makeDisjunctions(Sat &sat)
 		{
 			// check of occurance is still valid
 			auto &cl = sat.clauses[ci];
-			if (!cl.removeLitarals(pair.first, pair.second))
+			if (!cl.remove_litarals(pair.first, pair.second))
 				continue;
 			replaced += 1;
 
@@ -122,7 +122,7 @@ int makeDisjunctions(Sat &sat)
 				pairOccs[sort({l, a})].push_back(ci);
 			}
 
-			sat.clauses[ci].addLiteralUnchecked(a);
+			sat.clauses[ci].add_literal_unchecked(a);
 
 			// TODO: add new pairs to queue
 		}
@@ -140,7 +140,7 @@ int makeDisjunctions(Sat &sat)
 			sat.add_unary(cl[0]);
 		else
 			assert(false);
-		cl.remove();
+		cl.set_removed();
 	}
 
 	log.info("added {} vars", nFound);

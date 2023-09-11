@@ -7,6 +7,8 @@
 #include "fmt/format.h"
 #include "fmt/ranges.h"
 #include "util/iterator.h"
+#include "util/memory.h"
+#include "util/vector.h"
 #include <cassert>
 #include <cstdint>
 #include <functional>
@@ -16,54 +18,49 @@
 
 namespace dawn {
 
-/**
- * A literal is a variable number + sign. Also there are some special lits:
- * one, zero, undef, elim,
- */
+// A literal is a variable number + sign.
+// Also there are some special lits: one, zero, undef, elim
 class Lit
 {
-	uint32_t val_; // was '= -3' in the past
+	uint32_t val_;
 
   public:
-	/** constructors */
+	// constructors
 	Lit() = default;
 	explicit constexpr Lit(uint32_t val) : val_(val) {}
 	constexpr Lit(int var, bool s) : val_(2 * var + (s ? 1 : 0)) {}
 
-	/** special values of Lit */
+	// special values
 	static constexpr Lit zero() { return Lit{(uint32_t)-1}; }
 	static constexpr Lit one() { return Lit{(uint32_t)-2}; }
 	static constexpr Lit undef() { return Lit{(uint32_t)-4}; }
 	static constexpr Lit elim() { return Lit{(uint32_t)-6}; }
 	static constexpr Lit fixed(bool sign) { return one() ^ sign; }
 
-	/** basic accesors and properties */
+	// basic accesors and properties
 	constexpr operator int() const { return (int)val_; }
 	constexpr int var() const { return val_ >> 1; }
 	constexpr bool sign() const { return (val_ & 1) != 0; }
 	constexpr bool proper() const { return (int32_t)val_ >= 0; }
 	constexpr bool fixed() const { return (val_ & ~1) == (uint32_t)-2; }
 
-	/** IO in dimacs convention */
+	// IO in dimacs convention
 	constexpr static Lit fromDimacs(int x)
 	{
 		return Lit(x > 0 ? 2 * x - 2 : -2 * x - 1);
 	}
 	constexpr int toDimacs() const { return sign() ? -var() - 1 : var() + 1; }
 
-	/** misc */
+	// misc
 	constexpr bool operator==(Lit b) const { return val_ == b.val_; }
-
 	constexpr Lit neg() const { return Lit(val_ ^ 1); }
 	constexpr Lit operator^(bool sign) const { return Lit(val_ ^ sign); }
 };
 
-/**
- * - removes duplicates and Lit::zero()
- * - returns -1 for tautologies and Lit::one()
- * - otherwiese, returns new size
- */
-inline int normalizeClause(std::span<Lit> lits)
+// - removes duplicates and Lit::zero()
+// - returns -1 for tautologies and Lit::one()
+// - otherwiese, returns new size
+inline int normalize_clause(std::span<Lit> lits)
 {
 	int j = 0;
 	for (int i = 0; i < (int)lits.size(); ++i)
@@ -95,7 +92,9 @@ inline int normalizeClause(std::span<Lit> lits)
 class Clause
 {
   public:
-	// 4 byte header
+	// 4 byte header. Might be extended in the future.
+	// (as a comparison: Minisat uses 4 bytes header plus optionally 4 bytes
+	// footer. Cryptominisat seems to use 28 bytes header by default)
 	uint16_t size_;
 	uint8_t flags_;
 	uint8_t glue;
@@ -106,14 +105,14 @@ class Clause
 	Clause() {}
 	Clause(const Clause &) = delete;
 
-	/** array-like access to literals */
+	// array-like access to literals
 	std::span<Lit> lits() { return std::span<Lit>{(Lit *)(this + 1), size_}; }
 	std::span<const Lit> lits() const
 	{
 		return std::span<const Lit>{(Lit *)(this + 1), size_};
 	}
 
-	/** make Clause usable as span<Lit> without calling '.lits()' explicitly */
+	// make Clause usable as span<Lit> without calling '.lits()' explicitly
 	uint16_t size() const { return size_; }
 	Lit &operator[](size_t i) { return lits()[i]; }
 	const Lit &operator[](size_t i) const { return lits()[i]; }
@@ -124,15 +123,14 @@ class Clause
 	auto end() { return lits().end(); }
 	auto end() const { return lits().end(); }
 
-	/** flags */
-	bool isRemoved() const { return (flags_ & 1) != 0; }
-	void remove() { flags_ |= 1; }
+	// flags
+	bool removed() const { return (flags_ & 1) != 0; }
+	void set_removed() { flags_ |= 1; }
 	bool irred() const { return (flags_ & 2) != 0; }
-	void makeIrred() { flags_ |= 2; }
-	void makeRed() { flags_ &= ~2; }
+	void set_irred() { flags_ |= 2; }
 
-	/** remove a literal from this clause. returns false if not found */
-	bool removeLiteral(Lit a)
+	// remove a literal from this clause. returns false if not found
+	bool remove_literal(Lit a)
 	{
 		for (int i = 0; i < size_; ++i)
 			if (lits()[i] == a)
@@ -145,8 +143,8 @@ class Clause
 		return false;
 	}
 
-	/** remove two literals from this clause, only if both are found */
-	bool removeLitarals(Lit a, Lit b)
+	// remove two literals from this clause, only if both are found
+	bool remove_litarals(Lit a, Lit b)
 	{
 		if (!contains(a) || !contains(b))
 			return false;
@@ -162,18 +160,16 @@ class Clause
 		return true;
 	}
 
-	/**
-	 * Add a literal to the clause.
-	 * NOTE: this is unsafe, because the clause does not know its own capacity.
-	 *       only use right after succesfully removing another literal.
-	 */
-	void addLiteralUnchecked(Lit a)
+	// Add a literal to the clause.
+	// NOTE: this is unsafe, because the clause does not know its own capacity.
+	//       only use right after succesfully removing another literal.
+	void add_literal_unchecked(Lit a)
 	{
 		size_ += 1;
 		lits()[size_ - 1] = a;
 	}
 
-	/** check if this clause contains some literal */
+	// check if this clause contains some literal
 	bool contains(Lit a) const
 	{
 		for (Lit b : lits())
@@ -182,6 +178,7 @@ class Clause
 		return false;
 	}
 
+	// check if this clause contains some variable (either sign)
 	bool contains_variable(int v) const
 	{
 		for (Lit b : lits())
@@ -190,23 +187,19 @@ class Clause
 		return false;
 	}
 
-	/**
-	 * - remove duplicate/fixed lits
-	 * - remove clause if tautological
-	 */
+	// - remove duplicate/fixed lits
+	// - remove clause if tautological
 	void normalize()
 	{
-		if (int s = normalizeClause(lits()); s == -1)
-			remove();
+		if (int s = normalize_clause(lits()); s == -1)
+			set_removed();
 		else
 			size_ = (uint16_t)s;
 	}
 };
 
-/**
- * Reference to a clause inside a ClauseStorage object.
- * Technically just a (31 bit) index into an array.
- */
+// Reference to a clause inside a ClauseStorage object.
+// Technically just a (31 bit) index into an array.
 class CRef
 {
 	// NOTE: highest bit is used for bit-packing in 'Watch' and 'Reason'
@@ -228,54 +221,57 @@ class CRef
 class ClauseStorage
 {
   private:
-	std::vector<uint32_t> store;
+	util::vector<Lit> store_;
 	std::vector<CRef> clauses_;
 
   public:
-	/** add a new clause, no checking of lits done */
-	CRef addClause(std::span<const Lit> lits, bool irred)
+	// add a new clause, no checking of lits done
+	CRef add_clause(std::span<const Lit> lits, bool irred)
 	{
 		if (lits.size() > UINT16_MAX)
 			throw std::runtime_error("clause to long for storage");
 
-		Clause header;
-		header.size_ = (uint16_t)lits.size();
-		header.flags_ = 0;
-		header.glue = (uint8_t)std::min((size_t)255,
-		                                lits.size()); // may decrease later
-		if (irred)
-			header.makeIrred();
-		auto index = store.size();
-		if (index > CREF_MAX)
+		// allocate space for the new clause
+		store_.reserve(store_.size() + lits.size() +
+		               sizeof(Clause) / sizeof(Lit));
+		if (store_.size() > CREF_MAX)
 			throw std::runtime_error("clause storage overflow");
+		auto r = CRef((uint32_t)store_.size());
+		Clause &cl = *(Clause *)(store_.end());
+		store_.set_size_unsafe(store_.size() + lits.size() +
+		                       sizeof(Clause) / sizeof(Lit));
 
-		store.push_back(*(uint32_t *)&header);
-		for (auto l : lits)
-			store.push_back(l);
+		// copy it over
+		cl.size_ = (uint16_t)lits.size();
+		cl.flags_ = 0;
+		cl.glue = (uint8_t)std::min((size_t)255, lits.size());
+		if (irred)
+			cl.set_irred();
+		for (size_t i = 0; i < lits.size(); ++i)
+			cl[i] = lits[i];
 
-		auto r = CRef((uint32_t)index);
 		clauses_.push_back(r);
 		return r;
 	}
 
-	CRef addBinary(Lit a, Lit b)
+	CRef add_binary(Lit a, Lit b)
 	{
-		return addClause(std::array<Lit, 2>{a, b}, true);
+		return add_clause(std::array<Lit, 2>{a, b}, true);
 	}
 
-	Clause &operator[](CRef i) { return *(Clause *)&store[i]; }
+	Clause &operator[](CRef i) { return *(Clause *)&store_[i]; }
 
-	const Clause &operator[](CRef i) const { return *(Clause *)&store[i]; }
+	const Clause &operator[](CRef i) const { return *(Clause *)&store_[i]; }
 
 	auto crefs() const
 	{
-		auto not_removed = [this](CRef i) { return !(*this)[i].isRemoved(); };
+		auto not_removed = [this](CRef i) { return !(*this)[i].removed(); };
 		return util::filter(not_removed, clauses_);
 	}
 
 	auto crefs_reverse() const
 	{
-		auto not_removed = [this](CRef i) { return !(*this)[i].isRemoved(); };
+		auto not_removed = [this](CRef i) { return !(*this)[i].removed(); };
 		return util::filter(not_removed, util::reverse(clauses_));
 	}
 
@@ -313,7 +309,7 @@ class ClauseStorage
 		return util::transform(crefs(), deref);
 	}
 
-	/** number of (non-removed) clauses */
+	// number of (non-removed) clauses
 	size_t count() const
 	{
 		size_t r = 0;
@@ -324,25 +320,20 @@ class ClauseStorage
 
 	size_t memory_usage() const
 	{
-		return store.capacity() * sizeof(uint32_t) +
+		return store_.capacity() * sizeof(uint32_t) +
 		       clauses_.capacity() * sizeof(CRef);
 	}
 
-	/**
-	 * Actually remove clauses that are marked as such by moving all
-	 * remaining clauses closer together. Invalidates all CRef's.
-	 */
+	// Actually remove clauses that are marked as such by moving all
+	// remaining clauses closer together. Invalidates all CRef's.
 	void compactify();
 
-	/**
-	 * Remove all clauses_ (but keep allocated memory). Invalidates all
-	 * CRef's.
-	 */
+	// Remove all clauses_, keeping allocated memory
 	void clear();
 };
 
 static_assert(sizeof(Lit) == 4);
-static_assert(sizeof(Clause) == 4);
+static_assert(sizeof(Clause) % sizeof(Lit) == 0);
 
 } // namespace dawn
 

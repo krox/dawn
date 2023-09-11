@@ -175,7 +175,7 @@ struct BVE
 		for (auto [ci, cl] : sat.clauses.enumerate())
 		// if (!config.irred_only || cl.irred())
 		{
-			assert(cl.irred() && !cl.isRemoved());
+			assert(cl.irred() && !cl.removed());
 			std::sort(cl.lits().begin(), cl.lits().end());
 			for (Lit a : cl.lits())
 				occs[a].push_back(ci);
@@ -307,16 +307,16 @@ struct BVE
 		for (CRef i : occs[pos])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.irred() && !cl.isRemoved());
+			assert(cl.irred() && !cl.removed());
 			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.remove();
+			cl.set_removed();
 		}
 		for (CRef i : occs[neg])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.irred() && !cl.isRemoved());
+			assert(cl.irred() && !cl.removed());
 			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.remove();
+			cl.set_removed();
 		}
 		occs[pos].resize(0);
 		occs[neg].resize(0);
@@ -415,12 +415,10 @@ struct BVE
 			for (int j : todo)
 			{
 				// prune occ-lists
-				erase_if(occs[Lit(j, false)], [this](CRef ci) {
-					return sat.clauses[ci].isRemoved();
-				});
-				erase_if(occs[Lit(j, true)], [this](CRef ci) {
-					return sat.clauses[ci].isRemoved();
-				});
+				erase_if(occs[Lit(j, false)],
+				         [this](CRef ci) { return sat.clauses[ci].removed(); });
+				erase_if(occs[Lit(j, true)],
+				         [this](CRef ci) { return sat.clauses[ci].removed(); });
 
 				// prune implicit binaries
 				erase_if(sat.bins[Lit(j, false)],
@@ -451,7 +449,7 @@ struct BVE
 			{
 				// considered clauses should already be gone
 				assert(!config.irred_only && !cl.irred());
-				cl.remove();
+				cl.set_removed();
 			}
 		}
 
@@ -512,7 +510,7 @@ struct BCE
 		for (CRef i : occs[pos]) // try to eliminate i with variable v(pos)
 		{
 			// already removed (on a different variable)
-			if (sat.clauses[i].isRemoved())
+			if (sat.clauses[i].removed())
 				continue;
 
 			// check for (non-)tautologies
@@ -522,7 +520,7 @@ struct BCE
 			for (CRef j : occs[neg])
 			{
 
-				if (sat.clauses[j].isRemoved())
+				if (sat.clauses[j].removed())
 					continue;
 				if (is_resolvent_tautological(sat.clauses[i].lits(),
 				                              sat.clauses[j].lits(), stamps))
@@ -537,7 +535,7 @@ struct BCE
 				nFound += 1;
 				auto cl = std::vector<Lit>(sat.clauses[i].begin(),
 				                           sat.clauses[i].end());
-				sat.clauses[i].remove();
+				sat.clauses[i].set_removed();
 
 				for (Lit &a : cl)
 					if (a.var() == v)
@@ -599,7 +597,7 @@ int run_blocked_clause_addition(Sat &sat)
 
 	for (auto &cl : sat.clauses.all())
 		if (!cl.irred())
-			cl.remove();
+			cl.set_removed();
 
 	auto p = PropEngineLight(sat);
 	auto seen = util::bit_vector(sat.var_count() * 2);

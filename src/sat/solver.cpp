@@ -91,7 +91,7 @@ void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 			continue;
 		if (cl.size() >= list.size())
 		{
-			cl.remove();
+			cl.set_removed();
 			continue;
 		}
 		list[cl.size()].push_back(ci);
@@ -103,7 +103,7 @@ void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
 		count += list[len].size();
 	for (; len < list.size(); len++)
 		for (CRef ci : list[len])
-			clauses[ci].remove();
+			clauses[ci].set_removed();
 }
 
 void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
@@ -115,7 +115,7 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 			continue;
 		if (cl.glue >= list.size())
 		{
-			cl.remove();
+			cl.set_removed();
 			continue;
 		}
 		list[cl.glue].push_back(ci);
@@ -127,7 +127,7 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 		count += list[len].size();
 	for (; len < list.size(); len++)
 		for (CRef ci : list[len])
-			clauses[ci].remove();
+			clauses[ci].set_removed();
 }
 
 void maybe_clause_clean(Sat &sat, SolverConfig const &config)
@@ -138,7 +138,7 @@ void maybe_clause_clean(Sat &sat, SolverConfig const &config)
 			continue;
 		if (cl.size() > config.max_learnt_size ||
 		    cl.glue > config.max_learnt_glue)
-			cl.remove();
+			cl.set_removed();
 	}
 	if ((int64_t)sat.long_count_red() > config.max_learnt)
 	{
@@ -331,7 +331,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 				log.info("removing all learnt and restart everything\n");
 				for (auto &cl : sat.clauses.all())
 					if (!cl.irred())
-						cl.remove();
+						cl.set_removed();
 				cleanup(sat);
 				preprocess(sat);
 				log.info("after preprocessing {} vars and {} clauses\n",

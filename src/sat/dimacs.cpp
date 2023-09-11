@@ -180,7 +180,7 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 			if (x == 0)
 			{
 				clauseCount++;
-				clauses.addClause(clause, true);
+				clauses.add_clause(clause, true);
 				clause.resize(0);
 			}
 			else
@@ -213,7 +213,7 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 
 	log.info("read {} vars and {} clauses", varCount, clauseCount);
 
-	return {clauses, varCount};
+	return {std::move(clauses), varCount};
 }
 void parseAssignment(std::string filename, Assignment &sol)
 {

@@ -4,6 +4,7 @@
 #include "sat/sat.h"
 #include "sat/solver.h"
 #include "sat/subsumption.h"
+#include "sat/vivification.h"
 #include "util/ring_buffer.h"
 #include <string>
 
@@ -17,6 +18,8 @@ using namespace dawn;
 using namespace ftxui;
 
 namespace {
+
+// CLI options of "dawn ui" command
 struct Options
 {
 	std::string cnfFile;
@@ -52,6 +55,7 @@ Element make_element(util::IntHistogram const &hist)
 	}
 	if (very_long)
 		elems.push_back(text(fmt::format(">10: {}", very_long)));
+	elems.push_back(text(fmt::format("max: {}", hist.max())));
 	elems.push_back(text(fmt::format("avg: {:.2f}", hist.mean())));
 	return vbox(std::move(elems));
 }
@@ -95,10 +99,13 @@ void run_ui_command(Options opt)
 		logger.info("removed {} clauses", n);
 	}));
 	buttons.push_back(Button("subsume", [&] { run_subsumption(sat); }));
+	buttons.push_back(Button("vivify", [&] {
+		run_vivification(sat, {.irred_only = false, .with_binary = true});
+	}));
 	buttons.push_back(Button("clean >10", [&] {
 		for (auto &cl : sat.clauses.all())
 			if (!cl.irred() && cl.size() > 10)
-				cl.remove();
+				cl.set_removed();
 		sat.clauses.compactify();
 	}));
 	buttons.push_back(Button("Quit", [&] { screen.Exit(); }));
@@ -106,13 +113,19 @@ void run_ui_command(Options opt)
 	auto all_buttons = Container::Horizontal(buttons);
 
 	auto dom = [&] {
-		return vbox({
-		           log.element(),
+		auto left = vbox({
+		    log.element(),
+		    separator(),
+		    all_buttons->Render(),
+		});
+		auto right = vbox({
+		    text("nvars = " + std::to_string(sat.var_count())),
+		    make_element(sat.clause_histogram()),
+		});
+		return hbox({
+		           left,
 		           separator(),
-		           text("nvars = " + std::to_string(sat.var_count())),
-		           make_element(sat.clause_histogram()),
-		           separator(),
-		           all_buttons->Render(),
+		           right,
 		       }) |
 		       border;
 	};

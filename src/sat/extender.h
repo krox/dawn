@@ -48,7 +48,7 @@ inline void Extender::add_rule(std::span<const Lit> cl)
 	assert(cl.size() >= 1);
 	for (auto a : cl)
 		assert(a.proper());
-	clauses_.addClause(cl, true);
+	clauses_.add_clause(cl, true);
 
 	// TODO: if cl is a unit clause, we could use it to simplify previous rules.
 	//       (not necessarily remove it from all previous rules). Probably not

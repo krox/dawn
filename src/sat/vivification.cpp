@@ -119,7 +119,7 @@ bool run_vivification(Sat &sat, VivifyConfig const &config)
 					continue;
 				buf = {a, b};
 				if (viv.vivifyClause(buf, config.with_binary))
-					newClauses.addClause(buf, true);
+					newClauses.add_clause(buf, true);
 			}
 	}
 
@@ -134,8 +134,8 @@ bool run_vivification(Sat &sat, VivifyConfig const &config)
 		if (viv.vivifyClause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
-			newClauses.addClause(buf, cl.irred());
-			cl.remove();
+			newClauses.add_clause(buf, cl.irred());
+			cl.set_removed();
 		}
 	}
 
