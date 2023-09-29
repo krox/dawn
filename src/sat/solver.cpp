@@ -189,7 +189,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		if (config.vivify >= 1)
 		{
 			if (vivConfig.with_binary)
-				runBinaryReduction(sat);
+				run_binary_reduction(sat);
 			change |= run_vivification(sat, vivConfig);
 		}
 
@@ -204,7 +204,7 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		// (do this last, because it cant lead to anything new for the other
 		// passes)
 		if (config.tbr > 0)
-			runBinaryReduction(sat);
+			run_binary_reduction(sat);
 
 		if (!change)
 			break;
@@ -224,7 +224,7 @@ void preprocess(Sat &sat)
 
 	// clause elimination (no resolution)
 	// (pure/unused)
-	runBinaryReduction(sat);
+	run_binary_reduction(sat);
 	EliminationConfig elimConfig = {};
 	elimConfig.level = 1;
 	run_elimination(sat, elimConfig);
@@ -243,7 +243,7 @@ void preprocess(Sat &sat)
 		intree_probing(sat);
 		// probe(sat, true, 10000);
 		run_subsumption(sat);
-		runBinaryReduction(sat);
+		run_binary_reduction(sat);
 	}
 }
 

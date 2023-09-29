@@ -17,7 +17,7 @@ for i in range(0, 10000):
     elif mode == 2:
         cmd = ['../cnf-utils/cnf-fuzz-brummayer.py', '-s', str(i)]
     elif mode == 3:
-        cmd = ['../cnf-utils/cnf-fuzz-xor.py', '--seed='+str(i)]
+        cmd = ['../cnf-utils/cnf-fuzz-xor.py', '--seed=' + str(i)]
     elif mode == 4:
         cmd = ['../cnf-utils/largefuzzer', str(i)]
     elif mode == 5:
@@ -32,7 +32,7 @@ for i in range(0, 10000):
         raise "fuzzer failed"
     cnfFile.close()
 
-    r = call(['build/dawn', 'tmp.cnf', 'tmp.sol'])
+    r = call(['build/dawn', 'solve', 'tmp.cnf', 'tmp.sol'])
     if r == 10:
         print("satisfiable")
     elif r == 20:

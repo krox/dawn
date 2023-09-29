@@ -92,7 +92,6 @@ void shuffleVariables(Sat &sat)
 }
 
 int runUnitPropagation(Sat &sat);
-int runSCC(Sat &sat);
 
 int cleanup(Sat &sat)
 {
@@ -111,7 +110,7 @@ int cleanup(Sat &sat)
 	{
 		if (int nFound = runUnitPropagation(sat); nFound)
 			totalUP += nFound;
-		if (int nFound = runSCC(sat); nFound)
+		if (int nFound = run_scc(sat); nFound)
 			totalSCC += nFound;
 		else
 			break;
@@ -129,7 +128,7 @@ bool is_normal_form(Sat const &sat)
 		return false;
 	if (!sat.units.empty())
 		return false;
-	if (auto top = TopOrder(sat); !top.valid())
+	if (auto top = TopOrder(sat); !top.valid)
 		return false;
 	return true;
 }

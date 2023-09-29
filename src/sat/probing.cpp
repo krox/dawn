@@ -113,7 +113,7 @@ int probeBinary(Sat &sat)
 		buf.resize(0);
 	};
 
-	for (Lit a : top.lits())
+	for (Lit a : top.lits)
 	{
 		seenB.clear();
 
@@ -140,7 +140,7 @@ int probeBinary(Sat &sat)
 		// propagating a worked fine -> probe all possible b
 		assert(p.level() == 1);
 
-		for (Lit b : top.lits())
+		for (Lit b : top.lits)
 		{
 			if (p.assign[b] || p.assign[b.neg()] || seenB[b])
 				continue;
