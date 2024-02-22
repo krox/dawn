@@ -224,7 +224,7 @@ template <> struct fmt::formatter<dawn::Assignment>
 			{
 				if (!first)
 					*it++ = ' ';
-				it = format_to(it, "{}", dawn::Lit(i));
+				it = fmt::format_to(it, "{}", dawn::Lit(i));
 				first = false;
 			}
 		return it;

@@ -100,42 +100,42 @@ class Logger
 	void trace(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::trace)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 
 	template <class... Args>
 	void debug(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::debug)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 
 	template <class... Args>
 	void info(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::info)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 
 	template <class... Args>
 	void warn(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::warn)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 
 	template <class... Args>
 	void err(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::err)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 
 	template <class... Args>
 	void critical(std::string_view str, Args &&...args) const noexcept
 	{
 		if (level_ >= Level::critical)
-			do_log(str, fmt::make_format_args(std::forward<Args>(args)...));
+			do_log(str, fmt::make_format_args(args...));
 	}
 };
 

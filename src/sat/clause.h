@@ -346,19 +346,19 @@ template <> struct fmt::formatter<dawn::Lit>
 	{
 		// NOTE: '-elim' and '-undef' should never happen, just for debugging
 		if (a.proper())
-			return format_to(ctx.out(), "{}", a.toDimacs());
+			return fmt::format_to(ctx.out(), "{}", a.toDimacs());
 		else if (a == dawn::Lit::undef())
-			return format_to(ctx.out(), "undef");
+			return fmt::format_to(ctx.out(), "undef");
 		else if (a == dawn::Lit::one())
-			return format_to(ctx.out(), "true");
+			return fmt::format_to(ctx.out(), "true");
 		else if (a == dawn::Lit::zero())
-			return format_to(ctx.out(), "false");
+			return fmt::format_to(ctx.out(), "false");
 		else if (a == dawn::Lit::elim())
-			return format_to(ctx.out(), "elim");
+			return fmt::format_to(ctx.out(), "elim");
 		else if (a == dawn::Lit::elim().neg())
-			return format_to(ctx.out(), "-elim");
+			return fmt::format_to(ctx.out(), "-elim");
 		else if (a == dawn::Lit::undef().neg())
-			return format_to(ctx.out(), "-undef");
+			return fmt::format_to(ctx.out(), "-undef");
 		else
 			assert(false);
 	}
@@ -371,7 +371,7 @@ template <> struct fmt::formatter<dawn::Clause>
 	template <typename FormatContext>
 	auto format(dawn::Clause const &cl, FormatContext &ctx) const
 	{
-		return format_to(ctx.out(), "{}", fmt::join(cl.lits(), " "));
+		return fmt::format_to(ctx.out(), "{}", fmt::join(cl.lits(), " "));
 	}
 };
 

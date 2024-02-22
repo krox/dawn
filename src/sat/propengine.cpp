@@ -471,6 +471,14 @@ void PropEngine::printTrail() const
 	}
 }
 
+// simple RAII class that calls a function when it goes out of scope
+template <typename F> struct Guard
+{
+	F f;
+	Guard(F f) : f(f) {}
+	~Guard() { f(); }
+};
+
 std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 {
 	util::StopwatchGuard _(sat.stats.swSearch);
@@ -481,6 +489,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 		activityHeap.push(i);
 
 	activity_heap = &activityHeap;
+	Guard g([&] { activity_heap = nullptr; });
 
 	int64_t nConfl = 0;
 

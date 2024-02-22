@@ -196,18 +196,18 @@ template <> struct fmt::formatter<dawn::Cnf>
 	auto format(dawn::Cnf const &sat, FormatContext &ctx)
 	{
 		using namespace dawn;
-		auto it = format_to(ctx.out(), "p cnf {} {}\n", sat.var_count(),
-		                    sat.clause_count());
+		auto it = fmt::format_to(ctx.out(), "p cnf {} {}\n", sat.var_count(),
+		                         sat.clause_count());
 
 		// empty clause
 		if (sat.contradiction)
-			it = format_to(it, "0\n");
+			it = fmt::format_to(it, "0\n");
 
 		// unary clauses
 		auto units = sat.units;
 		std::sort(units.begin(), units.end());
 		for (auto a : units)
-			it = format_to(it, "{} 0\n", a);
+			it = fmt::format_to(it, "{} 0\n", a);
 
 		// binary clauses
 		for (Lit l : sat.all_lits())
@@ -216,7 +216,7 @@ template <> struct fmt::formatter<dawn::Cnf>
 			std::sort(tmp.begin(), tmp.end());
 			for (auto b : tmp)
 				if (l <= b)
-					it = format_to(it, "{} {} 0\n", l, b);
+					it = fmt::format_to(it, "{} {} 0\n", l, b);
 		}
 
 		// long clauses
@@ -232,7 +232,7 @@ template <> struct fmt::formatter<dawn::Cnf>
 				                                    b.begin(), b.end());
 		});
 		for (auto i : crefs)
-			it = format_to(it, "{} 0\n", sat.clauses[i]);
+			it = fmt::format_to(it, "{} 0\n", sat.clauses[i]);
 
 		return it;
 	}
