@@ -35,7 +35,7 @@ target_include_directories(sat PUBLIC src)
 target_link_libraries(sat PUBLIC util)
 target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 
-add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/stats.cpp src/commands/ui.cpp)
+add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/sha256.cpp src/commands/stats.cpp src/commands/ui.cpp)
 target_link_libraries(dawn PRIVATE sat CLI11::CLI11 ftxui::screen ftxui::dom ftxui::component)
 target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -march=native)
 

@@ -9,6 +9,60 @@
 
 namespace dawn {
 
+void Cnf::add_and_clause_safe(Lit a, Lit b, Lit c)
+{
+	add_clause_safe({{a, b.neg(), c.neg()}});
+	add_clause_safe({{a.neg(), b}});
+	add_clause_safe({{a.neg(), c}});
+}
+
+void Cnf::add_or_clause_safe(Lit a, Lit b, Lit c)
+{
+	add_and_clause_safe(a.neg(), b.neg(), c.neg());
+}
+
+void Cnf::add_xor_clause_safe(Lit a, Lit b, Lit c)
+{
+	add_clause_safe({{a, b, c.neg()}});
+	add_clause_safe({{a, b.neg(), c}});
+	add_clause_safe({{a.neg(), b, c}});
+	add_clause_safe({{a.neg(), b.neg(), c.neg()}});
+}
+
+void Cnf::add_xor_clause_safe(Lit a, Lit b, Lit c, Lit d)
+{
+	add_clause_safe({{a, b, c, d.neg()}});
+	add_clause_safe({{a, b, c.neg(), d}});
+	add_clause_safe({{a, b.neg(), c, d}});
+	add_clause_safe({{a.neg(), b, c, d}});
+	add_clause_safe({{a, b.neg(), c.neg(), d.neg()}});
+	add_clause_safe({{a.neg(), b, c.neg(), d.neg()}});
+	add_clause_safe({{a.neg(), b.neg(), c, d.neg()}});
+	add_clause_safe({{a.neg(), b.neg(), c.neg(), d}});
+}
+
+void Cnf::add_maj_clause_safe(Lit a, Lit b, Lit c, Lit d)
+{
+	add_clause_safe({{a.neg(), b, c}});
+	add_clause_safe({{a.neg(), b, d}});
+	add_clause_safe({{a.neg(), c, d}});
+	add_clause_safe({{a, b.neg(), c.neg()}});
+	add_clause_safe({{a, b.neg(), d.neg()}});
+	add_clause_safe({{a, c.neg(), d.neg()}});
+}
+
+void Cnf::add_choose_clause_safe(Lit a, Lit b, Lit c, Lit d)
+{
+	add_clause_safe({{a, b.neg(), c.neg()}});
+	add_clause_safe({{a, b, d.neg()}});
+	add_clause_safe({{a.neg(), b.neg(), c}});
+	add_clause_safe({{a.neg(), b, d}});
+
+	// redundant clauses
+	add_clause_safe({{a, c.neg(), d.neg()}});
+	add_clause_safe({{a.neg(), c, d}});
+}
+
 void Cnf::add_clause_safe(std::string_view cl)
 {
 	std::vector<Lit> lits;

@@ -21,6 +21,7 @@ extern "C" void interruptHandler(int)
 void setup_solve_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);
+void setup_sha256_command(CLI::App &app);
 void setup_stats_command(CLI::App &app);
 void setup_ui_command(CLI::App &app);
 
@@ -33,8 +34,14 @@ int main(int argc, char *argv[])
 	setup_solve_command(*cmd);
 	cmd = app.add_subcommand("check", "check a solution to a CNF formula");
 	setup_check_command(*cmd);
-	cmd = app.add_subcommand("gen", "generate a random CNF");
-	setup_gen_command(*cmd);
+	cmd = app.add_subcommand("gen", "generate a CNF instance");
+	cmd->require_subcommand(1);
+	auto cmd_gen = cmd->add_subcommand(
+	    "3sat", "generate a random, satisfiable 3-SAT instance");
+	setup_gen_command(*cmd_gen);
+	auto cmd_sha256 = cmd->add_subcommand(
+	    "sha256", "generate instance of pre-image attack on SHA-256 hash");
+	setup_sha256_command(*cmd_sha256);
 	cmd = app.add_subcommand("stats", "print statistics about a CNF formula");
 	setup_stats_command(*cmd);
 	cmd = app.add_subcommand("ui", "start the UI for interactive solving");

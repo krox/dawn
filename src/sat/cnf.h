@@ -42,6 +42,13 @@ class Cnf
 	CRef add_long(std::span<const Lit> lits, bool irred);
 	CRef add_clause(std::span<const Lit> lits, bool irred);
 
+	void add_and_clause_safe(Lit a, Lit b, Lit c);           // a = b & c
+	void add_or_clause_safe(Lit a, Lit b, Lit c);            // a = b | c
+	void add_xor_clause_safe(Lit a, Lit b, Lit c);           // a = b ^ c
+	void add_xor_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b ^ c ^ d
+	void add_maj_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b+c+d >= 2
+	void add_choose_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b ? c : d
+
 	// add clause (normalizes clause)
 	void add_clause_safe(std::span<const Lit> lits);
 	void add_clause_safe(std::string_view lits);
