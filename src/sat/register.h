@@ -36,6 +36,13 @@ template <int N> struct Register
 
 Lit make_and(Sat &sat, Lit a, Lit b)
 {
+	if (a == Lit::zero() || b == Lit::zero())
+		return Lit::zero();
+	if (a == Lit::one())
+		return b;
+	if (b == Lit::one())
+		return a;
+
 	Lit r = Lit(sat.add_var(), false);
 	sat.add_and_clause_safe(r, a, b);
 	return r;
@@ -43,13 +50,16 @@ Lit make_and(Sat &sat, Lit a, Lit b)
 
 Lit make_or(Sat &sat, Lit a, Lit b)
 {
-	Lit r = Lit(sat.add_var(), false);
-	sat.add_or_clause_safe(r, a, b);
-	return r;
+	return make_and(sat, a.neg(), b.neg()).neg();
 }
 
 Lit make_xor(Sat &sat, Lit a, Lit b)
 {
+	if (a.fixed())
+		return b ^ !a.sign();
+	if (b.fixed())
+		return a ^ !b.sign();
+
 	Lit r = Lit(sat.add_var(), false);
 	sat.add_xor_clause_safe(r, a, b);
 	return r;
@@ -57,6 +67,13 @@ Lit make_xor(Sat &sat, Lit a, Lit b)
 
 Lit make_xor(Sat &sat, Lit a, Lit b, Lit c)
 {
+	if (a.fixed())
+		return make_xor(sat, b, c) ^ !a.sign();
+	if (b.fixed())
+		return make_xor(sat, a, c) ^ !b.sign();
+	if (c.fixed())
+		return make_xor(sat, a, b) ^ !c.sign();
+
 	Lit r = Lit(sat.add_var(), false);
 	sat.add_xor_clause_safe(r, a, b, c);
 	return r;
@@ -64,6 +81,19 @@ Lit make_xor(Sat &sat, Lit a, Lit b, Lit c)
 
 Lit make_maj(Sat &sat, Lit a, Lit b, Lit c)
 {
+	if (a == Lit::zero())
+		return make_and(sat, b, c);
+	if (b == Lit::zero())
+		return make_and(sat, a, c);
+	if (c == Lit::zero())
+		return make_and(sat, a, b);
+	if (a == Lit::one())
+		return make_or(sat, b, c);
+	if (b == Lit::one())
+		return make_or(sat, a, c);
+	if (c == Lit::one())
+		return make_or(sat, a, b);
+
 	Lit r = Lit(sat.add_var(), false);
 	sat.add_maj_clause_safe(r, a, b, c);
 	return r;
@@ -71,6 +101,12 @@ Lit make_maj(Sat &sat, Lit a, Lit b, Lit c)
 
 Lit make_choose(Sat &sat, Lit a, Lit b, Lit c)
 {
+	if (a == Lit::one())
+		return b;
+	if (a == Lit::zero())
+		return c;
+	// plenty more special cases missing...
+
 	Lit r = Lit(sat.add_var(), false);
 	sat.add_choose_clause_safe(r, a, b, c);
 	return r;
@@ -97,13 +133,30 @@ Register<N> operator|(Register<N> const &a, Register<N> const &b)
 }
 
 template <int N>
-Register<N> operator^(Register<N> const &a, Register<N> const &b)
+Register<N> make_xor(Register<N> const &a, Register<N> const &b)
 {
 	assert(&a.sat_ == &b.sat_);
 	auto r = Register<N>(a.sat_);
 	for (int i = 0; i < N; ++i)
 		r.lits_[i] = make_xor(a.sat_, a.lits_[i], b.lits_[i]);
 	return r;
+}
+
+template <int N>
+Register<N> make_xor(Register<N> const &a, Register<N> const &b,
+                     Register<N> const &c)
+{
+	assert(&a.sat_ == &b.sat_ && &a.sat_ == &c.sat_);
+	auto r = Register<N>(a.sat_);
+	for (int i = 0; i < N; ++i)
+		r.lits_[i] = make_xor(a.sat_, a.lits_[i], b.lits_[i], c.lits_[i]);
+	return r;
+}
+
+template <int N>
+Register<N> operator^(Register<N> const &a, Register<N> const &b)
+{
+	return make_xor(a, b);
 }
 
 template <int N> Register<N> operator~(Register<N> const &a)

@@ -9,19 +9,19 @@ using namespace dawn;
 namespace {
 Register<32> ep0(Register<32> x)
 {
-	return rotr(x, 2) ^ rotr(x, 13) ^ rotr(x, 22);
+	return make_xor(rotr(x, 2), rotr(x, 13), rotr(x, 22));
 }
 Register<32> ep1(Register<32> x)
 {
-	return rotr(x, 6) ^ rotr(x, 11) ^ rotr(x, 25);
+	return make_xor(rotr(x, 6), rotr(x, 11), rotr(x, 25));
 }
 Register<32> sig0(Register<32> x)
 {
-	return rotr(x, 7) ^ rotr(x, 18) ^ (x >> 3);
+	return make_xor(rotr(x, 7), rotr(x, 18), (x >> 3));
 }
 Register<32> sig1(Register<32> x)
 {
-	return rotr(x, 17) ^ rotr(x, 19) ^ (x >> 10);
+	return make_xor(rotr(x, 17), rotr(x, 19), (x >> 10));
 }
 
 uint32_t byteswap(uint32_t x)
@@ -101,11 +101,6 @@ void sha256_transform(std::span<Register<32>> state,
 [[maybe_unused]] std::vector<Register<32>> sha256(std::span<Register<32>> data,
                                                   int rounds) noexcept
 {
-	// union
-	//{
-	// std::array<Register<32>, 8> state;
-	// std::array<std::byte, 32> ret;
-	//};
 	auto &sat = data[0].sat_;
 	std::vector<Register<32>> state;
 	state.reserve(8);
@@ -130,12 +125,7 @@ void sha256_transform(std::span<Register<32>> state,
 		buf += 16;
 	}
 
-	// process last (incomplete) block (which might be empty apart from padding)
-	// union
-	//{
 	auto tmp = std::vector<Register<32>>(16, Register<32>(sat, 0));
-	//	std::array<uint8_t, 4 * 16> tmp_bytes;
-	//};
 	for (size_t i = 0; i < tail; ++i)
 		tmp[i] = buf[i];
 
@@ -169,6 +159,7 @@ struct Options
 	int input_bits = 256;
 	int rounds = 64;
 	int zero_bits = 256;
+	bool solve = false;
 };
 
 [[maybe_unused]] uint32_t choose(uint32_t a, uint32_t b, uint32_t c)
@@ -198,7 +189,24 @@ void run_sha256_command(const Options &opt)
 	assert(opt.input_zero_bits % 32 == 0);
 	for (int i = 0; i < opt.input_zero_bits / 32; ++i)
 		equal(data[i], zero);
-	fmt::print("{}", sat);
+
+	if (opt.solve)
+	{
+		fmt::print("{}\n", sat.var_count());
+		Assignment sol;
+		int r = solve(sat, sol, {});
+		assert(r == 10);
+		uint32_t v = 0;
+		for (int i = 0; i < 32; ++i)
+			if (sol.satisfied(hash[0].lits_[i]))
+				v |= 1 << i;
+		v = byteswap(v);
+		fmt::print("hash = {:08x}\n", v);
+	}
+	else
+	{
+		fmt::print("{}", sat);
+	}
 }
 
 } // namespace
@@ -218,5 +226,7 @@ void setup_sha256_command(CLI::App &app)
 	    "--input-zero-bits", opt->input_zero_bits,
 	    "number of zero bits at the beginning of the input (default: 0)");
 	app.add_option("--rounds", opt->rounds, "number of rounds (default: 64)");
+	app.add_flag("--solve", opt->solve,
+	             "solve the generated CNF (for testing trivial cases)");
 	app.callback([opt]() { run_sha256_command(*opt); });
 }
