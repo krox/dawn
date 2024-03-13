@@ -4,7 +4,7 @@
     - [x] UIP style
     - [x] full resolution to one variable per level (default=off)
     - [x] on-the-fly minimization of learnt clauses
-    - [x] lazy hyper-binary-resolution
+    -  ~~lazy hyper-binary-resolution~~
   * branching heuristic
     - [x] VSIDS
     - [x] polarity saving
@@ -20,9 +20,9 @@
     - [ ] luby
     - [ ] dynamic
 * preprocessing / inprocessing
-  - [x] top-level in-tree probing
+  - [x] top-level in-tree probing (including hyper-binary resolution)
   - [x] subsumption / self-subsuming resolution (includes HTE)
-  - [x] vivification
+  - [x] vivification (more exhaustive than typical heuristics)
   - [x] transitive reduction of binary clauses
   - [ ] disconnected components
   - [x] strongly-connected-components

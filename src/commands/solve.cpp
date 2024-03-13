@@ -129,8 +129,6 @@ void setup_solve_command(CLI::App &app)
 	               "on-the-fly strengthening of learnt clauses"
 	               "(0=off, 1=basic, 2=recursive=default)")
 	    ->group(g);
-	app.add_flag("--lhbr", opt->config.lhbr, "lazy hyper-binary resolution")
-	    ->group(g);
 	app.add_flag("--full-resolution", opt->config.full_resolution,
 	             "learn by full resolution instead of UIP (default=off)")
 	    ->group(g);

@@ -70,9 +70,8 @@ class PropEngine
 
 	struct Config
 	{
-		int otf = 2;      // on-the-fly strengthening of learnt clauses
-		                  // (0=off, 1=basic, 2=recursive)
-		bool lhbr = true; // lazy hyper-binary resolution
+		int otf = 2; // on-the-fly strengthening of learnt clauses
+		             // (0=off, 1=basic, 2=recursive)
 		bool full_resolution = false; // learn by full resolution instead of UIP
 		int branch_dom = 0; // branch on dominator instead of chosen literal
 		                    // (0=off, 1=only matching polarity, 2=always)s
@@ -90,7 +89,6 @@ class PropEngine
 	watches_t watches;
 
 	std::vector<Reason> reason; // only valid for assigned vars
-	std::vector<Lit> binDom;    // ditto
 	std::vector<int> trailPos;  // ditto
 
 	std::vector<Lit> conflictClause;

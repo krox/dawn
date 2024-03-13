@@ -27,8 +27,8 @@ Assignment buildSolution(const PropEngine &p)
 
 PropEngine::PropEngine(Sat &sat)
     : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
-      reason(sat.var_count()), binDom(sat.var_count()),
-      trailPos(sat.var_count()), assign(sat.var_count())
+      reason(sat.var_count()), trailPos(sat.var_count()),
+      assign(sat.var_count())
 {
 	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -69,10 +69,6 @@ void PropEngine::set(Lit x, Reason r)
 	assert(!assign[x] && !assign[x.neg()]);
 	assign.set(x);
 	reason[x.var()] = r;
-	if (r.isBinary())
-		binDom[x.var()] = binDom[r.lit().var()];
-	else
-		binDom[x.var()] = x;
 	trailPos[x.var()] = (int)trail_.size();
 	trail_.push_back(x);
 }
@@ -168,21 +164,10 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			else
 			{
 				sat.stats.nLongProps += 1;
-				Reason r2 = Reason(ci);
-
-				// lazy hyper-binary resolution
-				if (config.lhbr)
-					if (Lit dom = analyzeBin(c.lits().subspan(1));
-					    dom != Lit::undef())
-					{
-						sat.stats.nLhbr += 1;
-
-						// learn new binary clause and use it
-						assert(assign[dom.neg()]);
-						r2 = addLearntClause(c[0], dom);
-					}
-
-				propagateBinary(c[0], r2);
+				// This is the point where we previously did LHBR. But we
+				// already do hyper binaries in top-level in-tree probing, so it
+				// is not worth the complexity here.
+				propagateBinary(c[0], Reason(ci));
 				if (conflict)
 					return;
 			}
@@ -357,49 +342,6 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 		i -= 1;
 
 	return i + 1;
-}
-
-/** similar to analyzeConflict, but for lhbr */
-Lit PropEngine::analyzeBin(std::span<const Lit> tail)
-{
-	if (level() == 0)
-		return Lit::undef();
-	assert(level() > 0);
-	std::priority_queue<std::pair<int, Lit>> todo;
-
-	Lit dom = binDom[tail[0].var()];
-
-	for (Lit l : tail)
-	{
-		assert(assign[l.neg()]);
-		if (trailPos[l.var()] < mark_[0])
-			continue;
-		if (binDom[l.var()] != dom)
-			return Lit::undef();
-		todo.emplace(trailPos[l.var()], l);
-	}
-
-	while (true)
-	{
-		// next literal
-		assert(!todo.empty());
-		Lit l = todo.top().second;
-		todo.pop();
-		assert(assign[l.neg()]);
-
-		// remove duplicates from queue
-		while (!todo.empty() && todo.top().second == l)
-			todo.pop();
-
-		// nothing else -> we found UIP
-		if (todo.empty())
-			return l;
-
-		// otherwise resolve
-		Reason r = reason[l.var()];
-		assert(r.isBinary());
-		todo.emplace(trailPos[r.lit().var()], r.lit());
-	}
 }
 
 // helper for OTF strengthening

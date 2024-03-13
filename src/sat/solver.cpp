@@ -290,7 +290,6 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		{
 			propEngine = std::make_unique<PropEngine>(sat);
 			propEngine->config.otf = config.otf;
-			propEngine->config.lhbr = config.lhbr;
 			propEngine->config.full_resolution = config.full_resolution;
 			propEngine->config.branch_dom = config.branch_dom;
 		}

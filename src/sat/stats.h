@@ -23,7 +23,6 @@ struct SolverConfig
 	// main searcher (CDLC)
 	int otf = 2;                  // on-the-fly strengthening of learnt clauses
 	                              // (0=off, 1=basic, 2=recursive)
-	bool lhbr = true;             // lazy hyper-binary resolution
 	bool full_resolution = false; // learn by full resolution instead of UIP
 	int branch_dom = 0; // branch on dominator instead of chosen one itself
 	                    // ( 0=off, 1=matching polarity only, 2=always
@@ -71,7 +70,6 @@ struct Stats
 	int64_t nLongSatisfied = 0, nLongShifts = 0, nLongProps = 0,
 	        nLongConfls = 0;
 	int64_t nLitsLearnt = 0, nLitsOtfRemoved = 0;
-	int64_t nLhbr = 0;
 
 	int64_t nProps() const { return nBinProps + nLongProps; }
 	int64_t nConfls() const { return nBinConfls + nLongConfls; }
