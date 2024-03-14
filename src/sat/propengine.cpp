@@ -25,10 +25,10 @@ Assignment buildSolution(const PropEngine &p)
 }
 } // namespace
 
-PropEngine::PropEngine(Sat &sat)
-    : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
-      reason(sat.var_count()), trailPos(sat.var_count()),
-      assign(sat.var_count())
+PropEngine::PropEngine(Sat &sat, Config const &config)
+    : sat(sat), config_(config), seen(sat.var_count()),
+      watches(sat.var_count() * 2), reason(sat.var_count()),
+      trailPos(sat.var_count()), assign(sat.var_count())
 {
 	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -229,7 +229,7 @@ int PropEngine::level() const { return (int)mark_.size(); }
 void PropEngine::unroll(int l)
 {
 	assert(l < level());
-	if (activity_heap != nullptr)
+	if (activity_heap)
 		for (int i = mark_[l]; i < (int)trail_.size(); ++i)
 			activity_heap->push(trail_[i].var());
 
@@ -273,18 +273,15 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 		while (!todo.empty() && todo.top().second == l)
 			todo.pop();
 
-		if (activity_heap != nullptr)
-		{
-			sat.bump_variable_activity(l.var());
-			activity_heap->update(l.var());
-		}
+		if (activity_heap)
+			activity_heap->bump_variable_activity(l.var());
 
 		// next one is reason side
 		//   -> this one is reason side or UIP
 		//   -> add this one to learnt clause
 		if (todo.empty() ||
-		    (!config.full_resolution && todo.top().first < mark_.back()) ||
-		    (config.full_resolution && todo.top().first < mark_[lev]))
+		    (!config_.full_resolution && todo.top().first < mark_.back()) ||
+		    (config_.full_resolution && todo.top().first < mark_[lev]))
 		{
 			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
 			{
@@ -322,7 +319,7 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 	// strengthen the conflict clause using the reason clauses
 	// (NOTE: keep the order of remaining literals the same)
 	// (NOTE: if full_resolution==true, otf cant possibly do anything)
-	if (config.otf >= 1 && !config.full_resolution)
+	if (config_.otf >= 1 && !config_.full_resolution)
 	{
 		int j = 1;
 		for (int i = 1; i < (int)learnt.size(); ++i)
@@ -356,7 +353,8 @@ bool PropEngine::isRedundant(Lit lit)
 
 	if (r.isBinary())
 	{
-		return seen[r.lit().var()] || (config.otf >= 2 && isRedundant(r.lit()));
+		return seen[r.lit().var()] ||
+		       (config_.otf >= 2 && isRedundant(r.lit()));
 	}
 
 	assert(r.isLong());
@@ -364,7 +362,7 @@ bool PropEngine::isRedundant(Lit lit)
 		Clause &cl = sat.clauses[r.cref()];
 		for (Lit l : cl.lits())
 			if (l != lit && !seen[l.var()] &&
-			    !(config.otf >= 2 && isRedundant(l)))
+			    !(config_.otf >= 2 && isRedundant(l)))
 				return false;
 		seen[lit.var()] = true; // shortcut other calls to isRedundant
 		return true;
@@ -425,13 +423,8 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 {
 	util::StopwatchGuard _(sat.stats.swSearch);
 
-	// TODO: no, this is not the right place for the activity heap
-	ActivityHeap activityHeap(sat);
-	for (int i : sat.all_vars())
-		activityHeap.push(i);
-
-	activity_heap = &activityHeap;
-	Guard g([&] { activity_heap = nullptr; });
+	if (!activity_heap)
+		throw std::runtime_error("activity heap not initialized");
 
 	int64_t nConfl = 0;
 
@@ -455,7 +448,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 			int backLevel;
 			uint8_t glue;
 			backLevel = analyzeConflict(buf);
-			if (config.full_resolution)
+			if (config_.full_resolution)
 			{
 				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
 				assert(glue == calcGlue(buf));
@@ -463,7 +456,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 			else
 				glue = calcGlue(buf);
 
-			sat.decay_variable_activity();
+			activity_heap->decay_variable_activity();
 			sat.stats.nLearnt += 1;
 			sat.stats.nLitsLearnt += buf.size();
 
@@ -471,8 +464,9 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 			unroll(backLevel);
 			Reason r = addLearntClause(buf, glue);
 			propagateFull(buf[0], r);
-			for (Lit x : trail(level()))
-				sat.polarity[x.var()] = x.sign();
+			if (polarity)
+				for (Lit x : trail(level()))
+					(*polarity)[x.var()] = x.sign();
 
 			buf.resize(0);
 		}
@@ -489,9 +483,9 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 		// int branch = p.unassignedVariable();
 		int branchVar = -1;
 
-		while (!activityHeap.empty())
+		while (!activity_heap->empty())
 		{
-			int v = activityHeap.pop();
+			int v = activity_heap->pop();
 			if (assign[Lit(v, false)] || assign[Lit(v, true)])
 				continue;
 
@@ -508,9 +502,10 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 		if (branchVar == -1)
 			return buildSolution(*this);
 
-		Lit branchLit = Lit(branchVar, sat.polarity[branchVar]);
+		Lit branchLit =
+		    Lit(branchVar, polarity ? (*polarity)[branchVar] : false);
 
-		if (config.branch_dom >= 1)
+		if (config_.branch_dom >= 1)
 		{
 			// NOTE: the counter avoids infinite loop due to equivalent vars
 			// TODO: think again about the order of binary clauses. That has an
@@ -519,8 +514,8 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 		again:
 			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
 				if (!assign[l])
-					if (config.branch_dom >= 2 ||
-					    sat.polarity[l.var()] == l.neg().sign())
+					if (config_.branch_dom >= 2 ||
+					    (polarity && (*polarity)[l.var()] == l.neg().sign()))
 					{
 						branchLit = l.neg();
 						if (++counter < 5)
@@ -532,8 +527,9 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 
 		// propagate branch
 		branch(branchLit);
-		for (Lit x : trail(level()))
-			sat.polarity[x.var()] = x.sign();
+		if (polarity)
+			for (Lit x : trail(level()))
+				(*polarity)[x.var()] = x.sign();
 	}
 }
 

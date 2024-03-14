@@ -2,6 +2,7 @@
 #include "fmt/format.h"
 #include "sat/dimacs.h"
 #include "sat/sat.h"
+#include "sat/searcher.h"
 #include "sat/solver.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
@@ -78,8 +79,8 @@ void run_ui_command(Options opt)
 	config.max_learnt = 1000;
 
 	auto run_searcher = [&]() {
-		auto p = PropEngine(sat);
-		auto sol = p.search(1000);
+		auto s = Searcher(sat);
+		auto sol = s.run(1000);
 		if (sol)
 		{
 			logger.info("SATISFIABLE\n");

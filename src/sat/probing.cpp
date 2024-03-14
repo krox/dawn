@@ -20,7 +20,7 @@ int probeBinary(Sat &sat)
 	util::StopwatchGuard swg(sat.stats.swProbing);
 	auto log = Logger("bin-probing");
 
-	PropEngine p(sat);
+	PropEngine p(sat, {});
 	if (p.conflict)
 		return 0;
 

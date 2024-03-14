@@ -49,13 +49,6 @@ class Sat : public Cnf
 	 */
 	void renumber(std::span<const Lit> trans, int newVarCount);
 
-	// tracking of variable activity and polarity
-	std::vector<double> activity;
-	util::bit_vector polarity;
-	double activityInc = 1.0;
-	void bump_variable_activity(int i);
-	void decay_variable_activity();
-
 	// sort clauses and literals in clauses. Invalidates all CRefs, just
 	// intended for nicer human-readable output
 	void sort_clauses();
@@ -66,8 +59,7 @@ class Sat : public Cnf
 void shuffleVariables(Sat &sat);
 
 inline Sat::Sat(int n, ClauseStorage clauses_)
-    : Cnf(n, std::move(clauses_)), to_outer_(n), extender(n), activity(n, 0.0),
-      polarity(n)
+    : Cnf(n, std::move(clauses_)), to_outer_(n), extender(n)
 {
 	for (int i = 0; i < n; ++i)
 		to_outer_[i] = Lit(i, false);
@@ -89,8 +81,6 @@ inline int Sat::add_var()
 	int outer = extender.add_var();
 	bins.emplace_back();
 	bins.emplace_back();
-	activity.push_back(0.0);
-	polarity.push_back(false);
 	to_outer_.push_back(Lit(outer, false));
 	return inner;
 }
@@ -99,21 +89,6 @@ inline int Sat::add_var_outer()
 {
 	int i = add_var();
 	return to_outer_[i].var();
-}
-
-inline void Sat::bump_variable_activity(int i) { activity[i] += activityInc; }
-
-inline void Sat::decay_variable_activity()
-{
-	activityInc *= 1.05;
-
-	// scale everything down if neccessary
-	if (activityInc > 1e100)
-	{
-		activityInc /= 1e100;
-		for (int i : all_vars())
-			activity[i] /= 1e100;
-	}
 }
 
 // create list of all clauses (active and extension) in outer numbering

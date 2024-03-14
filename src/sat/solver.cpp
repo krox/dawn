@@ -6,6 +6,7 @@
 #include "sat/elimination.h"
 #include "sat/probing.h"
 #include "sat/propengine.h"
+#include "sat/searcher.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
 #include <optional>
@@ -274,7 +275,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
-	std::unique_ptr<PropEngine> propEngine = nullptr;
+	std::unique_ptr<Searcher> searcher = nullptr;
 
 	// main solver loop
 	for (int iter = 1;; ++iter)
@@ -286,16 +287,19 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			return 30;
 		}
 
-		if (propEngine == nullptr)
+		if (searcher == nullptr)
 		{
-			propEngine = std::make_unique<PropEngine>(sat);
-			propEngine->config.otf = config.otf;
-			propEngine->config.full_resolution = config.full_resolution;
-			propEngine->config.branch_dom = config.branch_dom;
+			// TODO:
+			// PropEngine::Config propConfig;
+			// propConfig.otf = config.otf;
+			// propConfig.full_resolution = config.full_resolution;
+			// propConfig.branch_dom = config.branch_dom;
+
+			searcher = std::make_unique<Searcher>(sat);
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = propEngine->search(restartSize(iter, config)); tmp)
+		if (auto tmp = searcher->run(restartSize(iter, config)); tmp)
 		{
 			assert(!sat.contradiction);
 			sol = *tmp;
@@ -321,7 +325,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		// inprocessing
 		if (needInprocess)
 		{
-			propEngine.reset();
+			searcher.reset();
 			lastInprocess = sat.stats.nConfls();
 			inprocess(sat, config);
 

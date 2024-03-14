@@ -14,36 +14,6 @@ void Sat::renumber(std::span<const Lit> trans, int newVarCount)
 	// checks input and renumbers actual clauses
 	Cnf::renumber(trans, newVarCount);
 
-	// renumber activity array
-	{
-		std::vector<double> activityOld(newVarCount, 0.0);
-		std::swap(activity, activityOld);
-
-		for (int i = 0; i < (int)activityOld.size(); ++i)
-			if (trans[i].proper())
-			{
-				int j = trans[i].var();
-
-				// when multiple old variables are mapped to a single new one,
-				// we take the maximum of the two activities
-				activity[j] = std::max(activity[j], activityOld[i]);
-			}
-	}
-
-	// renumber polarity array
-	{
-		// when multiple old variables are mapped to a single new one, take
-		// arbitrary polarity (should be the same in most cases anyway)
-		util::bit_vector polarityOld(newVarCount);
-		std::swap(polarity, polarityOld);
-		for (int i = 0; i < (int)polarityOld.size(); ++i)
-			if (trans[i].proper())
-			{
-				int j = trans[i].var();
-				polarity[j] = polarityOld[i] ^ trans[i].sign();
-			}
-	}
-
 	// renumber translation arrays
 	auto to_outer_old = std::move(to_outer_);
 	to_outer_ = std::vector<Lit>(newVarCount, Lit::undef());
@@ -54,7 +24,8 @@ void Sat::renumber(std::span<const Lit> trans, int newVarCount)
 			extender.set_literal(to_outer_old[i] ^ trans[i].sign());
 		}
 		else if (trans[i] == Lit::elim())
-		{}
+		{
+		}
 		else if (trans[i].proper())
 		{
 			if (to_outer_[trans[i].var()] == Lit::undef())

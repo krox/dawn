@@ -67,6 +67,7 @@ class PropEngine
 	//   - variables are activated during .unroll()
 	//   - variable-activity is bumped during conflict analysis
 	ActivityHeap *activity_heap = nullptr;
+	util::bit_vector *polarity = nullptr;
 
 	struct Config
 	{
@@ -75,9 +76,11 @@ class PropEngine
 		bool full_resolution = false; // learn by full resolution instead of UIP
 		int branch_dom = 0; // branch on dominator instead of chosen literal
 		                    // (0=off, 1=only matching polarity, 2=always)s
-	} config;
+	};
 
   private:
+	Config config_;
+
 	util::bit_vector seen;     // temporary during conflict analysis
 	bool isRedundant(Lit lit); // helper for OTF strengthening
 
@@ -96,14 +99,12 @@ class PropEngine
 	void set(Lit x, Reason r);             // no unit propagation
 	void propagateBinary(Lit x, Reason r); // binary unit propagation
 
-	Lit analyzeBin(std::span<const Lit> reason); // helper for LHBR
-
   public:
 	Assignment assign;
 	bool conflict = false;
 
 	/** constructor */
-	PropEngine(Sat &sat);
+	PropEngine(Sat &sat, Config const &config);
 
 	/** assign a literal and do unit propagation */
 	void branch(Lit x);                  // starts a new level
