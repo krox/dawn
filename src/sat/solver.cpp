@@ -307,7 +307,9 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		if (auto tmp = searcher->run(restartSize(iter, config)); tmp)
 		{
 			assert(!sat.contradiction);
-			sol = *tmp;
+			sol = sat.to_outer(*tmp);
+			sol.fix_unassigned();
+			sat.extender.extend(sol);
 			return 10;
 		}
 

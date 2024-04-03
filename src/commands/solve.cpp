@@ -56,6 +56,7 @@ void run_solve_command(Options opt)
 		if (result == 10)
 		{
 			fmt::print("s SATISFIABLE\n");
+			assert(sol.var_count() == varCount);
 			if (sol.satisfied(originalClauses))
 				std::cout << "s solution checked" << std::endl;
 			else

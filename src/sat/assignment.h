@@ -121,6 +121,8 @@ class Assignment
 	bool satisfied(Lit a, Lit b, Lit c) const noexcept;
 	bool satisfied(std::span<const Lit> cl) const noexcept;
 	bool satisfied(ClauseStorage const &cls) const noexcept;
+
+	void fix_unassigned() noexcept;
 };
 
 inline int Assignment::var_count() const noexcept
@@ -154,7 +156,7 @@ inline bool Assignment::complete() const noexcept
 inline lbool Assignment::operator()(int v) const noexcept
 {
 	static_assert(sizeof(*assign_.data()) == 8);
-	return lbool::unchecked((assign_.data()[v >> 5] >> ((v >> 5) * 2)) & 3);
+	return lbool::unchecked((assign_.data()[v >> 5] >> ((v & 31) * 2)) & 3);
 }
 
 inline lbool Assignment::operator()(Lit a) const noexcept

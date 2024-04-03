@@ -153,10 +153,10 @@ class PropEngine
 	//     state (i.e. partial assignment) is.
 	//   - maxConflicts can be slightly exceeded in case a learnt clause
 	//     immediately leads to another conflict
-	//   - returns solution if found, or std::nullopt if limits reached or
+	//   - returns true if solution found, false if limits reached or
 	//     contradiction is found
 	//   - behaviour is controlled by config (see above)
-	std::optional<Assignment> search(int64_t maxConfl);
+	bool search(int64_t maxConfl);
 
 	/** for debugging */
 	void printTrail() const;

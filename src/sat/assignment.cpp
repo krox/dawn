@@ -47,4 +47,11 @@ static_assert((lfalse ^ false) == lfalse);
 static_assert((lundef ^ true) == lundef);
 static_assert((lundef ^ false) == lundef);
 
+void Assignment::fix_unassigned() noexcept
+{
+	for (int i = 0; i < var_count(); ++i)
+		if (!assign_[Lit(i, false)])
+			assign_[Lit(i, true)] = true;
+}
+
 } // namespace dawn

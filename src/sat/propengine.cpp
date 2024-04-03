@@ -6,24 +6,6 @@
 #include <queue>
 
 namespace dawn {
-namespace {
-Assignment buildSolution(const PropEngine &p)
-{
-	// TODO: right now we set an arbitrary default value here for unassigned
-	//       variables. For eliminated vars this is necessary because the
-	//       extension clauses may not force either value. Alternative would
-	//       be to make the extension rules forcing whenever we eliminate a var
-	auto a = Assignment(p.sat.var_count_outer());
-	for (int i = 0; i < p.sat.var_count_outer(); ++i)
-		a.set(Lit(i, true));
-	for (Lit l : p.trail())
-		a.force_set(p.sat.to_outer(l));
-	assert(a.complete());
-	p.sat.extender.extend(a);
-	assert(a.complete());
-	return a;
-}
-} // namespace
 
 PropEngine::PropEngine(Sat &sat, Config const &config)
     : sat(sat), config_(config), seen(sat.var_count()),
@@ -419,7 +401,7 @@ template <typename F> struct Guard
 	~Guard() { f(); }
 };
 
-std::optional<Assignment> PropEngine::search(int64_t maxConfl)
+bool PropEngine::search(int64_t maxConfl)
 {
 	util::StopwatchGuard _(sat.stats.swSearch);
 
@@ -441,7 +423,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 			if (level() == 0)
 			{
 				sat.add_empty();
-				return std::nullopt;
+				return false;
 			}
 
 			// analyze conflict
@@ -475,7 +457,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 		{
 			if (level() > 0)
 				unroll(0);
-			return std::nullopt;
+			return false;
 		}
 
 		// choose a branching variable
@@ -499,7 +481,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 
 		// no unassigned left -> solution is found
 		if (branchVar == -1)
-			return buildSolution(*this);
+			return true;
 
 		Lit branchLit =
 		    Lit(branchVar, polarity ? (*polarity)[branchVar] : false);

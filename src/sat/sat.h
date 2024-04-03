@@ -33,6 +33,7 @@ class Sat : public Cnf
 
 	// translate inner to outer (can return Lit::zero()/Lit::one() for fixed)
 	Lit to_outer(Lit a) const;
+	Assignment to_outer(Assignment const &) const;
 
 	// add variables
 	int add_var();

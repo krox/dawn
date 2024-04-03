@@ -42,6 +42,20 @@ void Sat::renumber(std::span<const Lit> trans, int newVarCount)
 		assert(a.proper());
 }
 
+Assignment Sat::to_outer(Assignment const &a) const
+{
+	assert(a.var_count() == var_count());
+	auto r = Assignment(var_count_outer());
+	for (int i = 0; i < var_count(); ++i)
+	{
+		if (a(i) == ltrue)
+			r.set(to_outer_[i]);
+		else if (a(i) == lfalse)
+			r.set(to_outer_[i].neg());
+	}
+	return r;
+}
+
 size_t Sat::memory_usage() const
 {
 	size_t r = Cnf::memory_usage();

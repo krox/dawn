@@ -29,6 +29,12 @@ class Searcher
 		p_.polarity = &polarity_;
 	}
 
-	std::optional<Assignment> run(int nConfls) { return p_.search(nConfls); }
+	std::optional<Assignment> run(int nConfls)
+	{
+		if (p_.search(nConfls))
+			return p_.assign;
+		else
+			return std::nullopt;
+	}
 };
 } // namespace dawn
