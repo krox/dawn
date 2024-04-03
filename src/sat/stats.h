@@ -55,17 +55,14 @@ struct SolverConfig
 	int64_t max_confls = INT64_MAX; // stop solving
 };
 
-struct Stats
+struct PropStats
 {
 	// histogram of the visited(!) binary-lists and watchlists
 	util::IntHistogram binHistogram;        // length of binary-list
 	util::IntHistogram watchHistogram;      // length of watch-list
 	util::IntHistogram clauseSizeHistogram; // length of visited long clauses
 
-	bool watch_stats = false; // print histogram of watchlist size
-
 	// statistics on the search process
-	int64_t nLearnt = 0;
 	int64_t nBinSatisfied = 0, nBinProps = 0, nBinConfls = 0;
 	int64_t nLongSatisfied = 0, nLongShifts = 0, nLongProps = 0,
 	        nLongConfls = 0;
@@ -73,6 +70,17 @@ struct Stats
 
 	int64_t nProps() const { return nBinProps + nLongProps; }
 	int64_t nConfls() const { return nBinConfls + nLongConfls; }
+
+	// Write stats to stdout. Usually called once at the end of solving
+	void dump(bool with_histograms);
+	void clear();
+};
+
+PropStats &operator+=(PropStats &a, const PropStats &b);
+
+struct Stats
+{
+	bool watch_stats = false; // print histogram of watchlist size
 
 	// time of different parts of the solver
 	util::Stopwatch swTotal, swParsing;

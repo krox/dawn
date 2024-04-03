@@ -11,6 +11,7 @@ namespace dawn {
 //       (depends on copying the CNF formula into the PropEngine or similar)
 class Searcher
 {
+  public:
 	PropEngine p_;
 	ActivityHeap act_;
 	util::bit_vector polarity_;

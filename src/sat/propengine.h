@@ -88,6 +88,8 @@ class PropEngine
 	std::vector<int> mark_;  // indices into trail
 
   public:
+	PropStats stats;
+
 	using watches_t = std::vector<util::small_vector<CRef, 7>>;
 	watches_t watches;
 

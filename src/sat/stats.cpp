@@ -12,9 +12,9 @@ static void dumpHistogram(const util::IntHistogram &h)
 	fmt::print("average: {:#12.2f}\n", h.mean());
 }
 
-void Stats::dump()
+void PropStats::dump(bool with_histograms)
 {
-	if (watch_stats)
+	if (with_histograms)
 	{
 		fmt::print("c ======================= binlist size histogram "
 		           "=======================\n");
@@ -45,9 +45,10 @@ void Stats::dump()
 	           100. * nLongProps / watchHistogram.sum());
 	fmt::print("c long confls:    {:#10} ({:#4.1f} % of watches)\n",
 	           nLongConfls, 100. * nLongConfls / watchHistogram.sum());
-	fmt::print("c clauses learnt: {:#10} ({:#4.1f} % shortened by otf)\n",
-	           nLearnt, 100. * nLitsOtfRemoved / nLitsLearnt);
+}
 
+void Stats::dump()
+{
 	fmt::print("c ============================ time stats "
 	           "=============================\n");
 	fmt::print("c parser       {:#6.2f} s ({:#4.1f} %)\n", swParsing.secs(),
@@ -73,5 +74,24 @@ void Stats::dump()
 	           100. * swSearch.secs() / swTotal.secs());
 	fmt::print("c total        {:#6.2f} s\n", swTotal.secs());
 }
+
+PropStats &operator+=(PropStats &a, const PropStats &b)
+{
+	a.binHistogram += b.binHistogram;
+	a.watchHistogram += b.watchHistogram;
+	a.clauseSizeHistogram += b.clauseSizeHistogram;
+	a.nBinSatisfied += b.nBinSatisfied;
+	a.nBinProps += b.nBinProps;
+	a.nBinConfls += b.nBinConfls;
+	a.nLongSatisfied += b.nLongSatisfied;
+	a.nLongShifts += b.nLongShifts;
+	a.nLongProps += b.nLongProps;
+	a.nLongConfls += b.nLongConfls;
+	a.nLitsLearnt += b.nLitsLearnt;
+	a.nLitsOtfRemoved += b.nLitsOtfRemoved;
+	return a;
+}
+
+void PropStats::clear() { *this = PropStats{}; }
 
 } // namespace dawn

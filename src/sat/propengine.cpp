@@ -81,18 +81,18 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	while (pos != trail_.size())
 	{
 		Lit y = trail_[pos++];
-		sat.stats.binHistogram.add((int)sat.bins[y.neg()].size());
+		stats.binHistogram.add((int)sat.bins[y.neg()].size());
 		for (Lit z : sat.bins[y.neg()])
 		{
 			if (assign[z]) // already assigned true -> do nothing
 			{
-				sat.stats.nBinSatisfied += 1;
+				stats.nBinSatisfied += 1;
 				continue;
 			}
 
 			if (assign[z.neg()]) // already assigned false -> conflict
 			{
-				sat.stats.nBinConfls += 1;
+				stats.nBinConfls += 1;
 				assert(conflictClause.empty());
 				conflictClause.push_back(y.neg());
 				conflictClause.push_back(z);
@@ -100,7 +100,7 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 				return;
 			}
 
-			sat.stats.nBinProps += 1;
+			stats.nBinProps += 1;
 			set(z, Reason(y.neg())); // else -> propagate
 		}
 	}
@@ -117,12 +117,12 @@ void PropEngine::propagateFull(Lit x, Reason r)
 	{
 		Lit y = trail_[pos++];
 		auto &ws = watches[y.neg()];
-		sat.stats.watchHistogram.add((int)ws.size());
+		stats.watchHistogram.add((int)ws.size());
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
 			Clause &c = sat.clauses[ci];
-			sat.stats.clauseSizeHistogram.add((int)c.size());
+			stats.clauseSizeHistogram.add((int)c.size());
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if (c[0] == y.neg())
@@ -132,7 +132,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			// other watched lit is satisfied -> do nothing
 			if (assign[c[0]])
 			{
-				sat.stats.nLongSatisfied += 1;
+				stats.nLongSatisfied += 1;
 				continue;
 			}
 
@@ -141,7 +141,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				if (!assign[c[i].neg()]) // literal satisfied or undef -> move
 				                         // watch
 				{
-					sat.stats.nLongShifts += 1;
+					stats.nLongShifts += 1;
 					std::swap(c[1], c[i]);
 					watches[c[1]].push_back(ws[wi]);
 
@@ -154,7 +154,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			// tail is all assigned false -> propagate or conflict
 			if (assign[c[0].neg()])
 			{
-				sat.stats.nLongConfls += 1;
+				stats.nLongConfls += 1;
 				conflict = true;
 				assert(conflictClause.empty());
 				for (Lit l : c.lits())
@@ -163,7 +163,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			}
 			else
 			{
-				sat.stats.nLongProps += 1;
+				stats.nLongProps += 1;
 				// This is the point where we previously did LHBR. But we
 				// already do hyper binaries in top-level in-tree probing, so it
 				// is not worth the complexity here.
@@ -324,7 +324,7 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 		int j = 1;
 		for (int i = 1; i < (int)learnt.size(); ++i)
 			if (isRedundant(learnt[i]))
-				sat.stats.nLitsOtfRemoved += 1;
+				stats.nLitsOtfRemoved += 1;
 			else
 				learnt[j++] = learnt[i];
 		learnt.resize(j);
@@ -457,8 +457,7 @@ std::optional<Assignment> PropEngine::search(int64_t maxConfl)
 				glue = calcGlue(buf);
 
 			activity_heap->decay_variable_activity();
-			sat.stats.nLearnt += 1;
-			sat.stats.nLitsLearnt += buf.size();
+			stats.nLitsLearnt += buf.size();
 
 			// unroll to apropriate level and propagate new learnt clause
 			unroll(backLevel);

@@ -131,7 +131,7 @@ void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
 			clauses[ci].set_removed();
 }
 
-void maybe_clause_clean(Sat &sat, SolverConfig const &config)
+void maybe_clause_clean(Sat &sat, SolverConfig const &config, size_t nConfls)
 {
 	for (auto &cl : sat.clauses.all())
 	{
@@ -148,12 +148,12 @@ void maybe_clause_clean(Sat &sat, SolverConfig const &config)
 		else
 			cleanClausesSize(sat.clauses, config.max_learnt);
 	}
-	if (sat.long_count_red() > (size_t)sat.stats.nConfls() / 4)
+	if (sat.long_count_red() > nConfls)
 	{
 		if (config.use_glue)
-			cleanClausesGlue(sat.clauses, sat.stats.nConfls() / 8);
+			cleanClausesGlue(sat.clauses, nConfls / 8);
 		else
-			cleanClausesSize(sat.clauses, sat.stats.nConfls() / 8);
+			cleanClausesSize(sat.clauses, nConfls / 8);
 	}
 }
 
@@ -265,8 +265,10 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	         sat.clause_count());
 
 	printHeader();
-	int64_t lastInprocess = sat.stats.nConfls();
-	int64_t lastPrint = sat.stats.nConfls();
+
+	PropStats propStats;
+	int64_t lastInprocess = 0;
+	int64_t lastPrint = 0;
 
 	// we use "total length of irreducible long clauses" as metric for progress,
 	// as it always decreases with serching/subsumption/... . After some
@@ -280,8 +282,11 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	// main solver loop
 	for (int iter = 1;; ++iter)
 	{
+		auto nConfls = propStats.nConfls();
+		if (searcher)
+			nConfls += searcher->p_.stats.nConfls();
 		// check limit
-		if (sat.stats.nConfls() >= config.max_confls)
+		if (nConfls >= config.max_confls)
 		{
 			log.info("conflict limit reached. abort solver.");
 			return 30;
@@ -314,19 +319,23 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			log.info("interrupted. abort solver.");
 			return 30;
 		}
-		bool needInprocess = sat.stats.nConfls() > lastInprocess + 20000;
+		bool needInprocess = nConfls > lastInprocess + 20000;
 
-		if (needInprocess || sat.stats.nConfls() > lastPrint + 1000)
+		if (needInprocess || nConfls > lastPrint + 1000)
 		{
 			printLine(sat);
-			lastPrint = sat.stats.nConfls();
+			lastPrint = nConfls;
 		}
 
 		// inprocessing
 		if (needInprocess)
 		{
-			searcher.reset();
-			lastInprocess = sat.stats.nConfls();
+			if (searcher)
+			{
+				propStats += searcher->p_.stats;
+				searcher.reset();
+			}
+			lastInprocess = nConfls;
 			inprocess(sat, config);
 
 			if (sat.lit_count_irred() <= 0.95 * lastElimination)
@@ -342,7 +351,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 				lastElimination = sat.lit_count_irred();
 			}
 			else
-				maybe_clause_clean(sat, config);
+				maybe_clause_clean(sat, config, nConfls);
 
 			sat.clauses.compactify();
 
