@@ -7,10 +7,10 @@
 
 namespace dawn {
 
-PropEngine::PropEngine(Sat &sat, Config const &config)
-    : sat(sat), config_(config), seen(sat.var_count()),
-      watches(sat.var_count() * 2), reason(sat.var_count()),
-      trailPos(sat.var_count()), assign(sat.var_count())
+PropEngine::PropEngine(Sat &sat)
+    : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
+      reason(sat.var_count()), trailPos(sat.var_count()),
+      assign(sat.var_count())
 {
 	util::StopwatchGuard swg(sat.stats.swSearchInit);
 
@@ -211,9 +211,6 @@ int PropEngine::level() const { return (int)mark_.size(); }
 void PropEngine::unroll(int l)
 {
 	assert(l < level());
-	if (activity_heap)
-		for (int i = mark_[l]; i < (int)trail_.size(); ++i)
-			activity_heap->push(trail_[i].var());
 
 	conflict = false;
 	conflictClause.resize(0);
@@ -227,7 +224,16 @@ void PropEngine::unroll(int l)
 	mark_.resize(l);
 }
 
-int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
+void PropEngine::unroll(int l, ActivityHeap &activity_heap)
+{
+	assert(l < level());
+	for (int i = mark_[l]; i < (int)trail_.size(); ++i)
+		activity_heap.push(trail_[i].var());
+	unroll(l);
+}
+
+void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
+                                  ActivityHeap *activity_heap)
 {
 	assert(learnt.empty());
 	assert(conflict);
@@ -261,9 +267,10 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 		// next one is reason side
 		//   -> this one is reason side or UIP
 		//   -> add this one to learnt clause
-		if (todo.empty() ||
+		/*if (todo.empty() ||
 		    (!config_.full_resolution && todo.top().first < mark_.back()) ||
-		    (config_.full_resolution && todo.top().first < mark_[lev]))
+		    (config_.full_resolution && todo.top().first < mark_[lev]))*/
+		if (todo.empty() || todo.top().first < mark_.back())
 		{
 			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
 			{
@@ -294,25 +301,10 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 				assert(false);
 		}
 	}
+}
 
-	// NOTE: at this point, resolution is done and the learnt clause is
-	// ordered by decreasing trailPos. In particular, learnt[0] is the UIP
-
-	// strengthen the conflict clause using the reason clauses
-	// (NOTE: keep the order of remaining literals the same)
-	// (NOTE: if full_resolution==true, otf cant possibly do anything)
-	if (config_.otf >= 1 && !config_.full_resolution)
-	{
-		int j = 1;
-		for (int i = 1; i < (int)learnt.size(); ++i)
-			if (isRedundant(learnt[i]))
-				stats.nLitsOtfRemoved += 1;
-			else
-				learnt[j++] = learnt[i];
-		learnt.resize(j);
-	}
-
-	// determine backtrack level ( = level of learnt[1])
+int PropEngine::backtrack_level(std::span<const Lit> learnt) const
+{
 	assert(!learnt.empty());
 	if (learnt.size() == 1)
 		return 0;
@@ -323,8 +315,19 @@ int PropEngine::analyzeConflict(std::vector<Lit> &learnt)
 	return i + 1;
 }
 
+void PropEngine::shorten_learnt(std::vector<Lit> &learnt, bool recursive)
+{
+	int j = 1;
+	for (int i = 1; i < (int)learnt.size(); ++i)
+		if (is_redundant(learnt[i], recursive))
+			stats.nLitsOtfRemoved += 1;
+		else
+			learnt[j++] = learnt[i];
+	learnt.resize(j);
+}
+
 // helper for OTF strengthening
-bool PropEngine::isRedundant(Lit lit)
+bool PropEngine::is_redundant(Lit lit, bool recursive)
 {
 	assert(lit.proper());
 
@@ -336,7 +339,7 @@ bool PropEngine::isRedundant(Lit lit)
 	if (r.isBinary())
 	{
 		return seen[r.lit().var()] ||
-		       (config_.otf >= 2 && isRedundant(r.lit()));
+		       (recursive && is_redundant(r.lit(), recursive));
 	}
 
 	assert(r.isLong());
@@ -344,8 +347,9 @@ bool PropEngine::isRedundant(Lit lit)
 		Clause &cl = sat.clauses[r.cref()];
 		for (Lit l : cl.lits())
 			if (l != lit && !seen[l.var()] &&
-			    !(config_.otf >= 2 && isRedundant(l)))
+			    !(recursive && is_redundant(l, recursive)))
 				return false;
+
 		seen[lit.var()] = true; // shortcut other calls to isRedundant
 		return true;
 	}
@@ -400,119 +404,6 @@ template <typename F> struct Guard
 	Guard(F f) : f(f) {}
 	~Guard() { f(); }
 };
-
-bool PropEngine::search(int64_t maxConfl)
-{
-	util::StopwatchGuard _(sat.stats.swSearch);
-
-	if (!activity_heap)
-		throw std::runtime_error("activity heap not initialized");
-
-	int64_t nConfl = 0;
-
-	std::vector<Lit> buf;
-
-	while (true)
-	{
-		// handle conflicts
-		while (conflict)
-		{
-			nConfl += 1;
-
-			// level 0 conflict -> UNSAT
-			if (level() == 0)
-			{
-				sat.add_empty();
-				return false;
-			}
-
-			// analyze conflict
-			int backLevel;
-			uint8_t glue;
-			backLevel = analyzeConflict(buf);
-			if (config_.full_resolution)
-			{
-				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
-				assert(glue == calcGlue(buf));
-			}
-			else
-				glue = calcGlue(buf);
-
-			activity_heap->decay_variable_activity();
-			stats.nLitsLearnt += buf.size();
-
-			// unroll to apropriate level and propagate new learnt clause
-			unroll(backLevel);
-			Reason r = addLearntClause(buf, glue);
-			propagateFull(buf[0], r);
-			if (polarity)
-				for (Lit x : trail(level()))
-					(*polarity)[x.var()] = x.sign();
-
-			buf.resize(0);
-		}
-
-		/** maxConfl reached -> unroll and exit */
-		if (nConfl > maxConfl || interrupt)
-		{
-			if (level() > 0)
-				unroll(0);
-			return false;
-		}
-
-		// choose a branching variable
-		// int branch = p.unassignedVariable();
-		int branchVar = -1;
-
-		while (!activity_heap->empty())
-		{
-			int v = activity_heap->pop();
-			if (assign[Lit(v, false)] || assign[Lit(v, true)])
-				continue;
-
-			// check the heap(very expensive, debug only)
-			// for (int i = 0; i < sat.varCount(); ++i)
-			//	assert(assign[Lit(i, false)] || assign[Lit(i, true)] ||
-			//	       sat.activity[i] <= sat.activity[v]);
-
-			branchVar = v;
-			break;
-		}
-
-		// no unassigned left -> solution is found
-		if (branchVar == -1)
-			return true;
-
-		Lit branchLit =
-		    Lit(branchVar, polarity ? (*polarity)[branchVar] : false);
-
-		if (config_.branch_dom >= 1)
-		{
-			// NOTE: the counter avoids infinite loop due to equivalent vars
-			// TODO: think again about the order of binary clauses. That has an
-			//       influence here
-			int counter = 0;
-		again:
-			for (Lit l : sat.bins[branchLit]) // l.neg implies branchLit
-				if (!assign[l])
-					if (config_.branch_dom >= 2 ||
-					    (polarity && (*polarity)[l.var()] == l.neg().sign()))
-					{
-						branchLit = l.neg();
-						if (++counter < 5)
-							goto again;
-						else
-							break;
-					}
-		}
-
-		// propagate branch
-		branch(branchLit);
-		if (polarity)
-			for (Lit x : trail(level()))
-				(*polarity)[x.var()] = x.sign();
-	}
-}
 
 PropEngineLight::PropEngineLight(Sat &sat)
     : sat(sat), watches(sat.var_count() * 2), assign(sat.var_count())

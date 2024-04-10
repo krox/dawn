@@ -55,34 +55,21 @@ struct Reason
 	constexpr bool operator==(Reason b) const { return val_ == b.val_; }
 };
 
-/**
- * Unit propagation.
- */
+// This class implements unit propagation and conflict analysis.
+// Note that this only provides the algorithmic building blocks (i.e.
+// maintaining the watch lists). The actual CDCL algorithm (with heuristics for
+// branching, restarts, cleaning, etc.) is implemented in the Searcher class.
+// TODO:
+//   * merge this (again) with PropEngineLight
+//   * copy clauses instead of storing a reference to the Sat instance
 class PropEngine
 {
   public:
 	Sat &sat;
 
-	// if this is != null,
-	//   - variables are activated during .unroll()
-	//   - variable-activity is bumped during conflict analysis
-	ActivityHeap *activity_heap = nullptr;
-	util::bit_vector *polarity = nullptr;
-
-	struct Config
-	{
-		int otf = 2; // on-the-fly strengthening of learnt clauses
-		             // (0=off, 1=basic, 2=recursive)
-		bool full_resolution = false; // learn by full resolution instead of UIP
-		int branch_dom = 0; // branch on dominator instead of chosen literal
-		                    // (0=off, 1=only matching polarity, 2=always)s
-	};
-
   private:
-	Config config_;
-
-	util::bit_vector seen;     // temporary during conflict analysis
-	bool isRedundant(Lit lit); // helper for OTF strengthening
+	util::bit_vector seen; // temporary during conflict analysis
+	bool is_redundant(Lit lit, bool recursive); // helper for OTF strengthening
 
 	std::vector<Lit> trail_; // assigned variables
 	std::vector<int> mark_;  // indices into trail
@@ -106,7 +93,7 @@ class PropEngine
 	bool conflict = false;
 
 	/** constructor */
-	PropEngine(Sat &sat, Config const &config);
+	PropEngine(Sat &sat);
 
 	/** assign a literal and do unit propagation */
 	void branch(Lit x);                  // starts a new level
@@ -134,29 +121,28 @@ class PropEngine
 	 *   - re-add freed vars to activity-heap (if activity_heap != null)
 	 */
 	void unroll(int l);
+	void unroll(int l, ActivityHeap &activity_heap);
 
 	/**
 	 * analyze conflict up to UIP, outputs learnt clause, does NOT unroll
 	 *  - bumps activity of all involved variables (if activity_heap != null)
 	 *  - performs otf minimization (if enabled in configuration)
 	 *  - learnt clause is ordered by level, such that learnt[0] is the UIP
-	 *  - returns level of learnt[1] (or 0 if learnt is unit). This is the
-	 *    appropriate level to jump back to
 	 */
-	int analyzeConflict(std::vector<Lit> &learnt);
+	void analyze_conflict(std::vector<Lit> &learnt,
+	                      ActivityHeap *activity_heap);
+
+	// otf strengthening of learnt clause
+	//   * only valid to do right after analyze_conflict(...)
+	//     (re-uses the 'seen' array internally)
+	//   * keeps the order of remaining literals the same
+	void shorten_learnt(std::vector<Lit> &learnt, bool recursive);
+
+	// determine backtrack level ( = level of learnt[1])
+	int backtrack_level(std::span<const Lit> cl) const;
 
 	/** compute glue, i.e. number of distinct decision levels of clause */
 	uint8_t calcGlue(std::span<const Lit> cl) const;
-
-	// run CDCL for up to maxConfl conflicts (or until solution is found)
-	//   - does not perform restarts, such searches on from whatever the current
-	//     state (i.e. partial assignment) is.
-	//   - maxConflicts can be slightly exceeded in case a learnt clause
-	//     immediately leads to another conflict
-	//   - returns true if solution found, false if limits reached or
-	//     contradiction is found
-	//   - behaviour is controlled by config (see above)
-	bool search(int64_t maxConfl);
 
 	/** for debugging */
 	void printTrail() const;

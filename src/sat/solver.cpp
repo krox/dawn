@@ -294,13 +294,10 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 
 		if (searcher == nullptr)
 		{
-			// TODO:
-			// PropEngine::Config propConfig;
-			// propConfig.otf = config.otf;
-			// propConfig.full_resolution = config.full_resolution;
-			// propConfig.branch_dom = config.branch_dom;
-
 			searcher = std::make_unique<Searcher>(sat);
+			searcher->config.otf = config.otf;
+			searcher->config.branch_dom = config.branch_dom;
+			searcher->config.full_resolution = config.full_resolution;
 		}
 
 		// search for a number of conflicts

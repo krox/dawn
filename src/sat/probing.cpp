@@ -20,7 +20,7 @@ int probeBinary(Sat &sat)
 	util::StopwatchGuard swg(sat.stats.swProbing);
 	auto log = Logger("bin-probing");
 
-	PropEngine p(sat, {});
+	PropEngine p(sat);
 	if (p.conflict)
 		return 0;
 
@@ -32,7 +32,9 @@ int probeBinary(Sat &sat)
 	int nFails = 0;
 
 	auto backtrack = [&p, &buf, &nFails]() {
-		int back = p.analyzeConflict(buf);
+		p.analyze_conflict(buf, nullptr);
+		p.shorten_learnt(buf, true);
+		auto back = p.backtrack_level(buf);
 		p.unroll(back);
 		auto reason = p.addLearntClause(buf, 2); // dont care about glue here
 		p.propagateFull(buf[0], reason);
