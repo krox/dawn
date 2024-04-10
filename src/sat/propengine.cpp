@@ -7,22 +7,25 @@
 
 namespace dawn {
 
-PropEngine::PropEngine(Sat &sat)
-    : sat(sat), seen(sat.var_count()), watches(sat.var_count() * 2),
-      reason(sat.var_count()), trailPos(sat.var_count()),
-      assign(sat.var_count())
+PropEngine::PropEngine(Cnf const &cnf)
+    : seen(cnf.var_count()), watches(cnf.var_count() * 2),
+      reason(cnf.var_count()), trailPos(cnf.var_count()),
+      assign(cnf.var_count())
 {
-	util::StopwatchGuard swg(sat.stats.swSearchInit);
+	// util::StopwatchGuard swg(sat.stats.swSearchInit); // TODO
 
 	// empty clause -> don't bother doing anything
-	if (sat.contradiction)
+	if (cnf.contradiction)
 	{
 		conflict = true;
 		return;
 	}
 
+	clauses = cnf.clauses;
+	bins = cnf.bins;
+
 	// attach long clauses
-	for (auto [i, c] : sat.clauses.enumerate())
+	for (auto [i, c] : clauses.enumerate())
 	{
 		assert(c.size() >= 2);
 		watches[c[0]].push_back(i);
@@ -30,7 +33,7 @@ PropEngine::PropEngine(Sat &sat)
 	}
 
 	// propagate unary clauses
-	for (auto l : sat.units)
+	for (auto l : cnf.units)
 	{
 		if (assign[l])
 			continue;
@@ -63,8 +66,8 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	while (pos != trail_.size())
 	{
 		Lit y = trail_[pos++];
-		stats.binHistogram.add((int)sat.bins[y.neg()].size());
-		for (Lit z : sat.bins[y.neg()])
+		stats.binHistogram.add((int)bins[y.neg()].size());
+		for (Lit z : bins[y.neg()])
 		{
 			if (assign[z]) // already assigned true -> do nothing
 			{
@@ -103,7 +106,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
-			Clause &c = sat.clauses[ci];
+			Clause &c = clauses[ci];
 			stats.clauseSizeHistogram.add((int)c.size());
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
@@ -167,40 +170,32 @@ void PropEngine::branch(Lit x)
 	propagateFull(x, Reason::undef());
 }
 
-Reason PropEngine::addLearntClause(Lit c0, Lit c1)
+Reason PropEngine::add_learnt_clause(Lit c0, Lit c1)
 {
 	assert(c0.var() != c1.var());
-	sat.add_binary(c0, c1);
+	bins[c0].push_back(c1);
+	bins[c1].push_back(c0);
 	return Reason(c1);
 }
 
-Reason PropEngine::addLearntClause(const std::vector<Lit> &cl, uint8_t glue)
+Reason PropEngine::add_learnt_clause(const std::vector<Lit> &cl, uint8_t glue)
 {
-	switch (cl.size())
-	{
-	case 0:
-		sat.add_empty();
-		conflict = true;
-		return Reason::undef();
-	case 1:
-		sat.add_unary(cl[0]);
-		return Reason::undef();
-	case 2:
-		sat.add_binary(cl[0], cl[1]);
-		return Reason(cl[1]);
-	default:
-		CRef cref = sat.add_long(cl, false);
-		watches[cl[0]].push_back(cref);
-		watches[cl[1]].push_back(cref);
-		assert(2 <= glue && glue <= cl.size());
-		sat.clauses[cref].glue = glue;
-		return Reason(cref);
-	}
+	assert(cl.size() >= 2);
+
+	if (cl.size() == 2)
+		return add_learnt_clause(cl[0], cl[1]);
+
+	CRef cref = clauses.add_clause(cl, false);
+	clauses[cref].glue = glue;
+	watches[cl[0]].push_back(cref);
+	watches[cl[1]].push_back(cref);
+	assert(2 <= glue && glue <= cl.size());
+	return Reason(cref);
 }
 
 int PropEngine::unassignedVariable() const
 {
-	for (int i : sat.all_vars())
+	for (int i = 0; i < var_count(); ++i)
 		if (!assign[Lit(i, false)] && !assign[Lit(i, true)])
 			return i;
 	return -1;
@@ -289,7 +284,7 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 			}
 			else if (r.isLong())
 			{
-				const Clause &cl = sat.clauses[r.cref()];
+				const Clause &cl = clauses[r.cref()];
 				// assert(cl[0] == l.neg());
 				for (int i = 1; i < cl.size(); ++i)
 				{
@@ -344,7 +339,7 @@ bool PropEngine::is_redundant(Lit lit, bool recursive)
 
 	assert(r.isLong());
 	{
-		Clause &cl = sat.clauses[r.cref()];
+		Clause &cl = clauses[r.cref()];
 		for (Lit l : cl.lits())
 			if (l != lit && !seen[l.var()] &&
 			    !(recursive && is_redundant(l, recursive)))
@@ -390,7 +385,7 @@ void PropEngine::printTrail() const
 			else if (r.isBinary())
 				fmt::print("bin ({})\n", r.lit());
 			else if (r.isLong())
-				fmt::print("long ({})\n", sat.clauses[r.cref()]);
+				fmt::print("long ({})\n", clauses[r.cref()]);
 			else
 				assert(false);
 		}

@@ -31,12 +31,13 @@ int probeBinary(Sat &sat)
 	int nTries = 0;
 	int nFails = 0;
 
-	auto backtrack = [&p, &buf, &nFails]() {
+	auto backtrack = [&sat, &p, &buf, &nFails]() {
 		p.analyze_conflict(buf, nullptr);
 		p.shorten_learnt(buf, true);
 		auto back = p.backtrack_level(buf);
 		p.unroll(back);
-		auto reason = p.addLearntClause(buf, 2); // dont care about glue here
+		auto reason = p.add_learnt_clause(buf, 2); // dont care about glue here
+		sat.add_clause(buf, false);
 		p.propagateFull(buf[0], reason);
 		buf.resize(0);
 	};
@@ -109,7 +110,7 @@ int probeBinary(Sat &sat)
 
 		// for this a, all b were probed. Try to get a weaker a next
 		// in order to reuse the 'seenB' array
-		for (Lit a2 : p.sat.bins[a.neg()])
+		for (Lit a2 : p.bins[a.neg()])
 			if (!(p.assign[a2] || p.assign[a2.neg()] || seenA[a2]))
 			{
 				a = a2;

@@ -279,6 +279,10 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
 	std::unique_ptr<Searcher> searcher = nullptr;
 
+	auto on_learnt = [&](std::span<const Lit> lits) {
+		sat.add_clause(lits, false);
+	};
+
 	// main solver loop
 	for (int iter = 1;; ++iter)
 	{
@@ -301,7 +305,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = searcher->run(restartSize(iter, config)); tmp)
+		if (auto tmp = searcher->run(restartSize(iter, config), on_learnt); tmp)
 		{
 			assert(!sat.contradiction);
 			sol = sat.to_outer(*tmp);

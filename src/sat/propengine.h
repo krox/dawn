@@ -1,7 +1,7 @@
 #pragma once
 
-#include "sat.h"
 #include "sat/activity_heap.h"
+#include "sat/cnf.h"
 #include "util/bit_vector.h"
 #include <cassert>
 #include <optional>
@@ -61,11 +61,13 @@ struct Reason
 // branching, restarts, cleaning, etc.) is implemented in the Searcher class.
 // TODO:
 //   * merge this (again) with PropEngineLight
-//   * copy clauses instead of storing a reference to the Sat instance
 class PropEngine
 {
   public:
-	Sat &sat;
+	// NOTE: units are "stored" as level 0 assignments, so no need to have
+	// them explicitly here.
+	Sat::bins_t bins;
+	ClauseStorage clauses;
 
   private:
 	util::bit_vector seen; // temporary during conflict analysis
@@ -93,7 +95,7 @@ class PropEngine
 	bool conflict = false;
 
 	/** constructor */
-	PropEngine(Sat &sat);
+	PropEngine(Cnf const &cnf);
 
 	/** assign a literal and do unit propagation */
 	void branch(Lit x);                  // starts a new level
@@ -103,17 +105,16 @@ class PropEngine
 	std::span<const Lit> trail() const;      // all levels
 	std::span<const Lit> trail(int l) const; // level l
 
-	/**
-	 * Add clause to underlying ClauseSet without propagating.
-	 * Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
-	 * returns reason with which cl[0] might be propagated
-	 */
-	Reason addLearntClause(Lit c0, Lit c1);
-	Reason addLearntClause(const std::vector<Lit> &cl, uint8_t glue);
+	// Add clause without propagating.
+	// Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
+	// returns reason with which cl[0] might be propagated
+	Reason add_learnt_clause(Lit c0, Lit c1);
+	Reason add_learnt_clause(const std::vector<Lit> &cl, uint8_t glue);
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
 	int level() const; /** current level */
+	int var_count() const { return assign.var_count(); }
 
 	/**
 	 * unroll assignments

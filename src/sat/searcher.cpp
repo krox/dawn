@@ -1,9 +1,11 @@
 #include "sat/searcher.h"
 
 namespace dawn {
-std::optional<Assignment> Searcher::run(int maxConfl)
+std::optional<Assignment>
+Searcher::run(int maxConfl,
+              util::function_view<void(std::span<const Lit>)> on_learnt)
 {
-	util::StopwatchGuard _(p_.sat.stats.swSearch);
+	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
 
 	int64_t nConfl = 0;
 
@@ -19,7 +21,7 @@ std::optional<Assignment> Searcher::run(int maxConfl)
 			// level 0 conflict -> UNSAT
 			if (p_.level() == 0)
 			{
-				p_.sat.add_empty();
+				on_learnt({});
 				return {};
 			}
 
@@ -29,6 +31,8 @@ std::optional<Assignment> Searcher::run(int maxConfl)
 			p_.analyze_conflict(buf, &act_);
 			if (config.otf >= 1)
 				p_.shorten_learnt(buf, config.otf >= 2);
+			on_learnt(buf);
+
 			backLevel = p_.backtrack_level(buf);
 			if (config.full_resolution)
 			{
@@ -43,8 +47,18 @@ std::optional<Assignment> Searcher::run(int maxConfl)
 
 			// unroll to apropriate level and propagate new learnt clause
 			p_.unroll(backLevel, act_);
-			Reason r = p_.addLearntClause(buf, glue);
-			p_.propagateFull(buf[0], r);
+
+			if (buf.size() == 1)
+			{
+				assert(backLevel == 0);
+				p_.propagateFull(buf[0], Reason::undef());
+			}
+			else
+			{
+				Reason r = p_.add_learnt_clause(buf, glue);
+				p_.propagateFull(buf[0], r);
+			}
+
 			for (Lit x : p_.trail(p_.level()))
 				polarity_[x.var()] = x.sign();
 
@@ -91,7 +105,7 @@ std::optional<Assignment> Searcher::run(int maxConfl)
 			//       influence here
 			int counter = 0;
 		again:
-			for (Lit l : p_.sat.bins[branchLit]) // l.neg implies branchLit
+			for (Lit l : p_.bins[branchLit]) // l.neg implies branchLit
 				if (!p_.assign[l])
 					if (config.branch_dom >= 2 ||
 					    polarity_[l.var()] == l.neg().sign())

@@ -2,6 +2,7 @@
 
 #include "sat/activity_heap.h"
 #include "sat/propengine.h"
+#include "util/functional.h"
 
 namespace dawn {
 
@@ -44,6 +45,9 @@ class Searcher
 	//   - returns solution if found, nullopt if limits reached or
 	//     contradiction is found
 	//   - behaviour is controlled by config (see above)
-	std::optional<Assignment> run(int nConfls);
+	//   - learnt clauses are automatically added to the Searcher itself. To get
+	//     them back into the original Sat/Cnf instance, use the callback.
+	std::optional<Assignment>
+	run(int nConfls, util::function_view<void(std::span<const Lit>)> on_learnt);
 };
 } // namespace dawn
