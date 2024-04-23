@@ -6,6 +6,7 @@
 
 #include "fmt/format.h"
 #include "fmt/ranges.h"
+#include "util/functional.h"
 #include "util/iterator.h"
 #include "util/memory.h"
 #include "util/vector.h"
@@ -327,6 +328,9 @@ class ClauseStorage
 	// Actually remove clauses that are marked as such by moving all
 	// remaining clauses closer together. Invalidates all CRef's.
 	void compactify();
+
+	// remove all clauses that satisfy the predicate. Invalidates all CRef's.
+	void prune(util::function_view<bool(Clause const &)> f);
 
 	// Remove all clauses_, keeping allocated memory
 	void clear();

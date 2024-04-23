@@ -16,7 +16,6 @@ class Extender
 	//     * might generalize to other rules (like xor or cardinality) in the
 	//       future as well. For now, 'ClauseStorage' is a reasonable
 	//       datastructure, though semantically misleading
-  public: // TODO: private
 	ClauseStorage clauses_;
 	int var_count_;
 

@@ -83,78 +83,37 @@ int restartSize(int iter, SolverConfig const &config)
 	}
 }
 
-void cleanClausesSize(ClauseStorage &clauses, size_t nKeep)
+void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 {
-	std::vector<std::vector<CRef>> list(200);
-	for (auto [ci, cl] : clauses.enumerate())
-	{
-		if (cl.irred())
-			continue;
-		if (cl.size() >= list.size())
-		{
-			cl.set_removed();
-			continue;
-		}
-		list[cl.size()].push_back(ci);
-	}
-
-	size_t count = 0;
-	size_t len = 0;
-	for (; len < list.size() && count < nKeep; len++)
-		count += list[len].size();
-	for (; len < list.size(); len++)
-		for (CRef ci : list[len])
-			clauses[ci].set_removed();
-}
-
-void cleanClausesGlue(ClauseStorage &clauses, size_t nKeep)
-{
-	std::vector<std::vector<CRef>> list(200);
-	for (auto [ci, cl] : clauses.enumerate())
-	{
-		if (cl.irred())
-			continue;
-		if (cl.glue >= list.size())
-		{
-			cl.set_removed();
-			continue;
-		}
-		list[cl.glue].push_back(ci);
-	}
-
-	size_t count = 0;
-	size_t len = 0;
-	for (; len < list.size() && count < nKeep; len++)
-		count += list[len].size();
-	for (; len < list.size(); len++)
-		for (CRef ci : list[len])
-			clauses[ci].set_removed();
-}
-
-void maybe_clause_clean(Sat &sat, SolverConfig const &config, size_t nConfls)
-{
+	util::IntHistogram hist_glue, hist_size;
 	for (auto &cl : sat.clauses.all())
 	{
 		if (cl.irred())
 			continue;
-		if (cl.size() > config.max_learnt_size ||
-		    cl.glue > config.max_learnt_glue)
-			cl.set_removed();
+		hist_glue.add(cl.glue);
+		hist_size.add(cl.size());
 	}
-	if ((int64_t)sat.long_count_red() > config.max_learnt)
+
+	int cutoff_size, cutoff_glue;
+	if (config.use_glue)
 	{
-		if (config.use_glue)
-			cleanClausesGlue(sat.clauses, config.max_learnt);
-		else
-			cleanClausesSize(sat.clauses, config.max_learnt);
+		cutoff_size = config.max_learnt_size;
+		cutoff_glue =
+		    std::min(hist_glue.find_nth(nKeep), config.max_learnt_glue);
 	}
-	if (sat.long_count_red() > nConfls)
+	else
 	{
-		if (config.use_glue)
-			cleanClausesGlue(sat.clauses, nConfls / 8);
-		else
-			cleanClausesSize(sat.clauses, nConfls / 8);
+		cutoff_size =
+		    std::min(hist_size.find_nth(nKeep), config.max_learnt_size);
+		cutoff_glue = config.max_learnt_glue;
 	}
+
+	auto pred = [&](Clause const &cl) {
+		if (cl.irred())
+			return false;
+		return cl.size() > cutoff_size || cl.glue > cutoff_glue;
+	};
+	sat.clauses.prune(pred);
 }
 
 /** run the full inprocessing */
@@ -270,11 +229,6 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	int64_t lastInprocess = 0;
 	int64_t lastPrint = 0;
 
-	// we use "total length of irreducible long clauses" as metric for progress,
-	// as it always decreases with serching/subsumption/... . After some
-	// progress is made, we run elimination again.
-	int64_t lastElimination = sat.lit_count_irred();
-
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
 	std::unique_ptr<Searcher> searcher = nullptr;
@@ -322,7 +276,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			log.info("interrupted. abort solver.");
 			return 30;
 		}
-		bool needInprocess = nConfls > lastInprocess + 20000;
+		bool needInprocess = nConfls > lastInprocess + 10000;
 
 		if (needInprocess || nConfls > lastPrint + 1000)
 		{
@@ -341,22 +295,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			lastInprocess = nConfls;
 			inprocess(sat, config);
 
-			if (sat.lit_count_irred() <= 0.95 * lastElimination)
-			{
-				log.info("removing all learnt and restart everything\n");
-				for (auto &cl : sat.clauses.all())
-					if (!cl.irred())
-						cl.set_removed();
-				cleanup(sat);
-				preprocess(sat);
-				log.info("after preprocessing {} vars and {} clauses\n",
-				         sat.var_count(), sat.clause_count());
-				lastElimination = sat.lit_count_irred();
-			}
-			else
-				maybe_clause_clean(sat, config, nConfls);
-
-			sat.clauses.compactify();
+			clause_clean(sat, config, nConfls / 4);
 
 			printHeader();
 			printLine(sat);

@@ -106,10 +106,8 @@ void run_ui_command(Options opt)
 		run_vivification(sat, {.irred_only = false, .with_binary = true});
 	}));
 	buttons.push_back(Button("clean >10", [&] {
-		for (auto &cl : sat.clauses.all())
-			if (!cl.irred() && cl.size() > 10)
-				cl.set_removed();
-		sat.clauses.compactify();
+		sat.clauses.prune(
+		    [](Clause const &cl) { return !cl.irred() && cl.size() > 10; });
 	}));
 	buttons.push_back(Button("Quit", [&] { screen.Exit(); }));
 
