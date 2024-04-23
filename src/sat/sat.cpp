@@ -107,13 +107,13 @@ int cleanup(Sat &sat)
 	return totalUP + totalSCC;
 }
 
-bool is_normal_form(Sat const &sat)
+bool is_normal_form(Cnf const &cnf)
 {
-	if (sat.contradiction && sat.var_count() != 0)
+	if (cnf.contradiction && cnf.var_count() != 0)
 		return false;
-	if (!sat.units.empty())
+	if (!cnf.units.empty())
 		return false;
-	if (auto top = TopOrder(sat); !top.valid)
+	if (auto top = TopOrder(cnf); !top.valid)
 		return false;
 	return true;
 }

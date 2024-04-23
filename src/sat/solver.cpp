@@ -144,8 +144,11 @@ void inprocess(Sat &sat, SolverConfig const &config)
 			change |= probeBinary(sat);
 
 		VivifyConfig vivConfig;
-		vivConfig.with_binary = config.vivify >= 2;
-		vivConfig.irred_only = config.vivify <= 2;
+		if (config.vivify < 2)
+			vivConfig.with_binary = false;
+		if (config.vivify >= 3)
+			vivConfig.learnt_size_cutoff = 100;
+
 		if (config.vivify >= 1)
 		{
 			if (vivConfig.with_binary)
@@ -164,7 +167,10 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		// (do this last, because it cant lead to anything new for the other
 		// passes)
 		if (config.tbr > 0)
+		{
+			cleanup(sat); // TBR requires SCC
 			run_binary_reduction(sat);
+		}
 
 		if (!change)
 			break;

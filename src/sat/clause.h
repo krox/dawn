@@ -129,6 +129,9 @@ class Clause
 	void set_removed() { flags_ |= 1; }
 	bool irred() const { return (flags_ & 2) != 0; }
 	void set_irred() { flags_ |= 2; }
+	bool marked() const { return (flags_ & 4) != 0; }
+	void set_marked() { flags_ |= 4; }
+	void set_unmarked() { flags_ &= ~4; }
 
 	// remove a literal from this clause. returns false if not found
 	bool remove_literal(Lit a)
@@ -319,6 +322,14 @@ class ClauseStorage
 		return r;
 	}
 
+	// count == 0
+	bool empty() const
+	{
+		for (auto &_ [[maybe_unused]] : all())
+			return false;
+		return true;
+	}
+
 	size_t memory_usage() const
 	{
 		return store_.capacity() * sizeof(uint32_t) +
@@ -331,6 +342,7 @@ class ClauseStorage
 
 	// remove all clauses that satisfy the predicate. Invalidates all CRef's.
 	void prune(util::function_view<bool(Clause const &)> f);
+	void prune_marked();
 
 	// Remove all clauses_, keeping allocated memory
 	void clear();

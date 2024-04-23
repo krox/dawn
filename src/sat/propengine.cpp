@@ -400,18 +400,18 @@ template <typename F> struct Guard
 	~Guard() { f(); }
 };
 
-PropEngineLight::PropEngineLight(Sat &sat)
-    : sat(sat), watches(sat.var_count() * 2), assign(sat.var_count())
+PropEngineLight::PropEngineLight(Cnf &cnf)
+    : cnf(cnf), watches(cnf.var_count() * 2), assign(cnf.var_count())
 {
 	// empty clause -> don't bother doing anything
-	if (sat.contradiction)
+	if (cnf.contradiction)
 	{
 		conflict = true;
 		return;
 	}
 
 	// attach long clauses
-	for (auto [i, c] : sat.clauses.enumerate())
+	for (auto [i, c] : cnf.clauses.enumerate())
 	{
 		assert(c.size() >= 3);
 		watches[c[0]].push_back(i);
@@ -419,7 +419,7 @@ PropEngineLight::PropEngineLight(Sat &sat)
 	}
 
 	// propagate unary clauses
-	for (auto l : sat.units)
+	for (auto l : cnf.units)
 	{
 		if (assign[l])
 			continue;
@@ -447,7 +447,7 @@ void PropEngineLight::propagate_binary(Lit x)
 	{
 		Lit y = trail_[pos++];
 
-		for (Lit z : sat.bins[y.neg()])
+		for (Lit z : cnf.bins[y.neg()])
 		{
 			if (assign[z])
 				continue;
@@ -495,7 +495,7 @@ int PropEngineLight::propagate_impl(Lit x, bool with_hbr)
 		for (size_t wi = 0; wi < ws.size(); ++wi)
 		{
 			CRef ci = ws[wi];
-			Clause &c = sat.clauses[ci];
+			Clause &c = cnf.clauses[ci];
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if (c[0] == y.neg())
@@ -531,7 +531,7 @@ int PropEngineLight::propagate_impl(Lit x, bool with_hbr)
 				if (with_hbr)
 				{
 					nHbr += 1;
-					sat.add_binary(c[0], x.neg());
+					cnf.add_binary(c[0], x.neg());
 				}
 				propagate_binary(c[0]);
 				if (conflict)

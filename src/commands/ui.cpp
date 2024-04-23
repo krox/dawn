@@ -102,9 +102,7 @@ void run_ui_command(Options opt)
 		logger.info("removed {} clauses", n);
 	}));
 	buttons.push_back(Button("subsume", [&] { run_subsumption(sat); }));
-	buttons.push_back(Button("vivify", [&] {
-		run_vivification(sat, {.irred_only = false, .with_binary = true});
-	}));
+	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}); }));
 	buttons.push_back(Button("clean >10", [&] {
 		sat.clauses.prune(
 		    [](Clause const &cl) { return !cl.irred() && cl.size() > 10; });

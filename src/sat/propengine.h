@@ -173,7 +173,7 @@ inline std::span<const Lit> PropEngine::trail(int l) const
 class PropEngineLight
 {
   public:
-	Sat &sat;
+	Cnf &cnf;
 
   private:
 	std::vector<Lit> trail_; // assigned variables
@@ -193,7 +193,7 @@ class PropEngineLight
 	int64_t nHbr = 0;
 
 	/** constructor */
-	PropEngineLight(Sat &sat);
+	PropEngineLight(Cnf &cnf);
 
 	// assign literal and perform unit propagation
 	//     - returns number of set propagations (including x)

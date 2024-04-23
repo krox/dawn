@@ -106,7 +106,7 @@ int cleanup(Sat &sat);
 //     * no contradiction
 //     * no unit clauses
 //     * no equivalent variables
-bool is_normal_form(Sat const &sat);
+bool is_normal_form(Cnf const &);
 
 } // namespace dawn
 

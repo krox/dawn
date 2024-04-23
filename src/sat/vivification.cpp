@@ -9,7 +9,7 @@ namespace {
 
 struct Vivification
 {
-	Sat &sat;
+	Cnf &cnf_;
 	PropEngineLight p;
 	int64_t shortened = 0;    // number of lits removed
 	int64_t strengthened = 0; // number of lits replaced by stronger one
@@ -17,14 +17,12 @@ struct Vivification
 	/*std::unordered_set<std::pair<Lit, Lit>, util::hash<pair<Lit, Lit>>>
 	    bins_seen;*/
 
-	Vivification(Sat &s) : sat(s), p(s) {}
+	Vivification(Cnf &cnf) : cnf_(cnf), p(cnf) {}
 
-	/**
-	 * try vifify a single clause
-	 *   - returns true if something was found
-	 *   - changes cl in place
-	 */
-	bool vivifyClause(std::vector<Lit> &cl, bool withBinary)
+	// try to vifify a single clause
+	//   - returns true if something was found
+	//   - changes cl in place
+	bool vivify_clause(std::vector<Lit> &cl, bool with_binary)
 	{
 		assert(p.level() == 0);
 		assert(!p.conflict);
@@ -52,15 +50,15 @@ struct Vivification
 			// at this point, everything except cl[i] propagated without
 			// conflict, so we can now try to replace cl[i] with a stronger
 			// literal (using some binary clause)
-			if (withBinary)
+			if (with_binary)
 			{
 			again:
-				for (Lit a : sat.bins[cl[i]]) // a.neg => cl[i]
+				for (Lit a : cnf_.bins[cl[i]]) // a.neg => cl[i]
 				{
 					// this is some tautology or subsumption case we dont want
 					// to handle right here... maybe we should
 					for (size_t j = 0; j < cl.size(); ++j)
-						if (i != j && cl[j].var() == a.var())
+						if (cl[j].var() == a.var())
 							goto next_try;
 
 					if (p.probe(a) == -1)
@@ -96,63 +94,70 @@ struct Vivification
 
 } // namespace
 
-bool run_vivification(Sat &sat, VivifyConfig const &config)
+bool run_vivification(Cnf &cnf, VivifyConfig const &config)
 {
-	if (!is_normal_form(sat))
+	if (!is_normal_form(cnf))
 		return false;
 
-	util::StopwatchGuard swg(sat.stats.swVivification);
+	// util::StopwatchGuard swg(sat.stats.swVivification); TODO
 	auto log = Logger("vivification");
 
-	auto viv = Vivification(sat);
+	auto viv = Vivification(cnf);
+
+	// NOTE: strengthening inplace is kinda fragile, so we binaries inplace is a
+	// bit fragile (e.g. when there are equivalences). So we just add new
+	// clauses, and rely on a later TBR run to clean up.
 	std::vector<Lit> buf;
+	ClauseStorage new_clauses;
 
-	ClauseStorage newClauses;
-
-	// shortening binaries is essentially probing, which is done elsewhere
+	// shortening binaries is essentially probing, which is done elsewhere.
+	// but strengthening binaries along other binaries is kinda cool and we do
+	// it here
 	if (config.with_binary)
 	{
-		for (Lit a : sat.all_lits())
-			for (Lit b : sat.bins[a])
+		for (Lit a : cnf.all_lits())
+			for (Lit b : cnf.bins[a])
 			{
 				if (a > b)
 					continue;
 				buf = {a, b};
-				if (viv.vivifyClause(buf, config.with_binary))
-					newClauses.add_clause(buf, true);
+				if (viv.vivify_clause(buf, true))
+					new_clauses.add_clause(buf, true);
 			}
 	}
 
-	for (auto &cl : sat.clauses.all())
+	for (auto &cl : cnf.clauses.all())
 	{
-		if (config.irred_only && !cl.irred())
+
+		if (!cl.irred() && cl.size() > config.learnt_size_cutoff)
 			continue;
 		if (interrupt)
 			break;
 
 		buf.assign(cl.begin(), cl.end());
-		if (viv.vivifyClause(buf, config.with_binary))
+		if (viv.vivify_clause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
-			newClauses.add_clause(buf, cl.irred());
-			cl.set_removed();
+			new_clauses.add_clause(buf, cl.irred());
+			cl.set_marked();
 		}
 	}
 
-	for (auto &cl : newClauses.all())
-		sat.add_clause(cl.lits(), cl.irred());
+	if (new_clauses.empty())
+	{
+		log.info("-");
+		return false;
+	}
+
+	cnf.clauses.prune_marked();
+	for (auto &cl : new_clauses.all())
+		cnf.add_clause(cl.lits(), cl.irred());
 
 	if (config.with_binary)
-	{
-		int nRemoved = cleanup(sat);
-		log.info("removed {} lits and replaced {} lits (removed {} vars)",
-		         viv.shortened, viv.strengthened, nRemoved);
-	}
+		log.info("removed {} lits and replaced {} lits", viv.shortened,
+		         viv.strengthened);
 	else
-	{
-		int nRemoved = cleanup(sat);
-		log.info("removed {} lits (removed {} vars)", viv.shortened, nRemoved);
-	}
+		log.info("removed {} lits", viv.shortened);
 
 	return viv.shortened + viv.strengthened;
 }
