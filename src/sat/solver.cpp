@@ -56,33 +56,6 @@ static void printLine(Sat &sat)
 	    sat.memory_usage() / 1024. / 1024.);
 }
 
-int luby(int i)
-{
-	assert(i > 0);
-	if (__builtin_popcount(i + 1) == 1)
-		return (i + 1) / 2;
-	else
-		return luby(i - (1 << (31 - __builtin_clz(i))) + 1);
-}
-
-int restartSize(int iter, SolverConfig const &config)
-{
-	assert(iter >= 1);
-	switch (config.restart_type)
-	{
-	case RestartType::constant:
-		return config.restart_base;
-	case RestartType::linear:
-		return iter * config.restart_base;
-	case RestartType::geometric:
-		return std::pow(config.restart_mult, iter - 1) * config.restart_base;
-	case RestartType::luby:
-		return luby(iter) * config.restart_base;
-	default:
-		assert(false);
-	}
-}
-
 void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 {
 	util::IntHistogram hist_glue, hist_size;
@@ -244,7 +217,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	};
 
 	// main solver loop
-	for (int iter = 1;; ++iter)
+	while (true)
 	{
 		auto nConfls = propStats.nConfls();
 		if (searcher)
@@ -265,7 +238,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = searcher->run(restartSize(iter, config), on_learnt); tmp)
+		if (auto tmp = searcher->run(on_learnt); tmp)
 		{
 			assert(!sat.contradiction);
 			sol = sat.to_outer(*tmp);

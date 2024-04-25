@@ -12,6 +12,9 @@ namespace dawn {
 //       (depends on copying the CNF formula into the PropEngine or similar)
 class Searcher
 {
+	// number of restarts so far
+	int64_t iter_ = 0;
+
   public:
 	PropEngine p_;
 	ActivityHeap act_;
@@ -19,11 +22,19 @@ class Searcher
 
 	struct Config
 	{
+		// conflict analysis
 		int otf = 2; // on-the-fly strengthening of learnt clauses
 		             // (0=off, 1=basic, 2=recursive)
 		bool full_resolution = false; // learn by full resolution instead of UIP
+
+		// branching heuristic
 		int branch_dom = 0; // branch on dominator instead of chosen literal
-		                    // (0=off, 1=only matching polarity, 2=always)s
+		                    // (0=off, 1=only matching polarity, 2=always)
+
+		// restarts
+		RestartType restart_type = RestartType::luby;
+		int restart_base = 100;
+		int restart_mult = 1.1; // only for geometric
 	};
 	Config config;
 
@@ -37,9 +48,7 @@ class Searcher
 	    : p_(sat), act_(sat.var_count()), polarity_(sat.var_count())
 	{}
 
-	// run CDCL for up to maxConfl conflicts (or until solution is found)
-	//   - does not perform restarts, such searches on from whatever the current
-	//     state (i.e. partial assignment) is.
+	// run CDCL for a number of conflicts (or until solution is found)
 	//   - maxConflicts can be slightly exceeded in case a learnt clause
 	//     immediately leads to another conflict
 	//   - returns solution if found, nullopt if limits reached or
@@ -48,6 +57,6 @@ class Searcher
 	//   - learnt clauses are automatically added to the Searcher itself. To get
 	//     them back into the original Sat/Cnf instance, use the callback.
 	std::optional<Assignment>
-	run(int nConfls, util::function_view<void(std::span<const Lit>)> on_learnt);
+	run(util::function_view<void(std::span<const Lit>)> on_learnt);
 };
 } // namespace dawn

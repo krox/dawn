@@ -80,9 +80,10 @@ void run_ui_command(Options opt)
 
 	auto run_searcher = [&]() {
 		auto s = Searcher(sat);
-		auto sol = s.run(1000, [&sat](std::span<const Lit> cls) {
-			sat.add_clause(cls, false);
-		});
+		s.config.restart_type = RestartType::constant;
+		s.config.restart_base = 1000;
+		auto sol = s.run(
+		    [&sat](std::span<const Lit> cls) { sat.add_clause(cls, false); });
 		if (sol)
 		{
 			logger.info("SATISFIABLE\n");

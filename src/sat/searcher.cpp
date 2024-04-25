@@ -1,13 +1,43 @@
 #include "sat/searcher.h"
 
 namespace dawn {
+
+namespace {
+
+int luby(int i)
+{
+	assert(i > 0);
+	if (__builtin_popcount(i + 1) == 1)
+		return (i + 1) / 2;
+	else
+		return luby(i - (1 << (31 - __builtin_clz(i))) + 1);
+}
+int restartSize(int iter, Searcher::Config const &config)
+{
+	assert(iter >= 1);
+	switch (config.restart_type)
+	{
+	case RestartType::constant:
+		return config.restart_base;
+	case RestartType::linear:
+		return iter * config.restart_base;
+	case RestartType::geometric:
+		return std::pow(config.restart_mult, iter - 1) * config.restart_base;
+	case RestartType::luby:
+		return luby(iter) * config.restart_base;
+	default:
+		assert(false);
+	}
+}
+
+} // namespace
 std::optional<Assignment>
-Searcher::run(int maxConfl,
-              util::function_view<void(std::span<const Lit>)> on_learnt)
+Searcher::run(util::function_view<void(std::span<const Lit>)> on_learnt)
 {
 	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
-
+	int max_confls = restartSize(++iter_, config);
 	int64_t nConfl = 0;
+	assert(p_.level() == 0);
 
 	std::vector<Lit> buf;
 
@@ -66,7 +96,7 @@ Searcher::run(int maxConfl,
 		}
 
 		/** maxConfl reached -> unroll and exit */
-		if (nConfl > maxConfl || interrupt)
+		if (nConfl > max_confls || interrupt)
 		{
 			if (p_.level() > 0)
 				p_.unroll(0, act_);
