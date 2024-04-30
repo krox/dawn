@@ -20,10 +20,6 @@ struct EliminationConfig
 	// resolution (usually not a reasonable thing to do of course)
 	int growth = 0;
 
-	// if true, only resolve irredcible clauses and simply remove reducible
-	// clauses containing a removed variable in the end.
-	bool irred_only = true;
-
 	int max_eliminations = INT_MAX;
 };
 

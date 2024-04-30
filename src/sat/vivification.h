@@ -6,9 +6,6 @@ namespace dawn {
 
 struct VivifyConfig
 {
-	// irreds are always vivified, learnts only up to this size
-	int learnt_size_cutoff = 15;
-
 	// additionally to direct shortening, also try to strengthen along binary
 	// implicatns
 	bool with_binary = true;

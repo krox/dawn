@@ -180,7 +180,7 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 			if (x == 0)
 			{
 				clauseCount++;
-				clauses.add_clause(clause, true);
+				clauses.add_clause(clause, Color::blue);
 				clause.resize(0);
 			}
 			else

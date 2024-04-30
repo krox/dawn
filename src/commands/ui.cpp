@@ -89,7 +89,7 @@ void run_ui_command(Options opt)
 		{
 			logger.info("learnt {} clauses", learnts->count());
 			for (auto &cl : learnts->all())
-				sat.add_clause(cl, false);
+				sat.add_clause(cl, cl.color);
 		}
 		else
 			assert(false);
@@ -110,8 +110,9 @@ void run_ui_command(Options opt)
 	buttons.push_back(Button("subsume", [&] { run_subsumption(sat); }));
 	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}); }));
 	buttons.push_back(Button("clean >10", [&] {
-		sat.clauses.prune(
-		    [](Clause const &cl) { return !cl.irred() && cl.size() > 10; });
+		sat.clauses.prune([](Clause const &cl) {
+			return cl.color != dawn::Color::blue && cl.size() > 10;
+		});
 	}));
 	buttons.push_back(Button("Quit", [&] { screen.Exit(); }));
 

@@ -122,14 +122,13 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config)
 					continue;
 				buf = {a, b};
 				if (viv.vivify_clause(buf, true))
-					new_clauses.add_clause(buf, true);
+					new_clauses.add_clause(buf, Color::blue);
 			}
 	}
 
 	for (auto &cl : cnf.clauses.all())
 	{
-
-		if (!cl.irred() && cl.size() > config.learnt_size_cutoff)
+		if (cl.color <= Color::red)
 			continue;
 		if (interrupt)
 			break;
@@ -138,8 +137,8 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config)
 		if (viv.vivify_clause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
-			new_clauses.add_clause(buf, cl.irred());
-			cl.set_marked();
+			new_clauses.add_clause(buf, cl.color);
+			cl.color = Color::black;
 		}
 	}
 
@@ -149,9 +148,9 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config)
 		return false;
 	}
 
-	cnf.clauses.prune_marked();
+	cnf.clauses.prune_black();
 	for (auto &cl : new_clauses.all())
-		cnf.add_clause(cl.lits(), cl.irred());
+		cnf.add_clause(cl.lits(), cl.color);
 
 	if (config.with_binary)
 		log.info("removed {} lits and replaced {} lits", viv.shortened,

@@ -90,6 +90,27 @@ inline int normalize_clause(std::span<Lit> lits)
 	return j;
 }
 
+enum class Color : uint8_t
+{
+	// "removed" clause. Actual removal with the next call to `prune`
+	black = 0,
+
+	// reducible clause. Might be kept for a while depending a local searcher
+	// heuristics.
+	red = 1,
+
+	// also reducible, but estimated to be good enough to keep around
+	//   - worth to spend inprocessing time on (i.e. vivification)
+	//   - communicated across threads
+	green = 2,
+
+	// irreducible clause. Only these have to be satisfied
+	blue = 3,
+};
+
+inline Color min(Color a, Color b) { return a < b ? a : b; }
+inline Color max(Color a, Color b) { return a > b ? a : b; }
+
 class Clause
 {
   public:
@@ -97,7 +118,7 @@ class Clause
 	// (as a comparison: Minisat uses 4 bytes header plus optionally 4 bytes
 	// footer. Cryptominisat seems to use 28 bytes header by default)
 	uint16_t size_;
-	uint8_t flags_;
+	Color color;
 	uint8_t glue;
 
 	// array of Lits
@@ -123,15 +144,6 @@ class Clause
 	auto begin() const { return lits().begin(); }
 	auto end() { return lits().end(); }
 	auto end() const { return lits().end(); }
-
-	// flags
-	bool removed() const { return (flags_ & 1) != 0; }
-	void set_removed() { flags_ |= 1; }
-	bool irred() const { return (flags_ & 2) != 0; }
-	void set_irred() { flags_ |= 2; }
-	bool marked() const { return (flags_ & 4) != 0; }
-	void set_marked() { flags_ |= 4; }
-	void set_unmarked() { flags_ &= ~4; }
 
 	// remove a literal from this clause. returns false if not found
 	bool remove_literal(Lit a)
@@ -196,7 +208,7 @@ class Clause
 	void normalize()
 	{
 		if (int s = normalize_clause(lits()); s == -1)
-			set_removed();
+			color = Color::black;
 		else
 			size_ = (uint16_t)s;
 	}
@@ -230,7 +242,7 @@ class ClauseStorage
 
   public:
 	// add a new clause, no checking of lits done
-	CRef add_clause(std::span<const Lit> lits, bool irred)
+	CRef add_clause(std::span<const Lit> lits, Color color)
 	{
 		if (lits.size() > UINT16_MAX)
 			throw std::runtime_error("clause to long for storage");
@@ -247,10 +259,8 @@ class ClauseStorage
 
 		// copy it over
 		cl.size_ = (uint16_t)lits.size();
-		cl.flags_ = 0;
+		cl.color = color;
 		cl.glue = (uint8_t)std::min((size_t)255, lits.size());
-		if (irred)
-			cl.set_irred();
 		for (size_t i = 0; i < lits.size(); ++i)
 			cl[i] = lits[i];
 
@@ -260,24 +270,15 @@ class ClauseStorage
 
 	CRef add_binary(Lit a, Lit b)
 	{
-		return add_clause(std::array<Lit, 2>{a, b}, true);
+		return add_clause(std::array<Lit, 2>{a, b}, Color::blue);
 	}
 
 	Clause &operator[](CRef i) { return *(Clause *)&store_[i]; }
 
 	const Clause &operator[](CRef i) const { return *(Clause *)&store_[i]; }
 
-	auto crefs() const
-	{
-		auto not_removed = [this](CRef i) { return !(*this)[i].removed(); };
-		return util::filter(not_removed, clauses_);
-	}
-
-	auto crefs_reverse() const
-	{
-		auto not_removed = [this](CRef i) { return !(*this)[i].removed(); };
-		return util::filter(not_removed, util::reverse(clauses_));
-	}
+	std::span<const CRef> crefs() const { return clauses_; }
+	auto crefs_reverse() const { return util::reverse(clauses_); }
 
 	auto all()
 	{
@@ -336,13 +337,9 @@ class ClauseStorage
 		       clauses_.capacity() * sizeof(CRef);
 	}
 
-	// Actually remove clauses that are marked as such by moving all
-	// remaining clauses closer together. Invalidates all CRef's.
-	void compactify();
-
 	// remove all clauses that satisfy the predicate. Invalidates all CRef's.
 	void prune(util::function_view<bool(Clause const &)> f);
-	void prune_marked();
+	void prune_black();
 
 	// Remove all clauses_, keeping allocated memory
 	void clear();

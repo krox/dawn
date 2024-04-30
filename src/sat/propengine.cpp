@@ -185,7 +185,7 @@ Reason PropEngine::add_learnt_clause(const std::vector<Lit> &cl, uint8_t glue)
 	if (cl.size() == 2)
 		return add_learnt_clause(cl[0], cl[1]);
 
-	CRef cref = clauses.add_clause(cl, false);
+	CRef cref = clauses.add_clause(cl, Color::red);
 	clauses[cref].glue = glue;
 	watches[cl[0]].push_back(cref);
 	watches[cl[1]].push_back(cref);

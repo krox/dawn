@@ -5,11 +5,6 @@
 
 namespace dawn {
 
-void ClauseStorage::compactify()
-{
-	prune([](Clause const &) { return false; });
-}
-
 void ClauseStorage::prune(util::function_view<bool(Clause const &)> f)
 {
 	size_t ii = 0;
@@ -17,7 +12,7 @@ void ClauseStorage::prune(util::function_view<bool(Clause const &)> f)
 	for (size_t i = 0; i < clauses_.size(); ++i)
 	{
 		Clause &cl = (*this)[clauses_[i]];
-		if (cl.removed() || f(cl))
+		if (f(cl))
 			continue;
 
 		auto size = cl.size();
@@ -33,9 +28,9 @@ void ClauseStorage::prune(util::function_view<bool(Clause const &)> f)
 	store_.resize(pos);
 }
 
-void ClauseStorage::prune_marked()
+void ClauseStorage::prune_black()
 {
-	prune([](Clause const &cl) { return cl.marked(); });
+	prune([](Clause const &cl) { return cl.color == Color::black; });
 }
 
 void ClauseStorage::clear()

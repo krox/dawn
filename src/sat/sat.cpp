@@ -100,6 +100,7 @@ int cleanup(Sat &sat)
 		else
 			break;
 	}
+	sat.clauses.prune_black();
 
 	// fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
 	//            sw.secs(), totalUP, totalSCC);

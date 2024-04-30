@@ -55,7 +55,7 @@ void run_gen_command(Options opt)
 		if (sol.satisfied(cl))
 		{
 			++ci;
-			sat.add_clause(cl, true);
+			sat.add_clause(cl, Color::blue);
 		}
 
 		cl.resize(0);

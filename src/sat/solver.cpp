@@ -63,7 +63,7 @@ void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 	util::IntHistogram hist_glue, hist_size;
 	for (auto &cl : sat.clauses.all())
 	{
-		if (cl.irred())
+		if (cl.color == Color::blue)
 			continue;
 		hist_glue.add(cl.glue);
 		hist_size.add(cl.size());
@@ -84,7 +84,7 @@ void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 	}
 
 	auto pred = [&](Clause const &cl) {
-		if (cl.irred())
+		if (cl.color == Color::blue)
 			return false;
 		return cl.size() > cutoff_size || cl.glue > cutoff_glue;
 	};
@@ -121,8 +121,6 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		VivifyConfig vivConfig;
 		if (config.vivify < 2)
 			vivConfig.with_binary = false;
-		if (config.vivify >= 3)
-			vivConfig.learnt_size_cutoff = 100;
 
 		if (config.vivify >= 1)
 		{
@@ -256,7 +254,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			         sw.secs());
 
 			for (auto &cl : learnts->all())
-				sat.add_clause(cl, false);
+				sat.add_clause(cl, cl.color);
 		}
 		else
 			assert(false);

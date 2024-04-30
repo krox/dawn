@@ -11,15 +11,18 @@ namespace {
 /**
  * Try to subsume b using a. This can either:
  *    - do nothing (return false)
- *    - shorten b (return true, b.isRemoved()=false)
- *    - remove b (return true, b.isRemoved()=true)
- * In the last case, a can become irreducible if b was irreducible previously.
+ *    - shorten b (return true)
+ *    - remove b (return true, b.color = black)
+ * In the last case, color of a might change as well.
  * NOTE: this method assumes that the lits in both clauses are sorted. If they
  *       are not, it just produces some false-negatives. This means some
  *       possible subsumptions will stay undetected, but nothing will break.
  */
 bool try_subsume(Clause &a, Clause &b)
 {
+	assert(a.color != Color::black);
+	assert(b.color != Color::black);
+
 	if (a.size() > b.size())
 		return false;
 
@@ -45,9 +48,8 @@ bool try_subsume(Clause &a, Clause &b)
 
 	if (x == Lit::undef())
 	{
-		if (b.irred())
-			a.set_irred();
-		b.set_removed();
+		a.color = max(a.color, b.color);
+		b.color = Color::black;
 	}
 	else
 		b.remove_literal(x); // TODO: slightly subptimal performance...
@@ -70,8 +72,9 @@ class Subsumption
 	    : sat(sat), occs(sat.var_count() * 2), seen(sat.var_count() * 2)
 	{
 		for (auto [ci, cl] : sat.clauses.enumerate())
-			for (Lit a : cl.lits())
-				occs[a].push_back(ci);
+			if (cl.color != Color::black)
+				for (Lit a : cl.lits())
+					occs[a].push_back(ci);
 	}
 
 	// mark all literals implied by a
@@ -120,13 +123,13 @@ class Subsumption
 		for (CRef k : occs[a.neg()])
 		{
 			auto &cl = sat.clauses[k];
-			if (cl.removed())
+			if (cl.color == Color::black)
 				continue;
 
 			for (Lit x : sat.clauses[k].lits())
 				if (seen[x])
 				{
-					sat.clauses[k].set_removed();
+					sat.clauses[k].color = Color::black;
 					++nRemovedClsBin;
 					break;
 				}
@@ -136,7 +139,7 @@ class Subsumption
 		for (CRef k : occs[a])
 		{
 			auto &cl = sat.clauses[k];
-			if (cl.removed())
+			if (cl.color == Color::black)
 				continue;
 
 			for (Lit x : cl.lits())
@@ -148,7 +151,7 @@ class Subsumption
 						if (cl.size() == 2)
 						{
 							sat.add_binary(cl[0], cl[1]);
-							cl.set_removed();
+							cl.color = Color::black;
 						}
 					}
 					break;
@@ -184,10 +187,11 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 	std::array<std::vector<CRef>, 128> clauses;
 	auto occs = std::vector<util::small_vector<CRef, 7>>(sat.var_count());
 	for (auto [ci, cl] : sat.clauses.enumerate())
-	{
-		std::sort(cl.lits().begin(), cl.lits().end());
-		clauses[cl.size() < 128 ? cl.size() : 127].push_back(ci);
-	}
+		if (cl.color != Color::black)
+		{
+			std::sort(cl.lits().begin(), cl.lits().end());
+			clauses[cl.size() < 128 ? cl.size() : 127].push_back(ci);
+		}
 
 	int64_t nRemovedClsLong = 0;
 	int64_t nRemovedLitsLong = 0;
@@ -197,7 +201,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 		for (CRef i : clauses[size])
 		{
 			Clause &cl = sat.clauses[i];
-			if (cl.removed())
+			if (cl.color == Color::black)
 				continue; // can this happen at all here?
 
 			// choose variable in cl with shortest occ-list
@@ -212,11 +216,11 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 				if (i == j)   // dont subsume clauses with itself
 					continue; // can this happen here at all?
 				Clause &cl2 = sat.clauses[j];
-				if (cl2.removed())
+				if (cl2.color == Color::black)
 					continue; // already removed by different subsumption
 				if (try_subsume(cl, cl2))
 				{
-					if (cl2.removed())
+					if (cl2.color == Color::black)
 						nRemovedClsLong += 1;
 					else
 					{
@@ -229,7 +233,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 								sat.add_unary(cl2[0]);
 							else if (cl2.size() == 2)
 								sat.add_binary(cl2[0], cl2[1]);
-							cl2.set_removed();
+							cl2.color = Color::black;
 						}
 					}
 				}

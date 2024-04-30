@@ -171,7 +171,7 @@ std::variant<ClauseStorage, Assignment> Searcher::run_epoch(int64_t max_confls)
 	ClauseStorage learnts;
 	auto on_learnt = [&](std::span<const Lit> cl) {
 		if ((int)cl.size() <= config.green_cutoff)
-			learnts.add_clause(cl, false);
+			learnts.add_clause(cl, Color::green);
 	};
 
 	auto first_confl = p_.stats.nConfls();

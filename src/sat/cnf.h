@@ -38,9 +38,9 @@ class Cnf
 	void add_empty();
 	void add_unary(Lit a);
 	void add_binary(Lit a, Lit b);
-	CRef add_ternary(Lit a, Lit b, Lit c, bool irred);
-	CRef add_long(std::span<const Lit> lits, bool irred);
-	CRef add_clause(std::span<const Lit> lits, bool irred);
+	CRef add_ternary(Lit a, Lit b, Lit c, Color color);
+	CRef add_long(std::span<const Lit> lits, Color color);
+	CRef add_clause(std::span<const Lit> lits, Color color);
 
 	void add_and_clause_safe(Lit a, Lit b, Lit c);           // a = b & c
 	void add_or_clause_safe(Lit a, Lit b, Lit c);            // a = b | c
@@ -90,7 +90,7 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 	for (auto &cl : clauses.all())
 	{
 		cl.normalize();
-		if (cl.removed() || cl.size() >= 3)
+		if (cl.color == Color::black || cl.size() >= 3)
 			continue;
 		if (cl.size() == 0)
 			add_empty();
@@ -100,8 +100,9 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 			add_binary(cl[0], cl[1]);
 		else
 			assert(false);
-		cl.set_removed();
+		cl.color = Color::black;
 	}
+	clauses.prune_black();
 }
 
 inline int Cnf::var_count() const { return (int)bins.size() / 2; }
@@ -136,17 +137,17 @@ inline void Cnf::add_binary(Lit a, Lit b)
 	bins[b].push_back(a);
 }
 
-inline CRef Cnf::add_ternary(Lit a, Lit b, Lit c, bool irred)
+inline CRef Cnf::add_ternary(Lit a, Lit b, Lit c, Color color)
 {
 	assert(a.proper() && a.var() < var_count());
 	assert(b.proper() && b.var() < var_count());
 	assert(c.proper() && c.var() < var_count());
 	assert(a.var() != b.var() && a.var() != c.var() && b.var() != c.var());
 
-	return clauses.add_clause({{a, b, c}}, irred);
+	return clauses.add_clause({{a, b, c}}, color);
 }
 
-inline CRef Cnf::add_long(std::span<const Lit> lits, bool irred)
+inline CRef Cnf::add_long(std::span<const Lit> lits, Color color)
 {
 	for (size_t i = 0; i < lits.size(); ++i)
 	{
@@ -158,13 +159,13 @@ inline CRef Cnf::add_long(std::span<const Lit> lits, bool irred)
 			assert(lits[i].var() != lits[j].var());
 	assert(lits.size() >= 3);
 
-	return clauses.add_clause(lits, irred);
+	return clauses.add_clause(lits, color);
 }
 
-inline CRef Cnf::add_clause(std::span<const Lit> lits, bool irred)
+inline CRef Cnf::add_clause(std::span<const Lit> lits, Color color)
 {
 	if (lits.size() >= 3)
-		return add_long(lits, irred);
+		return add_long(lits, color);
 
 	if (lits.size() == 0)
 		add_empty();
@@ -189,7 +190,7 @@ inline void Cnf::add_clause_safe(std::span<const Lit> lits)
 	if (s != -1)
 	{
 		buf.resize(s);
-		add_clause({buf.begin(), buf.end()}, true);
+		add_clause({buf.begin(), buf.end()}, Color::blue);
 	}
 }
 
