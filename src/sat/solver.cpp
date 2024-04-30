@@ -13,48 +13,50 @@
 
 namespace dawn {
 
+/*
 static void printHeader()
 {
-	fmt::print(
-	    "c     vars    units     bins    longs  size   learnt  size  glue\n");
+    fmt::print(
+        "c     vars    units     bins    longs  size   learnt  size  glue\n");
 }
 
 static void printLine(Sat &sat)
 {
-	// number of unary/binary clauses
-	size_t unaryCount = sat.units.size();
-	size_t binaryCount = 0;
-	for (auto &b : sat.bins)
-		binaryCount += b.size();
-	binaryCount /= 2;
+    // number of unary/binary clauses
+    size_t unaryCount = sat.units.size();
+    size_t binaryCount = 0;
+    for (auto &b : sat.bins)
+        binaryCount += b.size();
+    binaryCount /= 2;
 
-	// number/size/glue of irred/learnt long clauses
-	size_t longCount = 0;
-	size_t learntCount = 0;
-	size_t longLits = 0;
-	size_t learntLits = 0;
-	size_t learntGlue = 0;
+    // number/size/glue of irred/learnt long clauses
+    size_t longCount = 0;
+    size_t learntCount = 0;
+    size_t longLits = 0;
+    size_t learntLits = 0;
+    size_t learntGlue = 0;
 
-	for (auto &cl : sat.clauses.all())
-		if (cl.irred())
-		{
-			longCount += 1;
-			longLits += cl.size();
-		}
-		else
-		{
-			learntCount += 1;
-			learntLits += cl.size();
-			learntGlue += cl.glue;
-		}
+    for (auto &cl : sat.clauses.all())
+        if (cl.irred())
+        {
+            longCount += 1;
+            longLits += cl.size();
+        }
+        else
+        {
+            learntCount += 1;
+            learntLits += cl.size();
+            learntGlue += cl.glue;
+        }
 
-	fmt::print(
-	    "c {:#8} {:#8} {:#8} {:#8} {:5.2f} {:#8} {:5.2f} {:5.2f} {:8.2f} MiB\n",
-	    sat.var_count(), unaryCount, binaryCount, longCount,
-	    (double)longLits / longCount, learntCount,
-	    (double)learntLits / learntCount, (double)learntGlue / learntCount,
-	    sat.memory_usage() / 1024. / 1024.);
+    fmt::print(
+        "c {:#8} {:#8} {:#8} {:#8} {:5.2f} {:#8} {:5.2f} {:5.2f} {:8.2f} MiB\n",
+        sat.var_count(), unaryCount, binaryCount, longCount,
+        (double)longLits / longCount, learntCount,
+        (double)learntLits / learntCount, (double)learntGlue / learntCount,
+        sat.memory_usage() / 1024. / 1024.);
 }
+*/
 
 void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 {
@@ -202,19 +204,12 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	log.info("after preprocessing {} vars and {} clauses", sat.var_count(),
 	         sat.clause_count());
 
-	printHeader();
-
 	PropStats propStats;
 	int64_t lastInprocess = 0;
-	int64_t lastPrint = 0;
 
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
 	std::unique_ptr<Searcher> searcher = nullptr;
-
-	auto on_learnt = [&](std::span<const Lit> lits) {
-		sat.add_clause(lits, false);
-	};
 
 	// main solver loop
 	while (true)
@@ -235,17 +230,36 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			searcher->config.otf = config.otf;
 			searcher->config.branch_dom = config.branch_dom;
 			searcher->config.full_resolution = config.full_resolution;
+			searcher->config.restart_type = config.restart_type;
+			searcher->config.restart_base = config.restart_base;
+			searcher->config.restart_mult = config.restart_mult;
 		}
 
 		// search for a number of conflicts
-		if (auto tmp = searcher->run(on_learnt); tmp)
+
+		util::Stopwatch sw;
+		sw.start();
+		auto result = searcher->run_epoch(10'000);
+		if (auto assign = std::get_if<Assignment>(&result))
 		{
 			assert(!sat.contradiction);
-			sol = sat.to_outer(*tmp);
+			sol = sat.to_outer(*assign);
 			sol.fix_unassigned();
 			sat.extender.extend(sol);
 			return 10;
 		}
+		else if (auto learnts = std::get_if<ClauseStorage>(&result))
+		{
+			sw.stop();
+			auto count = learnts->count();
+			log.info("learnt {:#5} (green) clauses in {:.2f}s", count,
+			         sw.secs());
+
+			for (auto &cl : learnts->all())
+				sat.add_clause(cl, false);
+		}
+		else
+			assert(false);
 
 		if (sat.contradiction)
 			return 20;
@@ -256,12 +270,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			return 30;
 		}
 		bool needInprocess = nConfls > lastInprocess + 10000;
-
-		if (needInprocess || nConfls > lastPrint + 1000)
-		{
-			printLine(sat);
-			lastPrint = nConfls;
-		}
+		needInprocess = false;
 
 		// inprocessing
 		if (needInprocess)
@@ -275,9 +284,6 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			inprocess(sat, config);
 
 			clause_clean(sat, config, nConfls / 4);
-
-			printHeader();
-			printLine(sat);
 		}
 	}
 }

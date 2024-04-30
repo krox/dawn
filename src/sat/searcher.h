@@ -15,6 +15,12 @@ class Searcher
 	// number of restarts so far
 	int64_t iter_ = 0;
 
+	// temporary buffer for learnt clauses
+	std::vector<Lit> buf_;
+
+	// analyze + otf-shorten + backtrack + propagate + return learnt clause
+	std::span<const Lit> handle_conflict();
+
   public:
 	PropEngine p_;
 	ActivityHeap act_;
@@ -35,6 +41,9 @@ class Searcher
 		RestartType restart_type = RestartType::luby;
 		int restart_base = 100;
 		int restart_mult = 1.1; // only for geometric
+
+		// mic
+		int green_cutoff = 8; // max size of clause to be considered good
 	};
 	Config config;
 
@@ -48,15 +57,14 @@ class Searcher
 	    : p_(sat), act_(sat.var_count()), polarity_(sat.var_count())
 	{}
 
-	// run CDCL for a number of conflicts (or until solution is found)
-	//   - maxConflicts can be slightly exceeded in case a learnt clause
-	//     immediately leads to another conflict
-	//   - returns solution if found, nullopt if limits reached or
-	//     contradiction is found
-	//   - behaviour is controlled by config (see above)
-	//   - learnt clauses are automatically added to the Searcher itself. To get
-	//     them back into the original Sat/Cnf instance, use the callback.
+	// run one 'restart', i.e. starting and ending at decision level 0
+	//   * number of conflicts in this restart is determined by config
 	std::optional<Assignment>
-	run(util::function_view<void(std::span<const Lit>)> on_learnt);
+	run_restart(util::function_view<void(std::span<const Lit>)> on_learnt);
+
+	// keeps running restarts until
+	//   * a solution is found, or
+	//   * max_confls are reached (can be exceeded by up to one restart)
+	std::variant<ClauseStorage, Assignment> run_epoch(int64_t max_confls);
 };
 } // namespace dawn

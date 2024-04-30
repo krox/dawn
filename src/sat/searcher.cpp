@@ -4,6 +4,7 @@ namespace dawn {
 
 namespace {
 
+// https://oeis.org/A182105
 int luby(int i)
 {
 	assert(i > 0);
@@ -12,6 +13,7 @@ int luby(int i)
 	else
 		return luby(i - (1 << (31 - __builtin_clz(i))) + 1);
 }
+
 int restartSize(int iter, Searcher::Config const &config)
 {
 	assert(iter >= 1);
@@ -31,15 +33,58 @@ int restartSize(int iter, Searcher::Config const &config)
 }
 
 } // namespace
+
+std::span<const Lit> Searcher::handle_conflict()
+{
+	assert(p_.conflict && p_.level() > 0);
+
+	// analyze conflict
+	uint8_t glue;
+	buf_.resize(0);
+	p_.analyze_conflict(buf_, &act_);
+	assert(buf_.size() > 0);
+	if (config.otf >= 1)
+		p_.shorten_learnt(buf_, config.otf >= 2);
+
+	int backLevel = p_.backtrack_level(buf_);
+	if (config.full_resolution)
+	{
+		glue = buf_.size() > 255 ? 255 : (uint8_t)buf_.size();
+		assert(glue == p_.calcGlue(buf_));
+	}
+	else
+		glue = p_.calcGlue(buf_);
+
+	act_.decay_variable_activity();
+	p_.stats.nLitsLearnt += buf_.size();
+
+	// unroll to apropriate level and propagate new learnt clause
+	p_.unroll(backLevel, act_);
+
+	if (buf_.size() == 1)
+	{
+		assert(backLevel == 0);
+		p_.propagateFull(buf_[0], Reason::undef());
+	}
+	else
+	{
+		Reason r = p_.add_learnt_clause(buf_, glue);
+		p_.propagateFull(buf_[0], r);
+	}
+
+	for (Lit x : p_.trail(p_.level()))
+		polarity_[x.var()] = x.sign();
+
+	return buf_;
+}
+
 std::optional<Assignment>
-Searcher::run(util::function_view<void(std::span<const Lit>)> on_learnt)
+Searcher::run_restart(util::function_view<void(std::span<const Lit>)> on_learnt)
 {
 	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
 	int max_confls = restartSize(++iter_, config);
 	int64_t nConfl = 0;
 	assert(p_.level() == 0);
-
-	std::vector<Lit> buf;
 
 	while (true)
 	{
@@ -54,49 +99,15 @@ Searcher::run(util::function_view<void(std::span<const Lit>)> on_learnt)
 				on_learnt({});
 				return {};
 			}
-
-			// analyze conflict
-			int backLevel;
-			uint8_t glue;
-			p_.analyze_conflict(buf, &act_);
-			if (config.otf >= 1)
-				p_.shorten_learnt(buf, config.otf >= 2);
-			on_learnt(buf);
-
-			backLevel = p_.backtrack_level(buf);
-			if (config.full_resolution)
-			{
-				glue = buf.size() > 255 ? 255 : (uint8_t)buf.size();
-				assert(glue == p_.calcGlue(buf));
-			}
-			else
-				glue = p_.calcGlue(buf);
-
-			act_.decay_variable_activity();
-			p_.stats.nLitsLearnt += buf.size();
-
-			// unroll to apropriate level and propagate new learnt clause
-			p_.unroll(backLevel, act_);
-
-			if (buf.size() == 1)
-			{
-				assert(backLevel == 0);
-				p_.propagateFull(buf[0], Reason::undef());
-			}
-			else
-			{
-				Reason r = p_.add_learnt_clause(buf, glue);
-				p_.propagateFull(buf[0], r);
-			}
-
-			for (Lit x : p_.trail(p_.level()))
-				polarity_[x.var()] = x.sign();
-
-			buf.resize(0);
+			auto learnt = handle_conflict();
+			on_learnt(learnt);
 		}
 
-		/** maxConfl reached -> unroll and exit */
-		if (nConfl > max_confls || interrupt)
+		// maxConfl reached -> unroll and exit
+		// NOTE: by convention we handle all conflicts before returning, thus
+		//       max_confls can be (slightly) exceeded in case one conflict
+		//       leads to another immediately.
+		if (nConfl >= max_confls || interrupt)
 		{
 			if (p_.level() > 0)
 				p_.unroll(0, act_);
@@ -154,4 +165,26 @@ Searcher::run(util::function_view<void(std::span<const Lit>)> on_learnt)
 			polarity_[x.var()] = x.sign();
 	}
 }
+
+std::variant<ClauseStorage, Assignment> Searcher::run_epoch(int64_t max_confls)
+{
+	ClauseStorage learnts;
+	auto on_learnt = [&](std::span<const Lit> cl) {
+		if ((int)cl.size() <= config.green_cutoff)
+			learnts.add_clause(cl, false);
+	};
+
+	auto first_confl = p_.stats.nConfls();
+
+	while (p_.stats.nConfls() - first_confl < max_confls)
+	{
+		if (auto assign = run_restart(on_learnt))
+			return *std::move(assign);
+
+		// TODO: occasional clause cleaning should go here. Maybe also some
+		// light inprocessing
+	}
+	return learnts;
+}
+
 } // namespace dawn

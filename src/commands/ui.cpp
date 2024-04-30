@@ -79,16 +79,21 @@ void run_ui_command(Options opt)
 	config.max_learnt = 1000;
 
 	auto run_searcher = [&]() {
-		auto s = Searcher(sat);
-		s.config.restart_type = RestartType::constant;
-		s.config.restart_base = 1000;
-		auto sol = s.run(
-		    [&sat](std::span<const Lit> cls) { sat.add_clause(cls, false); });
-		if (sol)
+		auto result = Searcher(sat).run_epoch(10000);
+		if (std::get_if<Assignment>(&result))
 		{
 			logger.info("SATISFIABLE\n");
 			assert(!sat.contradiction);
 		}
+		else if (auto *learnts = std::get_if<ClauseStorage>(&result))
+		{
+			logger.info("learnt {} clauses", learnts->count());
+			for (auto &cl : learnts->all())
+				sat.add_clause(cl, false);
+		}
+		else
+			assert(false);
+
 		if (sat.contradiction)
 		{
 			logger.info("UNSATISFIABLE\n");
