@@ -443,6 +443,8 @@ struct BVE
 
 				seen[j] = false;
 				score[j] = compute_score(j);
+				if (score[j] <= cutoff)
+					queue.push({score[j], j});
 			}
 
 			todo.resize(0);
