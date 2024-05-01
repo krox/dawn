@@ -155,6 +155,11 @@ void setup_solve_command(CLI::App &app)
 	g = "Restarts";
 	app.add_option("--restart-type", opt->config.restart_type,
 	               "constant, linear, geometric, luby")
+	    ->transform(CLI::CheckedTransformer(std::map<std::string, RestartType>{
+	        {"constant", RestartType::constant},
+	        {"linear", RestartType::linear},
+	        {"geometric", RestartType::geometric},
+	        {"luby", RestartType::luby}}))
 	    ->group(g);
 	app.add_option("--restart-base", opt->config.restart_base,
 	               "base multiplier (default=100)")
