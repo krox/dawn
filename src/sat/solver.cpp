@@ -58,38 +58,39 @@ static void printLine(Sat &sat)
 }
 */
 
+/*
 void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 {
-	util::IntHistogram hist_glue, hist_size;
-	for (auto &cl : sat.clauses.all())
-	{
-		if (cl.color == Color::blue)
-			continue;
-		hist_glue.add(cl.glue);
-		hist_size.add(cl.size());
-	}
+    util::IntHistogram hist_glue, hist_size;
+    for (auto &cl : sat.clauses.all())
+    {
+        if (cl.color == Color::blue)
+            continue;
+        hist_glue.add(cl.glue);
+        hist_size.add(cl.size());
+    }
 
-	int cutoff_size, cutoff_glue;
-	if (config.use_glue)
-	{
-		cutoff_size = config.max_learnt_size;
-		cutoff_glue =
-		    std::min(hist_glue.find_nth(nKeep), config.max_learnt_glue);
-	}
-	else
-	{
-		cutoff_size =
-		    std::min(hist_size.find_nth(nKeep), config.max_learnt_size);
-		cutoff_glue = config.max_learnt_glue;
-	}
+    int cutoff_size, cutoff_glue;
+    if (config.use_glue)
+    {
+        cutoff_size = config.max_learnt_size;
+        cutoff_glue =
+            std::min(hist_glue.find_nth(nKeep), config.max_learnt_glue);
+    }
+    else
+    {
+        cutoff_size =
+            std::min(hist_size.find_nth(nKeep), config.max_learnt_size);
+        cutoff_glue = config.max_learnt_glue;
+    }
 
-	auto pred = [&](Clause const &cl) {
-		if (cl.color == Color::blue)
-			return false;
-		return cl.size() > cutoff_size || cl.glue > cutoff_glue;
-	};
-	sat.clauses.prune(pred);
-}
+    auto pred = [&](Clause const &cl) {
+        if (cl.color == Color::blue)
+            return false;
+        return cl.size() > cutoff_size || cl.glue > cutoff_glue;
+    };
+    sat.clauses.prune(pred);
+}*/
 
 /** run the full inprocessing */
 void inprocess(Sat &sat, SolverConfig const &config)
@@ -203,14 +204,13 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 	         sat.clause_count());
 
 	PropStats propStats;
-	int64_t lastInprocess = 0;
 
 	// it is kinda expensive to reconstruct the PropEngine at every restart,
 	// so we keep it and only reconstruct after inprocessing or cleaning has run
 	std::unique_ptr<Searcher> searcher = nullptr;
 
 	// main solver loop
-	while (true)
+	for (int epoch = 0;; ++epoch)
 	{
 		auto nConfls = propStats.nConfls();
 		if (searcher)
@@ -234,10 +234,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 
 		// search for a number of conflicts
-
-		util::Stopwatch sw;
-		sw.start();
-		auto result = searcher->run_epoch(10'000);
+		auto result = searcher->run_epoch(2'000);
 		if (auto assign = std::get_if<Assignment>(&result))
 		{
 			assert(!sat.contradiction);
@@ -248,11 +245,6 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 		else if (auto learnts = std::get_if<ClauseStorage>(&result))
 		{
-			sw.stop();
-			auto count = learnts->count();
-			log.info("learnt {:#5} (green) clauses in {:.2f}s", count,
-			         sw.secs());
-
 			for (auto &cl : learnts->all())
 				sat.add_clause(cl, cl.color);
 		}
@@ -267,8 +259,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 			log.info("interrupted. abort solver.");
 			return 30;
 		}
-		bool needInprocess = nConfls > lastInprocess + 10000;
-		needInprocess = false;
+		bool needInprocess = (epoch + 1) % 5 == 0;
 
 		// inprocessing
 		if (needInprocess)
@@ -278,10 +269,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 				propStats += searcher->p_.stats;
 				searcher.reset();
 			}
-			lastInprocess = nConfls;
 			inprocess(sat, config);
-
-			clause_clean(sat, config, nConfls / 4);
 		}
 	}
 }

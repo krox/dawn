@@ -108,8 +108,8 @@ class PropEngine
 	// Add clause without propagating.
 	// Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	// returns reason with which cl[0] might be propagated
-	Reason add_learnt_clause(Lit c0, Lit c1);
-	Reason add_learnt_clause(const std::vector<Lit> &cl, uint8_t glue);
+	Reason add_clause(Lit c0, Lit c1);
+	Reason add_clause(const std::vector<Lit> &cl, Color color, uint8_t glue);
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 

@@ -109,6 +109,15 @@ void PropEngine::propagateFull(Lit x, Reason r)
 			Clause &c = clauses[ci];
 			stats.clauseSizeHistogram.add((int)c.size());
 
+			// lazy-removed clause -> detach and do nothing
+			if (c.color == Color::black)
+			{
+				ws[wi] = ws.back();
+				--wi;
+				ws.pop_back();
+				goto next_watch;
+			}
+
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if (c[0] == y.neg())
 				std::swap(c[0], c[1]);
@@ -170,7 +179,7 @@ void PropEngine::branch(Lit x)
 	propagateFull(x, Reason::undef());
 }
 
-Reason PropEngine::add_learnt_clause(Lit c0, Lit c1)
+Reason PropEngine::add_clause(Lit c0, Lit c1)
 {
 	assert(c0.var() != c1.var());
 	bins[c0].push_back(c1);
@@ -178,14 +187,15 @@ Reason PropEngine::add_learnt_clause(Lit c0, Lit c1)
 	return Reason(c1);
 }
 
-Reason PropEngine::add_learnt_clause(const std::vector<Lit> &cl, uint8_t glue)
+Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color,
+                              uint8_t glue)
 {
 	assert(cl.size() >= 2);
 
 	if (cl.size() == 2)
-		return add_learnt_clause(cl[0], cl[1]);
+		return add_clause(cl[0], cl[1]);
 
-	CRef cref = clauses.add_clause(cl, Color::red);
+	CRef cref = clauses.add_clause(cl, color);
 	clauses[cref].glue = glue;
 	watches[cl[0]].push_back(cref);
 	watches[cl[1]].push_back(cref);

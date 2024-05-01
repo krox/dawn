@@ -34,7 +34,8 @@ int restartSize(int iter, Searcher::Config const &config)
 
 } // namespace
 
-std::span<const Lit> Searcher::handle_conflict()
+void Searcher::handle_conflict(
+    util::function_view<Color(std::span<const Lit>)> on_learnt)
 {
 	assert(p_.conflict && p_.level() > 0);
 
@@ -45,7 +46,7 @@ std::span<const Lit> Searcher::handle_conflict()
 	assert(buf_.size() > 0);
 	if (config.otf >= 1)
 		p_.shorten_learnt(buf_, config.otf >= 2);
-
+	auto color = on_learnt(buf_);
 	int backLevel = p_.backtrack_level(buf_);
 	if (config.full_resolution)
 	{
@@ -68,18 +69,16 @@ std::span<const Lit> Searcher::handle_conflict()
 	}
 	else
 	{
-		Reason r = p_.add_learnt_clause(buf_, glue);
+		Reason r = p_.add_clause(buf_, color, glue);
 		p_.propagateFull(buf_[0], r);
 	}
 
 	for (Lit x : p_.trail(p_.level()))
 		polarity_[x.var()] = x.sign();
-
-	return buf_;
 }
 
-std::optional<Assignment>
-Searcher::run_restart(util::function_view<void(std::span<const Lit>)> on_learnt)
+std::optional<Assignment> Searcher::run_restart(
+    util::function_view<Color(std::span<const Lit>)> on_learnt)
 {
 	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
 	int max_confls = restartSize(++iter_, config);
@@ -99,8 +98,7 @@ Searcher::run_restart(util::function_view<void(std::span<const Lit>)> on_learnt)
 				on_learnt({});
 				return {};
 			}
-			auto learnt = handle_conflict();
-			on_learnt(learnt);
+			handle_conflict(on_learnt);
 		}
 
 		// maxConfl reached -> unroll and exit
@@ -168,22 +166,47 @@ Searcher::run_restart(util::function_view<void(std::span<const Lit>)> on_learnt)
 
 std::variant<ClauseStorage, Assignment> Searcher::run_epoch(int64_t max_confls)
 {
+	auto log = Logger("searcher");
 	ClauseStorage learnts;
-	auto on_learnt = [&](std::span<const Lit> cl) {
+	int64_t ngreen = 0, nred = 0;
+	auto on_learnt = [&](std::span<const Lit> cl) -> Color {
 		if ((int)cl.size() <= config.green_cutoff)
+		{
+			ngreen += 1;
 			learnts.add_clause(cl, Color::green);
+			return Color::green;
+		}
+		else
+		{
+			nred += 1;
+			return Color::red;
+		}
 	};
 
-	auto first_confl = p_.stats.nConfls();
+	p_.stats.clear();
 
-	while (p_.stats.nConfls() - first_confl < max_confls)
+	while (p_.stats.nConfls() < max_confls)
 	{
-		if (auto assign = run_restart(on_learnt))
-			return *std::move(assign);
 
-		// TODO: occasional clause cleaning should go here. Maybe also some
-		// light inprocessing
+		if (auto assign = run_restart(on_learnt))
+		{
+			log.info("found solution");
+			return *std::move(assign);
+		}
 	}
+
+	util::Stopwatch sw;
+	sw.start();
+	for (Clause &cl : p_.clauses.all())
+		if (cl.color == Color::red)
+			cl.color = Color::black;
+	sw.stop();
+
+	log.info(
+	    "learnt {} green clauses out of {} conflicts ({:.2f} kconfls/s, {:.2f} "
+	    "kprops/s, {:.2f}s of cleaning)",
+	    ngreen, ngreen + nred, p_.stats.nConfls() / log.secs() / 1000,
+	    p_.stats.nProps() / log.secs() / 1000, sw.secs());
 	return learnts;
 }
 

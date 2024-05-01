@@ -18,8 +18,9 @@ class Searcher
 	// temporary buffer for learnt clauses
 	std::vector<Lit> buf_;
 
-	// analyze + otf-shorten + backtrack + propagate + return learnt clause
-	std::span<const Lit> handle_conflict();
+	// analyze + otf-shorten + backtrack + propagate + callback
+	void
+	handle_conflict(util::function_view<Color(std::span<const Lit>)> on_learnt);
 
   public:
 	PropEngine p_;
@@ -60,7 +61,7 @@ class Searcher
 	// run one 'restart', i.e. starting and ending at decision level 0
 	//   * number of conflicts in this restart is determined by config
 	std::optional<Assignment>
-	run_restart(util::function_view<void(std::span<const Lit>)> on_learnt);
+	run_restart(util::function_view<Color(std::span<const Lit>)> on_learnt);
 
 	// keeps running restarts until
 	//   * a solution is found, or

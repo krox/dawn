@@ -137,6 +137,8 @@ class Logger
 		if (level_ >= Level::critical)
 			do_log(str, fmt::make_format_args(args...));
 	}
+
+	double secs() const { return sw.secs(); }
 };
 
 } // namespace dawn

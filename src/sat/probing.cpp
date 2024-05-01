@@ -36,7 +36,7 @@ int probeBinary(Sat &sat)
 		p.shorten_learnt(buf, true);
 		auto back = p.backtrack_level(buf);
 		p.unroll(back);
-		auto reason = p.add_learnt_clause(buf, 2); // dont care about glue here
+		auto reason = p.add_clause(buf, Color::green, 2);
 		sat.add_clause(buf, Color::green);
 		p.propagateFull(buf[0], reason);
 		buf.resize(0);
