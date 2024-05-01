@@ -11,13 +11,6 @@
 
 using namespace dawn;
 
-extern "C" void interruptHandler(int)
-{
-	interrupt.store(true);
-	signal(SIGINT, SIG_DFL); // remove the handler so that a second SIGINT will
-	                         // abort the program
-}
-
 void setup_solve_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);

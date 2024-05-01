@@ -79,7 +79,7 @@ void run_ui_command(Options opt)
 	config.max_learnt = 1000;
 
 	auto run_searcher = [&]() {
-		auto result = Searcher(sat).run_epoch(10000);
+		auto result = Searcher(sat).run_epoch(10000, {});
 		if (std::get_if<Assignment>(&result))
 		{
 			logger.info("SATISFIABLE\n");
@@ -108,7 +108,7 @@ void run_ui_command(Options opt)
 		logger.info("removed {} clauses", n);
 	}));
 	buttons.push_back(Button("subsume", [&] { run_subsumption(sat); }));
-	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}); }));
+	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}, {}); }));
 	buttons.push_back(Button("clean >10", [&] {
 		sat.clauses.prune([](Clause const &cl) {
 			return cl.color != dawn::Color::blue && cl.size() > 10;

@@ -7,9 +7,6 @@
 
 namespace dawn {
 
-/** set by 'SIGINT' interrupt handler to indicate solving should stop ASAP */
-inline std::atomic_bool interrupt = false;
-
 enum class RestartType
 {
 	constant,

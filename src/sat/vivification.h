@@ -1,6 +1,7 @@
 #pragma once
 
 #include "sat/cnf.h"
+#include <stop_token>
 
 namespace dawn {
 
@@ -18,6 +19,7 @@ struct VivifyConfig
 //    * does not remove any clauses, just modifies existing ones. Therefore
 //      suggest to run subsumption afterwards to clean up
 //    * returns true if any change was made
-bool run_vivification(Cnf &cnf, VivifyConfig const &config = {});
+bool run_vivification(Cnf &cnf, VivifyConfig const &config,
+                      std::stop_token stoken);
 
 } // namespace dawn

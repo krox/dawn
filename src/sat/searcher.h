@@ -3,6 +3,7 @@
 #include "sat/activity_heap.h"
 #include "sat/propengine.h"
 #include "util/functional.h"
+#include <stop_token>
 
 namespace dawn {
 
@@ -61,11 +62,13 @@ class Searcher
 	// run one 'restart', i.e. starting and ending at decision level 0
 	//   * number of conflicts in this restart is determined by config
 	std::optional<Assignment>
-	run_restart(util::function_view<Color(std::span<const Lit>)> on_learnt);
+	run_restart(util::function_view<Color(std::span<const Lit>)> on_learnt,
+	            std::stop_token stoken);
 
 	// keeps running restarts until
 	//   * a solution is found, or
 	//   * max_confls are reached (can be exceeded by up to one restart)
-	std::variant<ClauseStorage, Assignment> run_epoch(int64_t max_confls);
+	std::variant<ClauseStorage, Assignment> run_epoch(int64_t max_confls,
+	                                                  std::stop_token stoken);
 };
 } // namespace dawn

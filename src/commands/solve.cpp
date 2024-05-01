@@ -4,11 +4,20 @@
 #include "sat/solver.h"
 #include "sat/stats.h"
 #include <csignal>
+#include <stop_token>
 #include <string>
 
 using namespace dawn;
 
-extern "C" void interruptHandler(int);
+namespace {
+std::stop_source global_ssource;
+extern "C" void interruptHandler(int)
+{
+	global_ssource.request_stop();
+	signal(SIGINT, SIG_DFL); // remove the handler so that a second SIGINT will
+	                         // abort the program
+}
+} // namespace
 
 namespace {
 struct Options
@@ -50,7 +59,7 @@ void run_solve_command(Options opt)
 	while (result == 10)
 	{
 		Assignment sol;
-		result = solve(sat, sol, opt.config);
+		result = solve(sat, sol, opt.config, global_ssource.get_token());
 
 		// print to stdout
 		if (result == 10)

@@ -94,7 +94,8 @@ struct Vivification
 
 } // namespace
 
-bool run_vivification(Cnf &cnf, VivifyConfig const &config)
+bool run_vivification(Cnf &cnf, VivifyConfig const &config,
+                      std::stop_token stoken)
 {
 	if (!is_normal_form(cnf))
 		return false;
@@ -130,7 +131,7 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config)
 	{
 		if (cl.color <= Color::red)
 			continue;
-		if (interrupt)
+		if (stoken.stop_requested())
 			break;
 
 		buf.assign(cl.begin(), cl.end());

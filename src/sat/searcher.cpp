@@ -78,7 +78,8 @@ void Searcher::handle_conflict(
 }
 
 std::optional<Assignment> Searcher::run_restart(
-    util::function_view<Color(std::span<const Lit>)> on_learnt)
+    util::function_view<Color(std::span<const Lit>)> on_learnt,
+    std::stop_token stoken)
 {
 	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
 	int max_confls = restartSize(++iter_, config);
@@ -105,7 +106,8 @@ std::optional<Assignment> Searcher::run_restart(
 		// NOTE: by convention we handle all conflicts before returning, thus
 		//       max_confls can be (slightly) exceeded in case one conflict
 		//       leads to another immediately.
-		if (nConfl >= max_confls || interrupt)
+		if (nConfl >= max_confls ||
+		    (nConfl % 16 == 0 && stoken.stop_requested()))
 		{
 			if (p_.level() > 0)
 				p_.unroll(0, act_);
@@ -164,7 +166,8 @@ std::optional<Assignment> Searcher::run_restart(
 	}
 }
 
-std::variant<ClauseStorage, Assignment> Searcher::run_epoch(int64_t max_confls)
+std::variant<ClauseStorage, Assignment>
+Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 {
 	auto log = Logger("searcher");
 	ClauseStorage learnts;
@@ -185,10 +188,9 @@ std::variant<ClauseStorage, Assignment> Searcher::run_epoch(int64_t max_confls)
 
 	p_.stats.clear();
 
-	while (p_.stats.nConfls() < max_confls)
+	while (p_.stats.nConfls() < max_confls && !stoken.stop_requested())
 	{
-
-		if (auto assign = run_restart(on_learnt))
+		if (auto assign = run_restart(on_learnt, stoken))
 		{
 			log.info("found solution");
 			return *std::move(assign);

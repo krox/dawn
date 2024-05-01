@@ -93,7 +93,7 @@ void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
 }*/
 
 /** run the full inprocessing */
-void inprocess(Sat &sat, SolverConfig const &config)
+void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 {
 
 	// printBinaryStats(sat);
@@ -127,14 +127,14 @@ void inprocess(Sat &sat, SolverConfig const &config)
 		{
 			if (vivConfig.with_binary)
 				run_binary_reduction(sat);
-			change |= run_vivification(sat, vivConfig);
+			change |= run_vivification(sat, vivConfig, stoken);
 		}
 
 		if (config.bva >= 1)
 		{
 			change |= makeDisjunctions(sat);
 			if (config.vivify >= 1)
-				change |= run_vivification(sat, vivConfig);
+				change |= run_vivification(sat, vivConfig, stoken);
 		}
 
 		// cleanup
@@ -187,7 +187,8 @@ void preprocess(Sat &sat)
 	}
 }
 
-int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
+int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
+          std::stop_token stoken)
 {
 	// NOTE: dont do too much preprocessing before the first round a searching.
 	//       CDCL tends to be quite efficient compared to exhaustive probing.
@@ -234,7 +235,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		}
 
 		// search for a number of conflicts
-		auto result = searcher->run_epoch(2'000);
+		auto result = searcher->run_epoch(2'000, stoken);
 		if (auto assign = std::get_if<Assignment>(&result))
 		{
 			assert(!sat.contradiction);
@@ -254,7 +255,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 		if (sat.contradiction)
 			return 20;
 
-		if (interrupt)
+		if (stoken.stop_requested())
 		{
 			log.info("interrupted. abort solver.");
 			return 30;
@@ -269,7 +270,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config)
 				propStats += searcher->p_.stats;
 				searcher.reset();
 			}
-			inprocess(sat, config);
+			inprocess(sat, config, stoken);
 		}
 	}
 }

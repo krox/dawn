@@ -194,7 +194,7 @@ void run_sha256_command(const Options &opt)
 	{
 		fmt::print("{}\n", sat.var_count());
 		Assignment sol;
-		int r = solve(sat, sol, {});
+		int r = solve(sat, sol, {}, {});
 		assert(r == 10);
 		uint32_t v = 0;
 		for (int i = 0; i < 32; ++i)
