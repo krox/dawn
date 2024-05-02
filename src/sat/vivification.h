@@ -10,6 +10,10 @@ struct VivifyConfig
 	// additionally to direct shortening, also try to strengthen along binary
 	// implicatns
 	bool with_binary = true;
+
+	// also strengthen along ternary. This effectively includes replacing
+	// definitions
+	bool with_ternary = true;
 };
 
 // run vivification

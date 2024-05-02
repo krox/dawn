@@ -479,10 +479,10 @@ void PropEngineLight::propagate_binary(Lit x)
 
 int PropEngineLight::propagate_impl(Lit x, bool with_hbr)
 {
-	assert(!conflict);
 	assert(x.proper());
 
-	// propagating an already-assigned variable is allowed (and does nothing)
+	if (conflict)
+		return -1;
 	if (assign[x])
 		return 0;
 	if (assign[x.neg()])

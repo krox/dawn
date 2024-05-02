@@ -3,9 +3,23 @@
 #include "sat/propengine.h"
 #include <unordered_set>
 
+// TODO: vivification needs some serious cleaning up.
+//    * should be based on Cnf, not Sat
+//    * maybe properly separate basic / binary / ternary
+//    * bin-vivify on binaries (and tern-vivivy on ternaries) is a bit subtle to
+//      get right (and the latter one is disabled for now)
+//    * candidates for more general vivification could be found by near-misses
+//      in subsumption
+
 namespace dawn {
 
 namespace {
+
+std::pair<Lit, Lit> make_pair(Lit a, Lit b)
+{
+	assert(a.var() != b.var());
+	return a < b ? std::pair(a, b) : std::pair(b, a);
+}
 
 struct Vivification
 {
@@ -14,10 +28,20 @@ struct Vivification
 	int64_t shortened = 0;    // number of lits removed
 	int64_t strengthened = 0; // number of lits replaced by stronger one
 
-	/*std::unordered_set<std::pair<Lit, Lit>, util::hash<pair<Lit, Lit>>>
-	    bins_seen;*/
+	util::hash_map<std::pair<Lit, Lit>, util::small_vector<Lit, 1>> ternaries;
 
-	Vivification(Cnf &cnf) : cnf_(cnf), p(cnf) {}
+	explicit Vivification(Cnf &cnf, VivifyConfig const &config)
+	    : cnf_(cnf), p(cnf)
+	{
+		if (config.with_ternary)
+			for (Clause const &cl : cnf.clauses.all())
+				if (cl.size() == 3 && cl.color != Color::black)
+				{
+					ternaries[make_pair(cl[0], cl[1])].push_back(cl[2]);
+					ternaries[make_pair(cl[0], cl[2])].push_back(cl[1]);
+					ternaries[make_pair(cl[1], cl[2])].push_back(cl[0]);
+				}
+	}
 
 	// try to vifify a single clause
 	//   - returns true if something was found
@@ -90,6 +114,57 @@ struct Vivification
 		p.unroll();
 		return change;
 	}
+
+	bool vivify_clause_ternary(std::vector<Lit> &cl)
+	{
+		assert(p.level() == 0);
+		assert(!p.conflict);
+		assert(cl.size() >= 4);
+
+		for (size_t i = 0; i < cl.size(); ++i)
+			for (size_t j = i + 1; j < cl.size(); ++j)
+				if (auto t = ternaries.find(make_pair(cl[i], cl[j]));
+				    t != ternaries.end())
+				{
+					p.mark();
+
+					p.propagate_neg(std::span(cl).subspan(0, i));
+					p.propagate_neg(std::span(cl).subspan(i + 1, j - i - 1));
+					p.propagate_neg(std::span(cl).subspan(j + 1));
+
+					if (p.conflict)
+					{
+						// not strictly a problem, but I dont want to deal with
+						// it...
+						fmt::print(
+						    "c WARNING: inconsistent vivification state!\n");
+						p.unroll();
+						return false;
+					}
+
+					for (Lit a : t->second)
+					{
+						// some subsumption/tautology case we dont want to deal
+						// with here
+						for (Lit b : cl)
+							if (a.var() == b.var())
+								goto next;
+
+						if (p.probe(a) == -1)
+						{
+							p.unroll();
+							cl[i] = a.neg();
+							cl[j] = cl.back();
+							cl.pop_back();
+							return true;
+						}
+					next:;
+					}
+
+					p.unroll();
+				}
+		return false;
+	}
 };
 
 } // namespace
@@ -103,13 +178,14 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 	// util::StopwatchGuard swg(sat.stats.swVivification); TODO
 	auto log = Logger("vivification");
 
-	auto viv = Vivification(cnf);
+	auto viv = Vivification(cnf, config);
 
 	// NOTE: strengthening inplace is kinda fragile, so we binaries inplace is a
 	// bit fragile (e.g. when there are equivalences). So we just add new
 	// clauses, and rely on a later TBR run to clean up.
 	std::vector<Lit> buf;
 	ClauseStorage new_clauses;
+	int nTernStrengthened = 0;
 
 	// shortening binaries is essentially probing, which is done elsewhere.
 	// but strengthening binaries along other binaries is kinda cool and we do
@@ -141,6 +217,13 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 			new_clauses.add_clause(buf, cl.color);
 			cl.color = Color::black;
 		}
+		else if (config.with_ternary && buf.size() >= 4 &&
+		         viv.vivify_clause_ternary(buf))
+		{
+			nTernStrengthened += 1;
+			new_clauses.add_clause(buf, cl.color);
+			cl.color = Color::black;
+		}
 	}
 
 	if (new_clauses.empty())
@@ -153,11 +236,8 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 	for (auto &cl : new_clauses.all())
 		cnf.add_clause(cl.lits(), cl.color);
 
-	if (config.with_binary)
-		log.info("removed {} lits and replaced {} lits", viv.shortened,
-		         viv.strengthened);
-	else
-		log.info("removed {} lits", viv.shortened);
+	log.info("removed {} lits, and bin-replaced {}, tern-replaced {}",
+	         viv.shortened, viv.strengthened, nTernStrengthened);
 
 	return viv.shortened + viv.strengthened;
 }
