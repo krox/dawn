@@ -107,7 +107,10 @@ void run_ui_command(Options opt)
 		int n = cleanup(sat);
 		logger.info("removed {} clauses", n);
 	}));
-	buttons.push_back(Button("subsume", [&] { run_subsumption(sat); }));
+	buttons.push_back(Button("subsume", [&] {
+		run_subsumption(sat);
+		cleanup(sat);
+	}));
 	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}, {}); }));
 	buttons.push_back(Button("clean >10", [&] {
 		sat.clauses.prune([](Clause const &cl) {

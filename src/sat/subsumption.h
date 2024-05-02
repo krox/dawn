@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 
 namespace dawn {
 
@@ -8,6 +8,6 @@ namespace dawn {
 //     - considers long/long and (virtual-)binary/long, but not binary/binary,
 //       which is taken care of by transitive binary reduction elsewhere
 //     - returns true if anything was found
-bool run_subsumption(Sat &sat);
+bool run_subsumption(Cnf &cnf);
 
 } // namespace dawn

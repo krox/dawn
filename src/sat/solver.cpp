@@ -117,7 +117,10 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 		}
 
 		if (config.subsume >= 1)
+		{
 			change |= run_subsumption(sat);
+			cleanup(sat);
+		}
 
 		if (config.probing >= 3)
 		{
@@ -168,6 +171,7 @@ void preprocess(Sat &sat)
 	cleanup(sat);
 
 	run_subsumption(sat);
+	cleanup(sat);
 
 	// clause elimination (no resolution)
 	// (pure/unused)
@@ -191,6 +195,7 @@ void preprocess(Sat &sat)
 		cleanup(sat);
 
 		run_subsumption(sat);
+		cleanup(sat);
 		run_binary_reduction(sat);
 	}
 }

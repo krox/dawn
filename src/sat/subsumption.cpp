@@ -1,6 +1,7 @@
 #include "sat/subsumption.h"
 
 #include "fmt/format.h"
+#include "sat/logging.h"
 #include "util/bit_vector.h"
 #include "util/span.h"
 
@@ -61,17 +62,17 @@ class Subsumption
 	std::vector<Lit> stack; // temporary for DFS
 
   public:
-	Sat &sat;
+	Cnf &cnf;
 	std::vector<util::small_vector<CRef, 7>> occs;
 	util::bit_vector seen;
 
 	// statistics
 	size_t nRemovedClsBin = 0, nRemovedLitsBin = 0;
 
-	Subsumption(Sat &sat)
-	    : sat(sat), occs(sat.var_count() * 2), seen(sat.var_count() * 2)
+	Subsumption(Cnf &cnf)
+	    : cnf(cnf), occs(cnf.var_count() * 2), seen(cnf.var_count() * 2)
 	{
-		for (auto [ci, cl] : sat.clauses.enumerate())
+		for (auto [ci, cl] : cnf.clauses.enumerate())
 			if (cl.color != Color::black)
 				for (Lit a : cl.lits())
 					occs[a].push_back(ci);
@@ -88,7 +89,7 @@ class Subsumption
 		{
 			Lit b = stack.back();
 			stack.pop_back();
-			for (Lit c : sat.bins[b.neg()])
+			for (Lit c : cnf.bins[b.neg()])
 				if (!seen[c])
 				{
 					seen[c] = true;
@@ -102,7 +103,7 @@ class Subsumption
 	void subsumeBinary(Lit a)
 	{
 		// early-out for literals without any implications
-		if (sat.bins[a.neg()].empty())
+		if (cnf.bins[a.neg()].empty())
 			return;
 
 		// mark all literals reachable from a
@@ -112,7 +113,7 @@ class Subsumption
 		// if a implies ~a, we have a failed literal (should be rare here)
 		if (seen[a.neg()])
 		{
-			sat.add_unary(a.neg());
+			cnf.add_unary(a.neg());
 			return;
 		}
 
@@ -122,14 +123,14 @@ class Subsumption
 		// remove clauses subsumed by some implication a -> *
 		for (CRef k : occs[a.neg()])
 		{
-			auto &cl = sat.clauses[k];
+			auto &cl = cnf.clauses[k];
 			if (cl.color == Color::black)
 				continue;
 
-			for (Lit x : sat.clauses[k].lits())
+			for (Lit x : cnf.clauses[k].lits())
 				if (seen[x])
 				{
-					sat.clauses[k].color = Color::black;
+					cnf.clauses[k].color = Color::black;
 					++nRemovedClsBin;
 					break;
 				}
@@ -138,7 +139,7 @@ class Subsumption
 		// strengthen clauses using implications a -> *
 		for (CRef k : occs[a])
 		{
-			auto &cl = sat.clauses[k];
+			auto &cl = cnf.clauses[k];
 			if (cl.color == Color::black)
 				continue;
 
@@ -150,7 +151,7 @@ class Subsumption
 						++nRemovedLitsBin;
 						if (cl.size() == 2)
 						{
-							sat.add_binary(cl[0], cl[1]);
+							cnf.add_binary(cl[0], cl[1]);
 							cl.color = Color::black;
 						}
 					}
@@ -163,12 +164,12 @@ class Subsumption
 	{
 		// TODO: checking them in a clever order could allow to make
 		//       'mark_reachable' incremental, thus saving some work
-		for (Lit a : sat.all_lits())
+		for (Lit a : cnf.all_lits())
 			subsumeBinary(a);
 	}
 };
 
-std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
+std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 {
 	// NOTE: Clauses can only subsume clauses of the same or larger size and
 	//       subsumption between clauses of the same size is symmetric.
@@ -185,8 +186,8 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 	// sort variables in clauses (to simplify 'trySubsume()')
 	// and list clauses by size
 	std::array<std::vector<CRef>, 128> clauses;
-	auto occs = std::vector<util::small_vector<CRef, 7>>(sat.var_count());
-	for (auto [ci, cl] : sat.clauses.enumerate())
+	auto occs = std::vector<util::small_vector<CRef, 7>>(cnf.var_count());
+	for (auto [ci, cl] : cnf.clauses.enumerate())
 		if (cl.color != Color::black)
 		{
 			std::sort(cl.lits().begin(), cl.lits().end());
@@ -200,7 +201,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 	{
 		for (CRef i : clauses[size])
 		{
-			Clause &cl = sat.clauses[i];
+			Clause &cl = cnf.clauses[i];
 			if (cl.color == Color::black)
 				continue; // can this happen at all here?
 
@@ -215,7 +216,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 			{
 				if (i == j)   // dont subsume clauses with itself
 					continue; // can this happen here at all?
-				Clause &cl2 = sat.clauses[j];
+				Clause &cl2 = cnf.clauses[j];
 				if (cl2.color == Color::black)
 					continue; // already removed by different subsumption
 				if (try_subsume(cl, cl2))
@@ -228,11 +229,11 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 						if (cl2.size() <= 2)
 						{
 							if (cl2.size() == 0)
-								sat.add_empty(); // dont think this can happen
+								cnf.add_empty(); // dont think this can happen
 							else if (cl2.size() == 1)
-								sat.add_unary(cl2[0]);
+								cnf.add_unary(cl2[0]);
 							else if (cl2.size() == 2)
-								sat.add_binary(cl2[0], cl2[1]);
+								cnf.add_binary(cl2[0], cl2[1]);
 							cl2.color = Color::black;
 						}
 					}
@@ -240,7 +241,7 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 			}
 
 			// add vlause to occ-lists
-			for (Lit a : sat.clauses[i].lits())
+			for (Lit a : cnf.clauses[i].lits())
 				occs[a.var()].push_back(i);
 		}
 	}
@@ -250,20 +251,18 @@ std::pair<int64_t, int64_t> subsumeLong(Sat &sat)
 
 } // namespace
 
-bool run_subsumption(Sat &sat)
+bool run_subsumption(Cnf &cnf)
 {
-	util::StopwatchGuard swg(sat.stats.swSubsume);
+	// util::StopwatchGuard swg(cnf.stats.swSubsume);
 	auto log = Logger("subsumption");
 
-	Subsumption sub(sat);
+	Subsumption sub(cnf);
 	sub.subsumeBinary();
 
-	auto [nRemovedClsLong, nRemovedLitsLong] = subsumeLong(sat);
+	auto [nRemovedClsLong, nRemovedLitsLong] = subsumeLong(cnf);
 
-	int nRemovedVars = cleanup(sat);
-	log.info("removed {} + {} clauses and {} + {} lits (removed {} vars)",
-	         sub.nRemovedClsBin, nRemovedClsLong, sub.nRemovedLitsBin,
-	         nRemovedLitsLong, nRemovedVars);
+	log.info("removed {} + {} clauses and {} + {} lits", sub.nRemovedClsBin,
+	         nRemovedClsLong, sub.nRemovedLitsBin, nRemovedLitsLong);
 
 	return sub.nRemovedClsBin || sub.nRemovedLitsBin || nRemovedClsLong ||
 	       nRemovedLitsLong;
