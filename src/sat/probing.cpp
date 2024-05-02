@@ -5,7 +5,7 @@
 #include <climits>
 
 namespace dawn {
-int probeBinary(Sat &sat)
+int probeBinary(Cnf &cnf)
 {
 	/*
 	Idea: Propagate two literals a and b. If a conflict arises, we can learn
@@ -17,27 +17,27 @@ int probeBinary(Sat &sat)
 	3) To maximize the effect of (1) and (2), we probe literals in (approximate)
 	   topological order.
 	 */
-	util::StopwatchGuard swg(sat.stats.swProbing);
+	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
 	auto log = Logger("bin-probing");
 
-	PropEngine p(sat);
+	PropEngine p(cnf);
 	if (p.conflict)
 		return 0;
 
-	auto top = TopOrder(sat);
-	auto seenA = util::bit_vector(sat.var_count() * 2);
-	auto seenB = util::bit_vector(sat.var_count() * 2);
+	auto top = TopOrder(cnf);
+	auto seenA = util::bit_vector(cnf.var_count() * 2);
+	auto seenB = util::bit_vector(cnf.var_count() * 2);
 	std::vector<Lit> buf;
 	int nTries = 0;
 	int nFails = 0;
 
-	auto backtrack = [&sat, &p, &buf, &nFails]() {
+	auto backtrack = [&cnf, &p, &buf, &nFails]() {
 		p.analyze_conflict(buf, nullptr);
 		p.shorten_learnt(buf, true);
 		auto back = p.backtrack_level(buf);
 		p.unroll(back);
 		auto reason = p.add_clause(buf, Color::green, 2);
-		sat.add_clause(buf, Color::green);
+		cnf.add_clause(buf, Color::green);
 		p.propagateFull(buf[0], reason);
 		buf.resize(0);
 	};
@@ -124,9 +124,8 @@ int probeBinary(Sat &sat)
 		log.info("-");
 	else
 	{
-		int nRemoved = cleanup(sat);
-		log.info("found {} failing bins using {:.2f}M tries (removed {} vars)",
-		         nFails, nTries / 1024. / 1024., nRemoved);
+		log.info("found {} failing bins using {:.2f}M tries", nFails,
+		         nTries / 1e6);
 	}
 
 	return nFails;
@@ -134,22 +133,19 @@ int probeBinary(Sat &sat)
 
 struct IntreeProbing
 {
-	Sat &sat;
+	Cnf &cnf;
 	PropEngineLight p;
 	util::bit_vector done;
-	int tries_todo;
-	IntreeProbing(Sat &s, int m)
-	    : sat(s), p(s), done(s.var_count() * 2), tries_todo(m ? m : INT_MAX)
-	{}
 
+	IntreeProbing(Cnf &s) : cnf(s), p(s), done(s.var_count() * 2) {}
+
+	// probe from a sink(!) a, going up the implication graph. Returns learnt
+	// unit or Lit::undef() if nothing was found.
 	Lit probe(Lit a)
 	{
 		assert(a.proper());
 		if (done[a])
 			return Lit::undef();
-		if (tries_todo <= 0)
-			return Lit::undef();
-		tries_todo -= 1;
 		done[a] = true;
 
 		assert(!p.conflict);
@@ -161,7 +157,7 @@ struct IntreeProbing
 			return a.neg();
 		}
 
-		for (Lit b : sat.bins[a])
+		for (Lit b : cnf.bins[a])
 			if (Lit u = probe(b.neg()); u != Lit::undef())
 			{
 				p.unroll();
@@ -173,23 +169,22 @@ struct IntreeProbing
 	}
 };
 
-bool intree_probing(Sat &sat, int maxTries)
+bool intree_probing(Cnf &cnf)
 {
-	util::StopwatchGuard swg(sat.stats.swProbing);
-	auto log = Logger("intree-probe");
-	cleanup(sat);
-	auto p = IntreeProbing(sat, maxTries);
+	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
+	auto log = Logger("probing");
+	auto p = IntreeProbing(cnf);
 
 	if (p.p.conflict)
 		return false;
 
 	int64_t nUnits = 0;
-	for (Lit a : sat.all_lits())
-		if (!sat.bins[a].empty() && sat.bins[a.neg()].empty())
+	for (Lit a : cnf.all_lits())
+		if (!cnf.bins[a].empty() && cnf.bins[a.neg()].empty())
 			if (Lit u = p.probe(a); u != Lit::undef())
 			{
 				nUnits += 1;
-				sat.add_unary(u);
+				cnf.add_unary(u);
 				p.p.propagate(u);
 				if (p.p.conflict)
 					return true;
@@ -197,9 +192,7 @@ bool intree_probing(Sat &sat, int maxTries)
 
 	if (nUnits || p.p.nHbr)
 	{
-		int nRemoved = cleanup(sat);
-		log.info("found {} failing lits and {} hyper bins (removed {} vars)",
-		         nUnits, p.p.nHbr, nRemoved);
+		log.info("found {} failing lits and {} hyper bins", nUnits, p.p.nHbr);
 		return true;
 	}
 	else

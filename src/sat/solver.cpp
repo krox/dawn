@@ -111,13 +111,19 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 		// if (config.probing > 0)
 		//	change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
 		if (config.probing)
+		{
 			change |= intree_probing(sat);
+			cleanup(sat);
+		}
 
 		if (config.subsume >= 1)
 			change |= run_subsumption(sat);
 
 		if (config.probing >= 3)
+		{
 			change |= probeBinary(sat);
+			cleanup(sat);
+		}
 
 		VivifyConfig vivConfig;
 		if (config.vivify < 2)
@@ -158,8 +164,9 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 void preprocess(Sat &sat)
 {
 	// cheap search/strengthening
-	intree_probing(sat, 10000);
-	// probe(sat, true, 10000);
+	intree_probing(sat);
+	cleanup(sat);
+
 	run_subsumption(sat);
 
 	// clause elimination (no resolution)
@@ -181,7 +188,8 @@ void preprocess(Sat &sat)
 
 		// little bit of searching
 		intree_probing(sat);
-		// probe(sat, true, 10000);
+		cleanup(sat);
+
 		run_subsumption(sat);
 		run_binary_reduction(sat);
 	}
@@ -190,9 +198,6 @@ void preprocess(Sat &sat)
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
           std::stop_token stoken)
 {
-	// NOTE: dont do too much preprocessing before the first round a searching.
-	//       CDCL tends to be quite efficient compared to exhaustive probing.
-
 	util::StopwatchGuard _(sat.stats.swTotal);
 	auto log = Logger("solver");
 

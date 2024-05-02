@@ -423,6 +423,8 @@ PropEngineLight::PropEngineLight(Cnf &cnf)
 	// attach long clauses
 	for (auto [i, c] : cnf.clauses.enumerate())
 	{
+		if (c.color == Color::black)
+			continue;
 		assert(c.size() >= 3);
 		watches[c[0]].push_back(i);
 		watches[c[1]].push_back(i);
@@ -506,6 +508,15 @@ int PropEngineLight::propagate_impl(Lit x, bool with_hbr)
 		{
 			CRef ci = ws[wi];
 			Clause &c = cnf.clauses[ci];
+
+			// lazy-removed clause -> detach and do nothing
+			if (c.color == Color::black)
+			{
+				ws[wi] = ws.back();
+				--wi;
+				ws.pop_back();
+				continue;
+			}
 
 			// move y to c[1] (so that c[0] is the potentially propagated one)
 			if (c[0] == y.neg())
