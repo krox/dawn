@@ -131,68 +131,65 @@ int probeBinary(Cnf &cnf)
 	return nFails;
 }
 
-struct IntreeProbing
+// probe from a sink(!) a, going up the implication graph. Returns learnt
+// unit or Lit::undef() if nothing was found.
+Lit probe(Lit a, PropEngineLight &p, util::bit_vector &done)
 {
-	Cnf &cnf;
-	PropEngineLight p;
-	util::bit_vector done;
+	assert(a.proper());
+	if (done[a])
+		return Lit::undef();
+	done[a] = true;
 
-	IntreeProbing(Cnf &s) : cnf(s), p(s), done(s.var_count() * 2) {}
-
-	// probe from a sink(!) a, going up the implication graph. Returns learnt
-	// unit or Lit::undef() if nothing was found.
-	Lit probe(Lit a)
+	assert(!p.conflict);
+	p.mark();
+	p.propagate_with_hbr(a);
+	if (p.conflict)
 	{
-		assert(a.proper());
-		if (done[a])
-			return Lit::undef();
-		done[a] = true;
+		p.unroll();
+		return a.neg();
+	}
 
-		assert(!p.conflict);
-		p.mark();
-		p.propagate_with_hbr(a);
-		if (p.conflict)
+	for (Lit b : p.cnf.bins[a])
+		if (Lit u = probe(b.neg(), p, done); u != Lit::undef())
 		{
 			p.unroll();
-			return a.neg();
+			return u;
 		}
 
-		for (Lit b : cnf.bins[a])
-			if (Lit u = probe(b.neg()); u != Lit::undef())
-			{
-				p.unroll();
-				return u;
-			}
+	p.unroll();
+	return Lit::undef();
+}
 
-		p.unroll();
-		return Lit::undef();
-	}
-};
-
-bool intree_probing(Cnf &cnf)
+bool run_probing(Cnf &cnf)
 {
 	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
 	auto log = Logger("probing");
-	auto p = IntreeProbing(cnf);
 
-	if (p.p.conflict)
+	if (cnf.contradiction)
 		return false;
+	auto p = PropEngineLight(cnf);
+	if (p.conflict)
+		return true;
+
+	auto done = util::bit_vector(p.cnf.var_count() * 2);
 
 	int64_t nUnits = 0;
-	for (Lit a : cnf.all_lits())
+	for (Lit a : p.cnf.all_lits())
 		if (!cnf.bins[a].empty() && cnf.bins[a.neg()].empty())
-			if (Lit u = p.probe(a); u != Lit::undef())
+			if (Lit u = probe(a, p, done); u != Lit::undef())
 			{
 				nUnits += 1;
 				cnf.add_unary(u);
-				p.p.propagate(u);
-				if (p.p.conflict)
-					return true;
+				p.propagate(u);
+				if (p.conflict)
+					break;
 			}
 
-	if (nUnits || p.p.nHbr)
+	assert(p.level() == 0);
+
+	if (nUnits || p.nHbr)
 	{
-		log.info("found {} failing lits and {} hyper bins", nUnits, p.p.nHbr);
+		log.info("found {} failing lits and {} hyper bins", nUnits, p.nHbr);
 		return true;
 	}
 	else

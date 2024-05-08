@@ -179,17 +179,12 @@ void setup_solve_command(CLI::App &app)
 
 	// inprocessing options
 	g = "Inprocessing";
-	app.add_option("--probing", opt->config.probing,
-	               "failed-literal probing"
-	               "(0=off, 1=limited=default, 2=full, 3=full+binary)")
+	app.add_option("--bin-probing", opt->config.bin_probing,
+	               "probe for failed binary (default=0)")
 	    ->group(g);
 	app.add_option("--subsume", opt->config.subsume,
 	               "subsumption and self-subsuming resolution"
 	               "(0=off, 1=binary, 2=full=default)")
-	    ->group(g);
-	app.add_option("--tbr", opt->config.tbr,
-	               "transitive reduction for binaries"
-	               "(0=off, 2=full)")
 	    ->group(g);
 	app.add_option("--vivify", opt->config.vivify,
 	               "clause vivification"
@@ -223,6 +218,10 @@ void setup_solve_command(CLI::App &app)
 	    ->each(
 	        [](std::string s) { Logger::set_level(s, Logger::Level::trace); })
 	    ->group(g);
+
+	// silence these by default (part of 'cleanup', usually very fast)
+	Logger::set_level("probing", Logger::Level::warn);
+	Logger::set_level("TBR", Logger::Level::warn);
 
 	app.callback([opt]() { run_solve_command(*opt); });
 }

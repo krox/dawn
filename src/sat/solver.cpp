@@ -103,18 +103,6 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 	     config.inprocessIters == 0 || iter < config.inprocessIters; ++iter)
 	{
 		bool change = false;
-		// failed literal probing settings:
-		// 0 = none
-		// 1 = only run while very successful
-		// 2 = run until everything is found
-		// 3 = also run binary probing
-		// if (config.probing > 0)
-		//	change |= probe(sat, true, config.probing >= 2 ? 0 : 10000);
-		if (config.probing)
-		{
-			change |= intree_probing(sat);
-			cleanup(sat);
-		}
 
 		if (config.subsume >= 1)
 		{
@@ -122,7 +110,7 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 			cleanup(sat);
 		}
 
-		if (config.probing >= 3)
+		if (config.bin_probing)
 		{
 			change |= probeBinary(sat);
 			cleanup(sat);
@@ -134,9 +122,9 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 
 		if (config.vivify >= 1)
 		{
-			if (vivConfig.with_binary)
-				run_binary_reduction(sat);
+
 			change |= run_vivification(sat, vivConfig, stoken);
+			cleanup(sat); // bin-vivify really likes SCC and TBR before
 		}
 
 		if (config.bva >= 1)
@@ -144,38 +132,23 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 			change |= makeDisjunctions(sat);
 			if (config.vivify >= 1)
 				change |= run_vivification(sat, vivConfig, stoken);
-		}
-
-		// cleanup
-		// (do this last, because it cant lead to anything new for the other
-		// passes)
-		if (config.tbr > 0)
-		{
-			cleanup(sat); // TBR requires SCC
-			run_binary_reduction(sat);
+			cleanup(sat);
 		}
 
 		if (!change)
 			break;
 	}
-
-	// Very rarely, normal form is destroyed without the passes itself noticing.
-	// Not sure why, guessing lhbr in probing/vivification?
-	cleanup(sat);
 }
 
 void preprocess(Sat &sat)
 {
 	// cheap search/strengthening
-	intree_probing(sat);
 	cleanup(sat);
-
 	run_subsumption(sat);
 	cleanup(sat);
 
 	// clause elimination (no resolution)
 	// (pure/unused)
-	run_binary_reduction(sat);
 	EliminationConfig elimConfig = {};
 	elimConfig.level = 1;
 	run_elimination(sat, elimConfig);
@@ -191,12 +164,9 @@ void preprocess(Sat &sat)
 		run_elimination(sat, elimConfig);
 
 		// little bit of searching
-		intree_probing(sat);
 		cleanup(sat);
-
 		run_subsumption(sat);
 		cleanup(sat);
-		run_binary_reduction(sat);
 	}
 }
 

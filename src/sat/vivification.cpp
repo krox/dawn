@@ -4,12 +4,16 @@
 #include <unordered_set>
 
 // TODO: vivification needs some serious cleaning up.
-//    * should be based on Cnf, not Sat
 //    * maybe properly separate basic / binary / ternary
 //    * bin-vivify on binaries (and tern-vivivy on ternaries) is a bit subtle to
 //      get right (and the latter one is disabled for now)
 //    * candidates for more general vivification could be found by near-misses
 //      in subsumption
+//    * subtle BUG: need to re-color ternaries when tern-vivifying something
+//      more blue
+//    * subtle not-quite-bug: marking shortened clause black and only re-adding
+//      the shorter version much later is actually incorrect, because a black
+//      clause will be immediately ignored by the PropEngine.
 
 namespace dawn {
 

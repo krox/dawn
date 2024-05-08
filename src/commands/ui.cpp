@@ -104,8 +104,8 @@ void run_ui_command(Options opt)
 	std::vector<Component> buttons;
 	buttons.push_back(Button("Search", run_searcher));
 	buttons.push_back(Button("UP+SCC", [&] {
-		int n = cleanup(sat);
-		logger.info("removed {} clauses", n);
+		cleanup(sat);
+		logger.info("cleanup ran");
 	}));
 	buttons.push_back(Button("subsume", [&] {
 		run_subsumption(sat);

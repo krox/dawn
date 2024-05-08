@@ -96,11 +96,19 @@ inline int Sat::add_var_outer()
 ClauseStorage getAllClausesOuter(Sat const &sat);
 ClauseStorage getAllClauses(Sat const &sat);
 
-/**
- * run unit propagation + SCC until fixed point.
- * returns number of removed variables.
- */
-int cleanup(Sat &sat);
+// cheap simplifications that should probably be run before and after any more
+// serious searches
+//   * runs until fixed point:
+//       * unit propagation
+//       * equivalent literal substitution
+//       * failed literal probing
+//       * hyper binary resolution
+//       * transitive binary reduction
+//       * compactify clause storage
+//   * TODO:
+//       * pure literal elimination
+//       * disconnected components?
+void cleanup(Sat &sat);
 
 // check that
 //     * no contradiction

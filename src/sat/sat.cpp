@@ -3,6 +3,8 @@
 #include "fmt/format.h"
 #include "fmt/os.h"
 #include "sat/binary.h"
+#include "sat/probing.h"
+#include "sat/propengine.h"
 #include <algorithm>
 #include <cassert>
 #include <random>
@@ -76,36 +78,73 @@ void shuffleVariables(Sat &sat)
 	sat.renumber(trans, sat.var_count());
 }
 
-int runUnitPropagation(Sat &sat);
+namespace {
 
-int cleanup(Sat &sat)
+int runUnitPropagation(Sat &sat)
+{
+	// early out if no units
+	if (!sat.contradiction && sat.units.empty())
+		return 0;
+
+	// the PropEngine constructor already does all the UP we want
+	auto p = PropEngineLight(sat);
+
+	// conflict -> add empty clause and remove everything else
+	if (p.conflict)
+	{
+		sat.add_empty();
+		sat.units.resize(0);
+		for (int i = 0; i < sat.var_count() * 2; ++i)
+			sat.bins[i].resize(0);
+		sat.clauses.clear();
+		int n = sat.var_count();
+		sat.renumber(std::vector<Lit>(n, Lit::elim()), 0);
+		return n;
+	}
+
+	assert(p.trail().size() != 0);
+
+	auto trans = std::vector<Lit>(sat.var_count(), Lit::undef());
+	for (Lit u : p.trail())
+	{
+		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
+		trans[u.var()] = Lit::fixed(u.sign());
+	}
+	int newVarCount = 0;
+	for (int i : sat.all_vars())
+	{
+		if (trans[i] == Lit::undef())
+			trans[i] = Lit(newVarCount++, false);
+	}
+
+	// NOTE: this renumber() changes sat and thus invalidates p
+	sat.renumber(trans, newVarCount);
+	assert(sat.units.empty());
+
+	return (int)p.trail().size();
+}
+} // namespace
+
+void cleanup(Sat &sat)
 {
 	util::StopwatchGuard swg(sat.stats.swCleanup);
-
-	// util::Stopwatch sw;
-	// sw.start();
-
-	int totalUP = 0;
-	int totalSCC = 0;
-	int iter = 0;
+	auto log = Logger("cleanup");
 
 	// NOTE: Theoretically, this loop could become quadratic. But in practice,
 	// I never saw more than a few iterations, so we dont bother capping it.
-	for (;; ++iter)
+	while (true)
 	{
-		if (int nFound = runUnitPropagation(sat); nFound)
-			totalUP += nFound;
-		if (int nFound = run_scc(sat); nFound)
-			totalSCC += nFound;
-		else
-			break;
+		runUnitPropagation(sat);
+		if (run_scc(sat))
+			continue;
+		if (run_probing(sat))
+			continue;
+		break;
 	}
+	run_binary_reduction(sat);
 	sat.clauses.prune_black();
-
-	// fmt::print("c [UP/SCC x{:2}   {:#6.2f}] removed {} + {} vars\n", iter,
-	//            sw.secs(), totalUP, totalSCC);
-
-	return totalUP + totalSCC;
+	log.info("now at {} vars, {} bins, {} irred, {} learnt", sat.var_count(),
+	         sat.binary_count(), sat.long_count_irred(), sat.long_count_red());
 }
 
 bool is_normal_form(Cnf const &cnf)

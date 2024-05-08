@@ -193,7 +193,7 @@ class PropEngineLight
 	int64_t nHbr = 0;
 
 	/** constructor */
-	PropEngineLight(Cnf &cnf);
+	explicit PropEngineLight(Cnf &cnf);
 
 	// assign literal and perform unit propagation
 	//     - returns number of set propagations (including x)
@@ -221,8 +221,5 @@ class PropEngineLight
 	std::span<const Lit> trail() const;
 	std::span<const Lit> trail(int l) const;
 };
-
-/** run unit propagation and remove all fixed variables */
-int runUnitPropagation(Sat &sat);
 
 } // namespace dawn

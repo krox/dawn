@@ -39,10 +39,7 @@ struct SolverConfig
 	int inprocessIters = 1; // maximum number of iterations of inprocessing
 	int subsume = 2;        // subsumption and self-subsuming resolution
 	                        // (0=off, 1=binary, 2=full)
-	int probing = 1;        // failed literal probing
-	                        // (0=off, 1=limited, 2=full)
-	int tbr = 2;            // transitive binary reduction
-	                        // (0=off, 2=full)
+	int bin_probing = 0;    // probe for binary clauses
 	int vivify = 2;         // clause vivification
 	int bve = 1;            // bounded variable elimination
 	int bce = 1;            // blocked clause elimination
