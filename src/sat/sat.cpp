@@ -127,8 +127,7 @@ int runUnitPropagation(Sat &sat)
 
 void cleanup(Sat &sat)
 {
-	util::StopwatchGuard swg(sat.stats.swCleanup);
-	auto log = Logger("cleanup");
+	auto log = util::Logger("cleanup");
 
 	// NOTE: Theoretically, this loop could become quadratic. But in practice,
 	// I never saw more than a few iterations, so we dont bother capping it.

@@ -1,9 +1,9 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
 #include "sat/dimacs.h"
-#include "sat/logging.h"
 #include "sat/sat.h"
 #include "sat/solver.h"
+#include "util/logging.h"
 #include <csignal>
 #include <cstdio>
 #include <random>

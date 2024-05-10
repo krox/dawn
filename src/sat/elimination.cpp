@@ -171,7 +171,7 @@ struct BVE
 	util::bit_vector eliminated;
 	Score cutoff;
 	int nEliminated = 0;
-	Logger log{"BVE"};
+	util::Logger log = util::Logger("BVE");
 
 	BVE(Sat &sat_, EliminationConfig const &config_)
 	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
@@ -578,8 +578,6 @@ int run_elimination(Sat &sat, EliminationConfig const &config)
 {
 	// assert(is_normal_form(sat)); // not strictly necessary
 
-	util::StopwatchGuard swg(sat.stats.swBVE);
-
 	auto bve = BVE(sat, config);
 	bve.run();
 	bve.log.info("removed {} vars", bve.nEliminated);
@@ -590,8 +588,7 @@ int run_blocked_clause_elimination(Sat &sat)
 {
 	assert(is_normal_form(sat)); // not strictly necessary...
 
-	util::StopwatchGuard swg(sat.stats.swBCE);
-	auto log = Logger("BCE");
+	auto log = util::Logger("BCE");
 
 	auto bce = BCE(sat);
 	int nFound = bce.run();
@@ -604,7 +601,7 @@ int run_blocked_clause_elimination(Sat &sat)
 int run_blocked_clause_addition(Sat &sat)
 {
 	assert(is_normal_form(sat));
-	auto log = Logger("BCA");
+	auto log = util::Logger("BCA");
 
 	// TODO: make BVA play nicely with colors
 	for (auto &cl : sat.clauses.all())

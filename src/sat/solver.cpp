@@ -173,8 +173,7 @@ void preprocess(Sat &sat)
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
           std::stop_token stoken)
 {
-	util::StopwatchGuard _(sat.stats.swTotal);
-	auto log = Logger("solver");
+	auto log = util::Logger("solver");
 
 	cleanup(sat);
 	log.info("starting with {} vars and {} clauses", sat.var_count(),

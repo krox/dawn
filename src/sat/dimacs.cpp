@@ -1,6 +1,6 @@
 #include "sat/dimacs.h"
 
-#include "sat/logging.h"
+#include "util/logging.h"
 #include <cctype>
 #include <climits>
 #include <cstdio>
@@ -130,7 +130,7 @@ class Parser
 
 std::pair<ClauseStorage, int> parseCnf(std::string filename)
 {
-	auto log = Logger("parser");
+	auto log = util::Logger("parser");
 	if (filename != "")
 		log.info("reading {}", filename);
 	else

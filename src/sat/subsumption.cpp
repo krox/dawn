@@ -1,8 +1,8 @@
 #include "sat/subsumption.h"
 
 #include "fmt/format.h"
-#include "sat/logging.h"
 #include "util/bit_vector.h"
+#include "util/logging.h"
 #include "util/span.h"
 
 namespace dawn {
@@ -254,7 +254,7 @@ std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 bool run_subsumption(Cnf &cnf)
 {
 	// util::StopwatchGuard swg(cnf.stats.swSubsume);
-	auto log = Logger("subsumption");
+	auto log = util::Logger("subsumption");
 
 	Subsumption sub(cnf);
 	sub.subsumeBinary();

@@ -169,7 +169,7 @@ std::optional<Assignment> Searcher::run_restart(
 std::variant<ClauseStorage, Assignment>
 Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 {
-	auto log = Logger("searcher");
+	auto log = util::Logger("searcher");
 	ClauseStorage learnts;
 	int64_t ngreen = 0, nred = 0;
 	auto on_learnt = [&](std::span<const Lit> cl) -> Color {

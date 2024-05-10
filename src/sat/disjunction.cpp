@@ -1,8 +1,8 @@
 #include "sat/disjunction.h"
 
-#include "sat/logging.h"
 #include "util/bit_vector.h"
 #include "util/hash_map.h"
+#include "util/logging.h"
 #include <queue>
 #include <utility>
 
@@ -41,8 +41,7 @@ int markImplied(Sat const &sat, util::bit_vector &seen, Lit root)
 
 int makeDisjunctions(Sat &sat)
 {
-	util::StopwatchGuard swg(sat.stats.swBVA);
-	auto log = Logger("BVA");
+	auto log = util::Logger("BVA");
 
 	int minOccs = 10; // arbitrary cutoff. should be configurable
 	int nFound = 0;

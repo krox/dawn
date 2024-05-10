@@ -1,6 +1,6 @@
 #include "sat/binary.h"
 
-#include "sat/logging.h"
+#include "util/logging.h"
 #include "util/unionfind.h"
 #include <algorithm>
 #include <vector>
@@ -267,7 +267,7 @@ void print_binary_stats(ImplicationGraph const &g)
 
 void run_binary_reduction(Cnf &cnf)
 {
-	auto log = Logger("TBR");
+	auto log = util::Logger("TBR");
 	auto g = ImplicationGraph(cnf);
 
 	auto top = TopOrder(g);

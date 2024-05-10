@@ -47,34 +47,6 @@ void PropStats::dump(bool with_histograms)
 	           nLongConfls, 100. * nLongConfls / watchHistogram.sum());
 }
 
-void Stats::dump()
-{
-	fmt::print("c ============================ time stats "
-	           "=============================\n");
-	fmt::print("c parser       {:#6.2f} s ({:#4.1f} %)\n", swParsing.secs(),
-	           100. * swParsing.secs() / swTotal.secs());
-	fmt::print("c cleanup      {:#6.2f} s ({:#4.1f} %)\n", swCleanup.secs(),
-	           100. * swCleanup.secs() / swTotal.secs());
-	fmt::print("c probing      {:#6.2f} s ({:#4.1f} %)\n", swProbing.secs(),
-	           100. * swProbing.secs() / swTotal.secs());
-	fmt::print("c subsume      {:#6.2f} s ({:#4.1f} %)\n", swSubsume.secs(),
-	           100. * swSubsume.secs() / swTotal.secs());
-	fmt::print("c vivification {:#6.2f} s ({:#4.1f} %)\n",
-	           swVivification.secs(),
-	           100. * swVivification.secs() / swTotal.secs());
-	fmt::print("c BVE          {:#6.2f} s ({:#4.1f} %)\n", swBVE.secs(),
-	           100. * swBVE.secs() / swTotal.secs());
-	fmt::print("c BCE          {:#6.2f} s ({:#4.1f} %)\n", swBCE.secs(),
-	           100. * swBCE.secs() / swTotal.secs());
-	fmt::print("c BVA          {:#6.2f} s ({:#4.1f} %)\n", swBVA.secs(),
-	           100. * swBVA.secs() / swTotal.secs());
-	fmt::print("c search init  {:#6.2f} s ({:#4.1f} %)\n", swSearchInit.secs(),
-	           100. * swSearchInit.secs() / swTotal.secs());
-	fmt::print("c search       {:#6.2f} s ({:#4.1f} %)\n", swSearch.secs(),
-	           100. * swSearch.secs() / swTotal.secs());
-	fmt::print("c total        {:#6.2f} s\n", swTotal.secs());
-}
-
 PropStats &operator+=(PropStats &a, const PropStats &b)
 {
 	a.binHistogram += b.binHistogram;

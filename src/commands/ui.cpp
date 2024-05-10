@@ -65,9 +65,9 @@ void run_ui_command(Options opt)
 {
 	Log log;
 	auto screen = ScreenInteractive::FitComponent();
-	auto logger = Logger("ui");
+	auto logger = util::Logger("ui");
 
-	Logger::set_sink([&](std::string_view msg) {
+	util::Logger::set_sink([&](std::string_view msg) {
 		log.add(msg);
 		screen.PostEvent(Event::Custom);
 	});

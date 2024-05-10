@@ -2,9 +2,9 @@
 
 #include "sat/cnf.h"
 #include "sat/extender.h"
-#include "sat/logging.h"
 #include "sat/stats.h"
 #include "util/bit_vector.h"
+#include "util/logging.h"
 #include <cassert>
 #include <vector>
 
@@ -16,7 +16,6 @@ class Sat : public Cnf
   private:
 	std::vector<Lit> to_outer_; // inner variable -> outer literal
   public:
-	Stats stats;
 	util::xoshiro256 rng;
 
 	// Rules needed to extend solution to original problem.

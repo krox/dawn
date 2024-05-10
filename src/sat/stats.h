@@ -72,19 +72,4 @@ struct PropStats
 
 PropStats &operator+=(PropStats &a, const PropStats &b);
 
-struct Stats
-{
-	bool watch_stats = false; // print histogram of watchlist size
-
-	// time of different parts of the solver
-	util::Stopwatch swTotal, swParsing;
-	util::Stopwatch swCleanup, swProbing;
-	util::Stopwatch swSearch, swSearchInit;
-	util::Stopwatch swSubsume, swVivification;
-	util::Stopwatch swBVE, swBCE, swBVA;
-
-	// Write stats to stdout. Usually called once at the end of solving
-	void dump();
-};
-
 } // namespace dawn

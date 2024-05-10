@@ -1,7 +1,7 @@
 #include "sat/vivification.h"
 
 #include "sat/propengine.h"
-#include <unordered_set>
+#include "util/hash_map.h"
 
 // TODO: vivification needs some serious cleaning up.
 //    * maybe properly separate basic / binary / ternary
@@ -179,8 +179,7 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 	if (!is_normal_form(cnf))
 		return false;
 
-	// util::StopwatchGuard swg(sat.stats.swVivification); TODO
-	auto log = Logger("vivification");
+	auto log = util::Logger("vivification");
 
 	auto viv = Vivification(cnf, config);
 

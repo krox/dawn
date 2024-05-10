@@ -32,20 +32,17 @@ struct Options
 
 void run_solve_command(Options opt)
 {
+	util::Logger::set_sink(
+	    [](std::string_view msg) { fmt::print("c {}\n", msg); });
 	// read CNF from file or stdin
-	util::Stopwatch sw;
-	sw.start();
 	auto [originalClauses, varCount] = parseCnf(opt.cnfFile);
-	sw.stop();
 	Sat sat = Sat(varCount, originalClauses); // clauses are copied here!
-	sat.stats.swParsing = sw;
 
 	if (opt.seed == -1)
 		opt.seed = std::random_device()();
 	sat.rng.seed(opt.seed);
 	if (opt.shuffle)
 		shuffleVariables(sat);
-	sat.stats.watch_stats = opt.watch_stats;
 
 	std::signal(SIGINT, &interruptHandler);
 	if (opt.timeout > 0)
@@ -102,7 +99,7 @@ void run_solve_command(Options opt)
 	}
 
 	// statistics
-	sat.stats.dump();
+	util::Logger::print_summary();
 	std::exit(result);
 }
 } // namespace
@@ -205,23 +202,28 @@ void setup_solve_command(CLI::App &app)
 	             "print watchlist statistics after solving")
 	    ->group(g);
 	app.add_flag_function(
-	       "--silent", [](int64_t) { Logger::set_level(Logger::Level::warn); },
+	       "--silent",
+	       [](int64_t) {
+		       util::Logger::set_level(util::Logger::Level::warning);
+	       },
 	       "remove most logging")
 	    ->group(g);
 	app.add_option("--debug", "increase verbosity of some component")
 	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
-	    ->each(
-	        [](std::string s) { Logger::set_level(s, Logger::Level::debug); })
+	    ->each([](std::string s) {
+		    util::Logger::set_level(s, util::Logger::Level::debug);
+	    })
 	    ->group(g);
 	app.add_option("--trace", "increase verbosity of some component even more")
 	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
-	    ->each(
-	        [](std::string s) { Logger::set_level(s, Logger::Level::trace); })
+	    ->each([](std::string s) {
+		    util::Logger::set_level(s, util::Logger::Level::trace);
+	    })
 	    ->group(g);
 
 	// silence these by default (part of 'cleanup', usually very fast)
-	Logger::set_level("probing", Logger::Level::warn);
-	Logger::set_level("TBR", Logger::Level::warn);
+	util::Logger::set_level("probing", util::Logger::Level::warning);
+	util::Logger::set_level("TBR", util::Logger::Level::warning);
 
 	app.callback([opt]() { run_solve_command(*opt); });
 }

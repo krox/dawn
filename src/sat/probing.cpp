@@ -18,7 +18,7 @@ int probeBinary(Cnf &cnf)
 	   topological order.
 	 */
 	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
-	auto log = Logger("bin-probing");
+	auto log = util::Logger("bin-probing");
 
 	PropEngine p(cnf);
 	if (p.conflict)
@@ -163,7 +163,7 @@ Lit probe(Lit a, PropEngineLight &p, util::bit_vector &done)
 bool run_probing(Cnf &cnf)
 {
 	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
-	auto log = Logger("probing");
+	auto log = util::Logger("probing");
 
 	if (cnf.contradiction)
 		return false;
