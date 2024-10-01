@@ -31,7 +31,7 @@ int probeBinary(Cnf &cnf)
 	int nTries = 0;
 	int nFails = 0;
 
-	auto backtrack = [&cnf, &p, &buf, &nFails]() {
+	auto backtrack = [&cnf, &p, &buf]() {
 		p.analyze_conflict(buf, nullptr);
 		p.shorten_learnt(buf, true);
 		auto back = p.backtrack_level(buf);

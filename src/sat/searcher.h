@@ -42,7 +42,7 @@ class Searcher
 		// restarts
 		RestartType restart_type = RestartType::luby;
 		int restart_base = 100;
-		int restart_mult = 1.1; // only for geometric
+		float restart_mult = 1.1; // only for geometric
 
 		// mic
 		int green_cutoff = 8; // max size of clause to be considered good

@@ -33,7 +33,7 @@ struct SolverConfig
 	// restarts
 	RestartType restart_type = RestartType::luby;
 	int restart_base = 100;
-	int restart_mult = 1.1; // only for geometric
+	float restart_mult = 1.1; // only for geometric
 
 	// pre-/inprocessing
 	int inprocessIters = 1; // maximum number of iterations of inprocessing
