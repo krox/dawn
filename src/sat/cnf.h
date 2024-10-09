@@ -201,7 +201,7 @@ template <> struct fmt::formatter<dawn::Cnf>
 	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
 
 	template <typename FormatContext>
-	auto format(dawn::Cnf const &sat, FormatContext &ctx)
+	auto format(dawn::Cnf const &sat, FormatContext &ctx) const
 	{
 		using namespace dawn;
 		auto it = fmt::format_to(ctx.out(), "p cnf {} {}\n", sat.var_count(),

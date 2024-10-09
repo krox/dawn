@@ -217,7 +217,7 @@ template <> struct fmt::formatter<dawn::Assignment>
 	constexpr auto parse(format_parse_context &ctx) { return ctx.begin(); }
 
 	template <typename FormatContext>
-	auto format(dawn::Assignment const &a, FormatContext &ctx)
+	auto format(dawn::Assignment const &a, FormatContext &ctx) const
 	{
 		auto it = ctx.out();
 		bool first = true;
