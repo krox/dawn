@@ -1,57 +1,31 @@
 #include "sat/dimacs.h"
 
+#include "util/io.h"
 #include "util/logging.h"
 #include <cctype>
 #include <climits>
 #include <cstdio>
 #include <cstring>
+#include <iostream>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace dawn {
 
-static void panic(std::string msg)
-{
-	fmt::print("PARSE ERROR: {}\n", msg);
-	exit(-1);
-}
-
-#define enforce(x, msg)                                                        \
-	if (!(x))                                                                  \
-		panic(msg);
-
-/**
- * Custom file buffer + parsing utilities.
- */
+// Custom text parser
 class Parser
 {
-	static constexpr size_t CHUNK = 256 * 1024;
-	FILE *file;
-	bool needClose;
-	size_t pos = 0; // current position in buf
-	std::unique_ptr<char[]> buf;
+	std::string content;
+	size_t pos = 0;
 
   public:
 	Parser(const Parser &) = delete;
 	Parser &operator=(const Parser &) = delete;
 
-	/** returns 0 at end of file */
-	inline char operator*() { return buf[pos]; }
+	inline char operator*() { return pos < content.size() ? content[pos] : 0; }
 
-	/** advances by one character */
-	inline void operator++()
-	{
-		++pos;
-
-		// chunk exhausted -> read new chunk
-		if (pos >= CHUNK)
-		{
-			auto size = fread(buf.get(), 1, CHUNK, file);
-			memset(buf.get() + size, 0, CHUNK - size);
-			pos = 0;
-		}
-	}
+	inline void operator++() { ++pos; }
 
 	inline int parseInt()
 	{
@@ -63,13 +37,15 @@ class Parser
 			++*this;
 		}
 
-		enforce(isdigit(**this), "unexpected character");
+		if (!isdigit(**this))
+			throw std::runtime_error("unexpected character (not a digit)");
 
 		while (isdigit(**this))
 		{
 			int d = **this - '0';
 			++*this;
-			enforce(r <= (INT_MAX - d) / 10, "integer overflow");
+			if (r > (INT_MAX - d) / 10)
+				throw std::runtime_error("integer overflow while parsing CNF");
 			r = 10 * r + d;
 		}
 		return r * s;
@@ -78,7 +54,8 @@ class Parser
 	std::string parseString()
 	{
 		std::string r;
-		enforce(isalpha(**this), "unexpected character");
+		if (!isalpha(**this))
+			throw std::runtime_error("unexpected character (not an alphabet)");
 		while (isalpha(**this))
 		{
 			r += **this;
@@ -105,37 +82,32 @@ class Parser
 
 	Parser(std::string filename)
 	{
-		if (filename.empty())
+		auto log = util::Logger("reader");
+		if (!filename.empty())
 		{
-			file = stdin;
-			needClose = false;
+			// TODO: this is weirdly slow. investigate.
+			// 		cat foo.cnf | ./dawn stats
+			// is faster than
+			// 	   ./dawn stats foo.cnf
+			// even stranger, not the reading itself is slower, but the parsing
+			// afterwards. Must be a difference in cache state? weird...
+			content = util::read_file(filename);
+			log.info("read {:.2f} MiB from '{}'", content.size() / 1024. / 1024,
+			         filename);
 		}
 		else
 		{
-			file = fopen(filename.c_str(), "rb");
-			enforce(file != nullptr, "unable to open file");
-			needClose = true;
+			std::istreambuf_iterator<char> begin(std::cin), end;
+			content = std::string(begin, end);
+			log.info("read {:.2f} MiB from stdin",
+			         content.size() / 1024. / 1024);
 		}
-		buf = std::make_unique<char[]>(CHUNK);
-		pos = CHUNK;
-		++*this;
-	}
-
-	~Parser()
-	{
-		if (needClose && file != NULL)
-			fclose(file);
 	}
 };
-
 std::pair<ClauseStorage, int> parseCnf(std::string filename)
 {
-	auto log = util::Logger("parser");
-	if (filename != "")
-		log.info("reading {}", filename);
-	else
-		log.info("reading from stdin");
 	auto parser = Parser(filename);
+	auto log = util::Logger("parser");
 	ClauseStorage clauses;
 
 	int headerVarCount = -1;
@@ -163,9 +135,10 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 		{
 			++parser;
 			parser.skipWhite();
-			enforce(parser.parseString() == "cnf", "invalid 'p' line");
-			enforce(headerVarCount == -1 && headerClauseCount == -1,
-			        "duplicate 'p' line");
+			if (parser.parseString() != "cnf")
+				throw std::runtime_error("invalid 'p' line");
+			if (headerVarCount != -1 || headerClauseCount != -1)
+				throw std::runtime_error("duplicate 'p' line");
 			parser.skipWhite();
 			headerVarCount = parser.parseInt();
 			parser.skipWhite();
@@ -193,25 +166,29 @@ std::pair<ClauseStorage, int> parseCnf(std::string filename)
 		}
 
 		else
-			panic(std::string("unexpected character '") + *parser + "'");
+			throw std::runtime_error(std::string("unexpected character: '") +
+			                         *parser + "'");
 	}
 
-	enforce(clause.empty(), "incomplete clause at end of file");
+	if (!clause.empty())
+		throw std::runtime_error("incomplete clause at end of file");
 
 	// there might be unused variables. In that case, respect the header
 	if (headerVarCount > varCount)
 		varCount = headerVarCount;
 
-	enforce(headerVarCount == -1 || headerVarCount == varCount,
-	        fmt::format(
-	            "wrong number of variables: header said {}, actually got {}",
-	            headerVarCount, varCount));
-	enforce(
-	    headerClauseCount == -1 || headerClauseCount == clauseCount,
-	    fmt::format("wrong number of clauses: header said {}, actually got {}",
-	                headerClauseCount, clauseCount));
+	if (headerVarCount != -1 && headerVarCount != varCount)
+		throw std::runtime_error(
+		    fmt::format("wrong number of variables: header said {}, "
+		                "actually got {}",
+		                headerVarCount, varCount));
+	if (headerClauseCount != -1 && headerClauseCount != clauseCount)
+		throw std::runtime_error(
+		    fmt::format("wrong number of clauses: header said {}, "
+		                "actually got {}",
+		                headerClauseCount, clauseCount));
 
-	log.info("read {} vars and {} clauses", varCount, clauseCount);
+	log.info("parsed {} vars and {} clauses", varCount, clauseCount);
 
 	return {std::move(clauses), varCount};
 }
@@ -252,17 +229,19 @@ void parseAssignment(std::string filename, Assignment &sol)
 				if (x == 0)
 					break;
 				auto lit = Lit::fromDimacs(x);
-				enforce(lit.var() < sol.var_count(),
-				        "invalid literal in solution");
+				if (lit.var() >= sol.var_count())
+					throw std::runtime_error("invalid literal in solution");
 				sol.set(lit);
 			}
 		}
 
 		else
-			panic(std::string("unexpected character: '") + *parser + "'");
+			throw std::runtime_error(std::string("unexpected character: '") +
+			                         *parser + "'");
 	}
 
-	enforce(sol.complete(), "incomplete solution");
+	if (!sol.complete())
+		throw std::runtime_error("incomplete solution");
 }
 
 } // namespace dawn

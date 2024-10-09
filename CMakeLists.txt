@@ -33,11 +33,11 @@ add_library(sat STATIC ${files_cpp})
 target_compile_features(sat PUBLIC cxx_std_17)
 target_include_directories(sat PUBLIC src)
 target_link_libraries(sat PUBLIC util)
-target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -march=native)
+target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -Wno-tautological-compare -march=native)
 
 add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/sha256.cpp src/commands/stats.cpp src/commands/ui.cpp)
 target_link_libraries(dawn PRIVATE sat CLI11::CLI11 ftxui::screen ftxui::dom ftxui::component)
-target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -march=native)
+target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -Wno-tautological-compare -march=native)
 
 # fuzz testing
 add_custom_target(fuzz
@@ -57,5 +57,5 @@ if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
 	add_executable(tests tests/tests.cpp)
 	target_compile_features(tests PRIVATE cxx_std_17)
 	target_link_libraries(tests PRIVATE Catch2::Catch2WithMain sat)
-	target_compile_options(tests PRIVATE -Wall -Wextra -Werror -g -march=native)
+	target_compile_options(tests PRIVATE -Wall -Wextra -Werror -Wno-tautological-compare -g -march=native)
 endif()
