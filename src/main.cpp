@@ -17,6 +17,7 @@ void setup_gen_command(CLI::App &app);
 void setup_sha256_command(CLI::App &app);
 void setup_stats_command(CLI::App &app);
 void setup_ui_command(CLI::App &app);
+void setup_test_command(CLI::App &app);
 
 int main(int argc, char *argv[])
 {
@@ -39,6 +40,8 @@ int main(int argc, char *argv[])
 	setup_stats_command(*cmd);
 	cmd = app.add_subcommand("ui", "start the UI for interactive solving");
 	setup_ui_command(*cmd);
+	cmd = app.add_subcommand("test", "run tests");
+	setup_test_command(*cmd);
 
 	try
 	{

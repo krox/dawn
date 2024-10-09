@@ -27,35 +27,35 @@ CPMAddPackage(
 	GIT_TAG 2ab20a0e008845e02bd06248e61ca6e5ad1aba33 # v3.3.1
 )
 
-file(GLOB files_cpp "src/sat/*.cpp")
-add_library(sat STATIC ${files_cpp})
-
-target_compile_features(sat PUBLIC cxx_std_17)
-target_include_directories(sat PUBLIC src)
-target_link_libraries(sat PUBLIC util)
-target_compile_options(sat PRIVATE -O2 -Wall -Wextra -Werror -march=native)
-
-add_executable(dawn src/main.cpp src/commands/check.cpp src/commands/gen.cpp src/commands/solve.cpp src/commands/sha256.cpp src/commands/stats.cpp src/commands/ui.cpp)
-target_link_libraries(dawn PRIVATE sat CLI11::CLI11 ftxui::screen ftxui::dom ftxui::component)
-target_compile_options(dawn PRIVATE -O2 -Wall -Wextra -Werror -march=native)
-
-# fuzz testing
-add_custom_target(fuzz
-	COMMAND ./fuzz.py
-	WORKING_DIRECTORY ..
-	DEPENDS fuzz.py dawn
+set(files_cpp
+	src/commands/check.cpp
+	src/commands/gen.cpp
+	src/commands/sha256.cpp
+	src/commands/solve.cpp
+	src/commands/stats.cpp
+	src/commands/test.cpp
+	src/commands/ui.cpp
+	tests/tests.cpp
+	src/sat/assignment.cpp
+	src/sat/binary.cpp
+	src/sat/clause.cpp
+	src/sat/cnf.cpp
+	src/sat/dimacs.cpp
+	src/sat/disjunction.cpp
+	src/sat/elimination.cpp
+	src/sat/probing.cpp
+	src/sat/propengine.cpp
+	src/sat/sat.cpp
+	src/sat/searcher.cpp
+	src/sat/solver.cpp
+	src/sat/stats.cpp
+	src/sat/subsumption.cpp
+	src/sat/vivification.cpp
+	src/main.cpp
 )
 
-# unittests
-if(CMAKE_PROJECT_NAME STREQUAL PROJECT_NAME)
-	CPMAddPackage(
-		NAME Catch2
-		GITHUB_REPOSITORY catchorg/Catch2
-		GIT_TAG 2ab20a0e008845e02bd06248e61ca6e5ad1aba33 # v3.3.1
-	)
-
-	add_executable(tests tests/tests.cpp)
-	target_compile_features(tests PRIVATE cxx_std_17)
-	target_link_libraries(tests PRIVATE Catch2::Catch2WithMain sat)
-	target_compile_options(tests PRIVATE -Wall -Wextra -Werror -g -march=native)
-endif()
+add_executable(dawn ${files_cpp})
+target_include_directories(dawn PUBLIC src)
+target_compile_features(dawn PUBLIC cxx_std_20)
+target_link_libraries(dawn PUBLIC util CLI11::CLI11 ftxui::screen ftxui::dom ftxui::component Catch2::Catch2)
+target_compile_options(dawn PUBLIC -O3 -Wall -Wextra -Werror -march=native)
