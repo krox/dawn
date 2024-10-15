@@ -248,8 +248,8 @@ class ClauseStorage
 			throw std::runtime_error("clause to long for storage");
 
 		// allocate space for the new clause
-		store_.reserve(store_.size() + lits.size() +
-		               sizeof(Clause) / sizeof(Lit));
+		store_.reserve_with_spare(store_.size() + lits.size() +
+		                          sizeof(Clause) / sizeof(Lit));
 		if (store_.size() > CREF_MAX)
 			throw std::runtime_error("clause storage overflow");
 		auto r = CRef((uint32_t)store_.size());
