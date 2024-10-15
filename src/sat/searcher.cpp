@@ -195,6 +195,11 @@ Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 			log.info("found solution");
 			return *std::move(assign);
 		}
+		else if (p_.conflict)
+		{
+			log.info("found contradiction");
+			return ClauseStorage();
+		}
 	}
 
 	util::Stopwatch sw;

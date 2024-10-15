@@ -176,11 +176,11 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 	auto log = util::Logger("solver");
 
 	cleanup(sat);
-	log.info("starting with {} vars and {} clauses", sat.var_count(),
+	log.info("starting solver with {} vars and {} clauses", sat.var_count(),
 	         sat.clause_count());
 	preprocess(sat);
 
-	log.info("after preprocessing {} vars and {} clauses", sat.var_count(),
+	log.info("after preprocessing, got {} vars and {} clauses", sat.var_count(),
 	         sat.clause_count());
 
 	PropStats propStats;

@@ -66,7 +66,7 @@ class Searcher
 	            std::stop_token stoken);
 
 	// keeps running restarts until
-	//   * a solution is found, or
+	//   * a solution/contradiction is found, or
 	//   * max_confls are reached (can be exceeded by up to one restart)
 	std::variant<ClauseStorage, Assignment> run_epoch(int64_t max_confls,
 	                                                  std::stop_token stoken);
