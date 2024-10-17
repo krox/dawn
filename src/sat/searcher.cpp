@@ -198,7 +198,9 @@ Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 		else if (p_.conflict)
 		{
 			log.info("found contradiction");
-			return ClauseStorage();
+			learnts.clear();
+			learnts.add_clause({}, Color::green);
+			return learnts;
 		}
 	}
 

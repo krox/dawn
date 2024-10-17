@@ -194,7 +194,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 	{
 		auto nConfls = propStats.nConfls();
 		if (searcher)
-			nConfls += searcher->p_.stats.nConfls();
+			nConfls += searcher->stats().nConfls();
 		// check limit
 		if (nConfls >= config.max_confls)
 		{
@@ -246,7 +246,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 		{
 			if (searcher)
 			{
-				propStats += searcher->p_.stats;
+				propStats += searcher->stats();
 				searcher.reset();
 			}
 			inprocess(sat, config, stoken);
