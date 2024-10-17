@@ -30,6 +30,7 @@ CPMAddPackage(
 set(files_cpp
 	src/commands/check.cpp
 	src/commands/gen.cpp
+	src/commands/gen_hard.cpp
 	src/commands/sha256.cpp
 	src/commands/solve.cpp
 	src/commands/stats.cpp

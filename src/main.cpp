@@ -14,6 +14,7 @@ using namespace dawn;
 void setup_solve_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);
+void setup_gen_hard_command(CLI::App &app);
 void setup_sha256_command(CLI::App &app);
 void setup_stats_command(CLI::App &app);
 void setup_ui_command(CLI::App &app);
@@ -36,6 +37,11 @@ int main(int argc, char *argv[])
 	auto cmd_sha256 = cmd->add_subcommand(
 	    "sha256", "generate instance of pre-image attack on SHA-256 hash");
 	setup_sha256_command(*cmd_sha256);
+	auto cmd_hard = cmd->add_subcommand(
+	    "hard", "generate small but hard, satisfiable SAT instance, inspired "
+	            "by (but less sophisticated than) the 'sgen' generator(s) by "
+	            "Ivor Spence");
+	setup_gen_hard_command(*cmd_hard);
 	cmd = app.add_subcommand("stats", "print statistics about a CNF formula");
 	setup_stats_command(*cmd);
 	cmd = app.add_subcommand("ui", "start the UI for interactive solving");
