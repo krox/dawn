@@ -61,6 +61,10 @@ PropStats &operator+=(PropStats &a, const PropStats &b)
 	a.nLongConfls += b.nLongConfls;
 	a.nLitsLearnt += b.nLitsLearnt;
 	a.nLitsOtfRemoved += b.nLitsOtfRemoved;
+
+	a.learn_events.insert(a.learn_events.end(), b.learn_events.begin(),
+	                      b.learn_events.end());
+
 	return a;
 }
 

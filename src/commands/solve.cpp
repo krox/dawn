@@ -220,6 +220,10 @@ void setup_solve_command(CLI::App &app)
 		    util::Logger::set_level(s, util::Logger::Level::trace);
 	    })
 	    ->group(g);
+	app.add_flag("--plot", opt->config.plot,
+	             "live plotting of learning (requires gnuplot, somewhat "
+	             "experimental)")
+	    ->group(g);
 
 	// silence these by default (part of 'cleanup', usually very fast)
 	util::Logger::set_level("probing", util::Logger::Level::warning);

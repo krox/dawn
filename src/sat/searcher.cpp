@@ -173,6 +173,8 @@ Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 	ClauseStorage learnts;
 	int64_t ngreen = 0, nred = 0;
 	auto on_learnt = [&](std::span<const Lit> cl) -> Color {
+		p_.stats.learn_events.push_back(
+		    {.depth = p_.level(), .size = (int)cl.size()});
 		if ((int)cl.size() <= config.green_cutoff)
 		{
 			ngreen += 1;

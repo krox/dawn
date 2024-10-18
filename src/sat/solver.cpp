@@ -9,6 +9,7 @@
 #include "sat/searcher.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
+#include "util/gnuplot.h"
 #include <optional>
 
 namespace dawn {
@@ -174,6 +175,9 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
           std::stop_token stoken)
 {
 	auto log = util::Logger("solver");
+	std::optional<util::Gnuplot> plt;
+	if (config.plot)
+		plt.emplace();
 
 	cleanup(sat);
 	log.info("starting solver with {} vars and {} clauses", sat.var_count(),
@@ -248,6 +252,22 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 			{
 				propStats += searcher->stats();
 				searcher.reset();
+
+				if (plt)
+				{
+					if (propStats.learn_events.size() >= 100)
+					{
+						plt->clear();
+						plt->plot_range_data(
+						    propStats.learn_events |
+						        std::views::transform(&LearnEvent::size),
+						    "learnt size");
+						plt->plot_range_data(
+						    propStats.learn_events |
+						        std::views::transform(&LearnEvent::depth),
+						    "depth");
+					}
+				}
 			}
 			inprocess(sat, config, stoken);
 		}

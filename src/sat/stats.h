@@ -47,6 +47,13 @@ struct SolverConfig
 
 	// other
 	int64_t max_confls = INT64_MAX; // stop solving
+	bool plot = false;
+};
+
+struct LearnEvent
+{
+	int depth;
+	int size;
 };
 
 struct PropStats
@@ -68,6 +75,8 @@ struct PropStats
 	// Write stats to stdout. Usually called once at the end of solving
 	void dump(bool with_histograms);
 	void clear();
+
+	std::vector<LearnEvent> learn_events;
 };
 
 PropStats &operator+=(PropStats &a, const PropStats &b);

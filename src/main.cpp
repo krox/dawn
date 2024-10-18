@@ -3,11 +3,14 @@
 #include "sat/dimacs.h"
 #include "sat/sat.h"
 #include "sat/solver.h"
+#include "util/gnuplot.h"
 #include "util/logging.h"
 #include <csignal>
 #include <cstdio>
 #include <random>
+#include <ranges>
 #include <unistd.h>
+#include <vector>
 
 using namespace dawn;
 
