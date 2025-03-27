@@ -208,17 +208,19 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 
 		if (searcher == nullptr)
 		{
-			searcher = std::make_unique<Searcher>(sat);
-			searcher->config.otf = config.otf;
-			searcher->config.branch_dom = config.branch_dom;
-			searcher->config.full_resolution = config.full_resolution;
-			searcher->config.restart_type = config.restart_type;
-			searcher->config.restart_base = config.restart_base;
-			searcher->config.restart_mult = config.restart_mult;
+			Searcher::Config sconfig;
+			sconfig.otf = config.otf;
+			sconfig.branch_dom = config.branch_dom;
+			sconfig.full_resolution = config.full_resolution;
+			sconfig.restart_type = config.restart_type;
+			sconfig.restart_base = config.restart_base;
+			sconfig.restart_mult = config.restart_mult;
+			searcher = std::make_unique<Searcher>(sat, sconfig);
 		}
 
 		// search for a number of conflicts
-		auto result = searcher->run_epoch(2'000, stoken);
+		searcher->run_epoch(2'000, stoken);
+		auto result = searcher->get_result();
 		if (auto assign = std::get_if<Assignment>(&result))
 		{
 			assert(!sat.contradiction);

@@ -79,7 +79,9 @@ void run_ui_command(Options opt)
 	config.max_learnt = 1000;
 
 	auto run_searcher = [&]() {
-		auto result = Searcher(sat).run_epoch(10000, {});
+		auto searcher = Searcher(sat, {});
+		searcher.run_epoch(10000, {});
+		auto result = searcher.get_result();
 		if (std::get_if<Assignment>(&result))
 		{
 			logger.info("SATISFIABLE\n");
