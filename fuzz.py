@@ -21,9 +21,9 @@ for i in range(0, 10000):
     elif mode == 4:
         cmd = ['../cnf-utils/largefuzzer', str(i)]
     elif mode == 5:
-        cmd = ['../cnf-utils/sgen4', '-n', '150', '-sat', '-s', str(i)]
+        cmd = ['../cnf-utils/sgen4', '-n', '100', '-sat', '-s', str(i)]
     elif mode == 6:
-        cmd = ['../cnf-utils/sgen4', '-n', '150', '-unsat', '-s', str(i)]
+        cmd = ['../cnf-utils/sgen4', '-n', '50', '-unsat', '-s', str(i)]
     else:
         raise "invalid mode"
 
