@@ -111,18 +111,10 @@ void Searcher::handle_conflict()
 	// unroll to apropriate level and propagate new learnt clause
 	p_.unroll(backLevel, act_);
 
-	if (buf_.size() == 1)
-	{
-		assert(backLevel == 0);
-		p_.propagateFull(buf_[0], Reason::undef());
-	}
-	else
-	{
-		Reason r = p_.add_clause(buf_, color, glue);
-		p_.propagateFull(buf_[0], r);
-	}
-
-	for (Lit x : p_.trail(p_.level()))
+	Reason r = Reason::undef();
+	if (buf_.size() > 1)
+		r = p_.add_clause(buf_, color, glue);
+	for (Lit x : p_.propagate(buf_[0], r))
 		polarity_[x.var()] = x.sign();
 }
 
@@ -185,8 +177,9 @@ void Searcher::run_restart(std::stop_token stoken)
 			solution_ = p_.assign;
 			return;
 		}
-		p_.branch(branchLit);
-		for (Lit x : p_.trail(p_.level()))
+		// TODO: question: should we set polarity in case of conflict?
+		//       (same applies when handling conflicts by adding new learnt)
+		for (Lit x : p_.branch(branchLit))
 			polarity_[x.var()] = x.sign();
 	}
 }

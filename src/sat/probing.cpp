@@ -38,7 +38,7 @@ int probeBinary(Cnf &cnf)
 		p.unroll(back);
 		auto reason = p.add_clause(buf, Color::green, 2);
 		cnf.add_clause(buf, Color::green);
-		p.propagateFull(buf[0], reason);
+		p.propagate(buf[0], reason);
 		buf.resize(0);
 	};
 

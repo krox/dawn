@@ -97,9 +97,10 @@ class PropEngine
 	/** constructor */
 	PropEngine(Cnf const &cnf);
 
-	/** assign a literal and do unit propagation */
-	void branch(Lit x);                  // starts a new level
-	void propagateFull(Lit x, Reason r); // stays on current level
+	// assign a literal and do unit propagation. Returns view (into .trail_)
+	// containing all newly assigned literals, starting with x.
+	std::span<const Lit> branch(Lit x);              // starts a new level
+	std::span<const Lit> propagate(Lit x, Reason r); // stays on current level
 
 	/** read-only view (into trail_) of assignments */
 	std::span<const Lit> trail() const;      // all levels

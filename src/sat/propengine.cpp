@@ -42,7 +42,7 @@ PropEngine::PropEngine(Cnf const &cnf)
 			conflict = true;
 			return;
 		}
-		propagateFull(l, Reason::undef());
+		propagate(l, Reason::undef());
 		if (conflict)
 			return;
 	}
@@ -91,12 +91,13 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 	}
 }
 
-void PropEngine::propagateFull(Lit x, Reason r)
+std::span<const Lit> PropEngine::propagate(Lit x, Reason r)
 {
 	size_t pos = trail_.size();
+	size_t startPos = pos;
 	propagateBinary(x, r);
 	if (conflict)
-		return;
+		return std::span(trail_).subspan(startPos);
 
 	while (pos != trail_.size())
 	{
@@ -153,7 +154,7 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				assert(conflictClause.empty());
 				for (Lit l : c.lits())
 					conflictClause.push_back(l);
-				return;
+				return std::span(trail_).subspan(startPos);
 			}
 			else
 			{
@@ -163,20 +164,21 @@ void PropEngine::propagateFull(Lit x, Reason r)
 				// is not worth the complexity here.
 				propagateBinary(c[0], Reason(ci));
 				if (conflict)
-					return;
+					return std::span(trail_).subspan(startPos);
 			}
 
 		next_watch:;
 		}
 	}
+	return std::span(trail_).subspan(startPos);
 }
 
-void PropEngine::branch(Lit x)
+std::span<const Lit> PropEngine::branch(Lit x)
 {
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
 	mark_.push_back(trail_.size());
-	propagateFull(x, Reason::undef());
+	return propagate(x, Reason::undef());
 }
 
 Reason PropEngine::add_clause(Lit c0, Lit c1)
