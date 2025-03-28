@@ -136,9 +136,6 @@ void setup_solve_command(CLI::App &app)
 	               "on-the-fly strengthening of learnt clauses"
 	               "(0=off, 1=basic, 2=recursive=default)")
 	    ->group(g);
-	app.add_flag("--full-resolution", opt->config.full_resolution,
-	             "learn by full resolution instead of UIP (default=off)")
-	    ->group(g);
 	app.add_option("--branch-dominating", opt->config.branch_dom,
 	               "branch on dominating literal instead of chosen one itself"
 	               "0=off, 1=matching polarity only, 2=always")

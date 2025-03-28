@@ -97,13 +97,7 @@ void Searcher::handle_conflict()
 		p_.shorten_learnt(buf_, config_.otf >= 2);
 	auto color = on_learnt(buf_);
 	int backLevel = p_.backtrack_level(buf_);
-	if (config_.full_resolution)
-	{
-		glue = buf_.size() > 255 ? 255 : (uint8_t)buf_.size();
-		assert(glue == p_.calcGlue(buf_));
-	}
-	else
-		glue = p_.calcGlue(buf_);
+	glue = p_.calcGlue(buf_);
 
 	act_.decay_variable_activity();
 	p_.stats.nLitsLearnt += buf_.size();

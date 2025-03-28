@@ -2,7 +2,7 @@
 * main solver
   * clause learning
     - [x] UIP style
-    - [x] full resolution to one variable per level (default=off)
+    - ~~[x] full resolution to one variable per level (default=off)~~
     - [x] on-the-fly minimization of learnt clauses
     -  ~~lazy hyper-binary-resolution~~
   * branching heuristic

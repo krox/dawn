@@ -274,9 +274,6 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 		// next one is reason side
 		//   -> this one is reason side or UIP
 		//   -> add this one to learnt clause
-		/*if (todo.empty() ||
-		    (!config_.full_resolution && todo.top().first < mark_.back()) ||
-		    (config_.full_resolution && todo.top().first < mark_[lev]))*/
 		if (todo.empty() || todo.top().first < mark_.back())
 		{
 			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments

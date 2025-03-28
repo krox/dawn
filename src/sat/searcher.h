@@ -22,7 +22,6 @@ class Searcher
 		// conflict analysis
 		int otf = 2; // on-the-fly strengthening of learnt clauses
 		             // (0=off, 1=basic, 2=recursive)
-		bool full_resolution = false; // learn by full resolution instead of UIP
 
 		// branching heuristic
 		int branch_dom = 0; // branch on dominator instead of chosen literal

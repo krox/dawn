@@ -211,7 +211,6 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 			Searcher::Config sconfig;
 			sconfig.otf = config.otf;
 			sconfig.branch_dom = config.branch_dom;
-			sconfig.full_resolution = config.full_resolution;
 			sconfig.restart_type = config.restart_type;
 			sconfig.restart_base = config.restart_base;
 			sconfig.restart_mult = config.restart_mult;
