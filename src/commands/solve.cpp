@@ -147,12 +147,7 @@ void setup_solve_command(CLI::App &app)
 	               "learnt clauses larger than this are removed very quickly "
 	               "independent of cleaning strategy")
 	    ->group(g);
-	app.add_option("--max-learnt-glue", opt->config.max_learnt_glue)->group(g);
 	app.add_option("--max-learnt", opt->config.max_learnt)->group(g);
-
-	app.add_flag("--use-glue", opt->config.use_glue,
-	             "use glue for clause-cleaning (default=true)")
-	    ->group(g);
 
 	// restarts
 	g = "Restarts";

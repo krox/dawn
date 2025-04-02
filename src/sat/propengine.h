@@ -71,6 +71,12 @@ class PropEngine
 
   private:
 	util::bit_vector seen; // temporary during conflict analysis
+
+	// otf strengthening of learnt clause
+	//   * only valid to do right after analyze_conflict(...)
+	//     (re-uses the 'seen' array internally)
+	//   * keeps the order of remaining literals the same
+	void shorten_learnt(std::vector<Lit> &learnt, bool recursive);
 	bool is_redundant(Lit lit, bool recursive); // helper for OTF strengthening
 
 	std::vector<Lit> trail_; // assigned variables
@@ -110,7 +116,7 @@ class PropEngine
 	// Watches are set on cl[0] and cl[1] (if cl.size() >= 3)
 	// returns reason with which cl[0] might be propagated
 	Reason add_clause(Lit c0, Lit c1);
-	Reason add_clause(const std::vector<Lit> &cl, Color color, uint8_t glue);
+	Reason add_clause(const std::vector<Lit> &cl, Color color);
 
 	int unassignedVariable() const; /** -1 if everything is assigned */
 
@@ -130,21 +136,13 @@ class PropEngine
 	 *  - bumps activity of all involved variables (if activity_heap != null)
 	 *  - performs otf minimization (if enabled in configuration)
 	 *  - learnt clause is ordered by level, such that learnt[0] is the UIP
+	 *  - otf = 0 -> no strengthening, 1 -> basic, 2 -> recursive
 	 */
-	void analyze_conflict(std::vector<Lit> &learnt,
-	                      ActivityHeap *activity_heap);
-
-	// otf strengthening of learnt clause
-	//   * only valid to do right after analyze_conflict(...)
-	//     (re-uses the 'seen' array internally)
-	//   * keeps the order of remaining literals the same
-	void shorten_learnt(std::vector<Lit> &learnt, bool recursive);
+	void analyze_conflict(std::vector<Lit> &learnt, ActivityHeap *activity_heap,
+	                      int otf);
 
 	// determine backtrack level ( = level of learnt[1])
 	int backtrack_level(std::span<const Lit> cl) const;
-
-	/** compute glue, i.e. number of distinct decision levels of clause */
-	uint8_t calcGlue(std::span<const Lit> cl) const;
 
 	/** for debugging */
 	void printTrail() const;

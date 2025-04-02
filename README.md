@@ -11,7 +11,7 @@
     - [x] dominating-literal branching (default=off)
   * clause-cleaning heuristic
     - [x] size
-    - [x] glue (computed once when learning)
+    - ~~glue (computed once when learning)~~
     - [ ] glue (dynamicically adjusted during propagation)
     - [ ] activity
   * restart heuristic

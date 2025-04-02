@@ -189,8 +189,7 @@ Reason PropEngine::add_clause(Lit c0, Lit c1)
 	return Reason(c1);
 }
 
-Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color,
-                              uint8_t glue)
+Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color)
 {
 	assert(cl.size() >= 2);
 
@@ -198,10 +197,8 @@ Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color,
 		return add_clause(cl[0], cl[1]);
 
 	CRef cref = clauses.add_clause(cl, color);
-	clauses[cref].glue = glue;
 	watches[cl[0]].push_back(cref);
 	watches[cl[1]].push_back(cref);
-	assert(2 <= glue && glue <= cl.size());
 	return Reason(cref);
 }
 
@@ -240,13 +237,13 @@ void PropEngine::unroll(int l, ActivityHeap &activity_heap)
 }
 
 void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
-                                  ActivityHeap *activity_heap)
+                                  ActivityHeap *activity_heap, int otf)
 {
-	assert(learnt.empty());
 	assert(conflict);
 	assert(!conflictClause.empty());
 	assert(level() > 0);
 	seen.clear();
+	learnt.resize(0);
 
 	std::priority_queue<std::pair<int, Lit>> todo;
 
@@ -305,6 +302,13 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 				assert(false);
 		}
 	}
+	if (activity_heap)
+		activity_heap->decay_variable_activity();
+	if (otf >= 1)
+		shorten_learnt(learnt, otf >= 2);
+	stats.nLitsLearnt += learnt.size();
+	stats.learn_events.push_back(
+	    {.depth = level(), .size = (int)learnt.size()});
 }
 
 int PropEngine::backtrack_level(std::span<const Lit> learnt) const
@@ -357,25 +361,6 @@ bool PropEngine::is_redundant(Lit lit, bool recursive)
 		seen[lit.var()] = true; // shortcut other calls to isRedundant
 		return true;
 	}
-}
-
-uint8_t PropEngine::calcGlue(std::span<const Lit> cl) const
-{
-	int glue = 1;
-	for (int lev = 1; lev < level(); ++lev)
-		for (Lit l : cl)
-		{
-			assert(assign[l.neg()]);
-			if (mark_[lev - 1] <= trailPos[l.var()] &&
-			    trailPos[l.var()] < mark_[lev])
-			{
-				glue += 1;
-				break;
-			}
-		}
-	if (glue > 255)
-		return 255;
-	return (uint8_t)glue;
 }
 
 void PropEngine::printTrail() const

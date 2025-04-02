@@ -59,40 +59,6 @@ static void printLine(Sat &sat)
 }
 */
 
-/*
-void clause_clean(Sat &sat, SolverConfig const &config, size_t nKeep)
-{
-    util::IntHistogram hist_glue, hist_size;
-    for (auto &cl : sat.clauses.all())
-    {
-        if (cl.color == Color::blue)
-            continue;
-        hist_glue.add(cl.glue);
-        hist_size.add(cl.size());
-    }
-
-    int cutoff_size, cutoff_glue;
-    if (config.use_glue)
-    {
-        cutoff_size = config.max_learnt_size;
-        cutoff_glue =
-            std::min(hist_glue.find_nth(nKeep), config.max_learnt_glue);
-    }
-    else
-    {
-        cutoff_size =
-            std::min(hist_size.find_nth(nKeep), config.max_learnt_size);
-        cutoff_glue = config.max_learnt_glue;
-    }
-
-    auto pred = [&](Clause const &cl) {
-        if (cl.color == Color::blue)
-            return false;
-        return cl.size() > cutoff_size || cl.glue > cutoff_glue;
-    };
-    sat.clauses.prune(pred);
-}*/
-
 /** run the full inprocessing */
 void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 {

@@ -119,7 +119,7 @@ class Clause
 	// footer. Cryptominisat seems to use 28 bytes header by default)
 	uint16_t size_;
 	Color color;
-	uint8_t glue;
+	uint8_t reserved_;
 
 	// array of Lits
 	// Lit _lits[]; // not valid C++
@@ -260,7 +260,6 @@ class ClauseStorage
 		// copy it over
 		cl.size_ = (uint16_t)lits.size();
 		cl.color = color;
-		cl.glue = (uint8_t)std::min((size_t)255, lits.size());
 		for (size_t i = 0; i < lits.size(); ++i)
 			cl[i] = lits[i];
 

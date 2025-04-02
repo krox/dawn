@@ -24,9 +24,7 @@ struct SolverConfig
 	                    // ( 0=off, 1=matching polarity only, 2=always
 
 	// clause cleaning
-	bool use_glue = true; // use glue for clause cleaning (otherwise size)
 	int max_learnt_size = 100;
-	int max_learnt_glue = 100;
 	int64_t max_learnt = INT64_MAX;
 
 	// restarts

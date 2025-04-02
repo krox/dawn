@@ -47,9 +47,6 @@ class Searcher
 	ActivityHeap act_;
 	util::bit_vector polarity_;
 
-	// analyze + otf-shorten + backtrack + propagate + callback
-	void handle_conflict();
-
 	Color on_learnt(std::span<const Lit> lits);
 
 	// Choose unassigned variable (and polarity) to branch on.
@@ -97,7 +94,7 @@ class Searcher
 	void run_epoch(int64_t max_confls, std::stop_token stoken);
 
 	// returns result since get_result was called last
-	std::variant<Assignment, ClauseStorage> get_result() const
+	std::variant<Assignment, ClauseStorage> get_result()
 	{
 		if (solution_)
 			return *std::move(solution_);

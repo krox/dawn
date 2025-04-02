@@ -84,38 +84,8 @@ Lit Searcher::choose_branch()
 	return branchLit;
 }
 
-void Searcher::handle_conflict()
-{
-	assert(p_.conflict && p_.level() > 0);
-
-	// analyze conflict
-	uint8_t glue;
-	buf_.resize(0);
-	p_.analyze_conflict(buf_, &act_);
-	assert(buf_.size() > 0);
-	if (config_.otf >= 1)
-		p_.shorten_learnt(buf_, config_.otf >= 2);
-	auto color = on_learnt(buf_);
-	int backLevel = p_.backtrack_level(buf_);
-	glue = p_.calcGlue(buf_);
-
-	act_.decay_variable_activity();
-	p_.stats.nLitsLearnt += buf_.size();
-
-	// unroll to apropriate level and propagate new learnt clause
-	p_.unroll(backLevel, act_);
-
-	Reason r = Reason::undef();
-	if (buf_.size() > 1)
-		r = p_.add_clause(buf_, color, glue);
-	for (Lit x : p_.propagate(buf_[0], r))
-		polarity_[x.var()] = x.sign();
-}
-
 Color Searcher::on_learnt(std::span<const Lit> lits)
 {
-	p_.stats.learn_events.push_back(
-	    {.depth = p_.level(), .size = (int)lits.size()});
 	if ((int)lits.size() <= config_.green_cutoff)
 	{
 		ngreen += 1;
@@ -149,7 +119,23 @@ void Searcher::run_restart(std::stop_token stoken)
 				on_learnt({});
 				return;
 			}
-			handle_conflict();
+			assert(p_.conflict && p_.level() > 0);
+
+			// analyze conflict
+			p_.analyze_conflict(buf_, &act_, config_.otf);
+			assert(buf_.size() > 0);
+
+			auto color = on_learnt(buf_);
+			int backLevel = p_.backtrack_level(buf_);
+
+			// unroll to apropriate level and propagate new learnt clause
+			p_.unroll(backLevel, act_);
+
+			Reason r = Reason::undef();
+			if (buf_.size() > 1)
+				r = p_.add_clause(buf_, color);
+			for (Lit x : p_.propagate(buf_[0], r))
+				polarity_[x.var()] = x.sign();
 		}
 
 		// maxConfl reached -> unroll and exit

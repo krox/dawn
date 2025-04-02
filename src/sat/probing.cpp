@@ -32,11 +32,10 @@ int probeBinary(Cnf &cnf)
 	int nFails = 0;
 
 	auto backtrack = [&cnf, &p, &buf]() {
-		p.analyze_conflict(buf, nullptr);
-		p.shorten_learnt(buf, true);
+		p.analyze_conflict(buf, nullptr, 2);
 		auto back = p.backtrack_level(buf);
 		p.unroll(back);
-		auto reason = p.add_clause(buf, Color::green, 2);
+		auto reason = p.add_clause(buf, Color::green);
 		cnf.add_clause(buf, Color::green);
 		p.propagate(buf[0], reason);
 		buf.resize(0);
