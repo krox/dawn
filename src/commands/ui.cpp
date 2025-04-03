@@ -80,21 +80,17 @@ void run_ui_command(Options opt)
 
 	auto run_searcher = [&]() {
 		auto searcher = Searcher(sat, {});
-		searcher.run_epoch(10000, {});
-		auto result = searcher.get_result();
-		if (std::get_if<Assignment>(&result))
+		auto result = searcher.run_epoch(10000, {});
+
+		logger.info("learnt {} clauses", result.learnts.count());
+		for (auto const &cl : result.learnts.all())
+			sat.add_clause(cl, cl.color);
+
+		if (result.solution)
 		{
 			logger.info("SATISFIABLE\n");
 			assert(!sat.contradiction);
 		}
-		else if (auto *learnts = std::get_if<ClauseStorage>(&result))
-		{
-			logger.info("learnt {} clauses", learnts->count());
-			for (auto &cl : learnts->all())
-				sat.add_clause(cl, cl.color);
-		}
-		else
-			assert(false);
 
 		if (sat.contradiction)
 		{

@@ -153,54 +153,45 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 	log.info("after preprocessing, got {} vars and {} clauses", sat.var_count(),
 	         sat.clause_count());
 
-	PropStats propStats;
-
-	// it is kinda expensive to reconstruct the PropEngine at every restart,
-	// so we keep it and only reconstruct after inprocessing or cleaning has run
-	std::unique_ptr<Searcher> searcher = nullptr;
+	PropStats propStats = {};
 
 	// main solver loop
 	for (int epoch = 0;; ++epoch)
 	{
-		auto nConfls = propStats.nConfls();
-		if (searcher)
-			nConfls += searcher->stats().nConfls();
 		// check limit
-		if (nConfls >= config.max_confls)
+		if (propStats.nConfls() >= config.max_confls)
 		{
 			log.info("conflict limit reached. abort solver.");
 			return 30;
 		}
 
-		if (searcher == nullptr)
-		{
-			Searcher::Config sconfig;
-			sconfig.otf = config.otf;
-			sconfig.branch_dom = config.branch_dom;
-			sconfig.restart_type = config.restart_type;
-			sconfig.restart_base = config.restart_base;
-			sconfig.restart_mult = config.restart_mult;
-			searcher = std::make_unique<Searcher>(sat, sconfig);
-		}
+		Searcher::Config sconfig;
+		sconfig.otf = config.otf;
+		sconfig.branch_dom = config.branch_dom;
+		sconfig.restart_type = config.restart_type;
+		sconfig.restart_base = config.restart_base;
+		sconfig.restart_mult = config.restart_mult;
+		auto result = Searcher(sat, sconfig).run_epoch(10'000, stoken);
 
-		// search for a number of conflicts
-		searcher->run_epoch(2'000, stoken);
-		auto result = searcher->get_result();
-		if (auto assign = std::get_if<Assignment>(&result))
+		log.info("learnt {} green clauses out of {} conflicts ({:.2f} "
+		         "kconfls/s, {:.2f} "
+		         "kprops/s)",
+		         result.learnts.count(), result.stats.nConfls(),
+		         result.stats.nConfls() / log.secs() / 1000,
+		         result.stats.nProps() / log.secs() / 1000);
+
+		propStats += result.stats;
+		for (auto const &cl : result.learnts.all())
+			sat.add_clause(cl, cl.color);
+
+		if (result.solution)
 		{
 			assert(!sat.contradiction);
-			sol = sat.to_outer(*assign);
+			sol = sat.to_outer(*result.solution);
 			sol.fix_unassigned();
 			sat.extender.extend(sol);
 			return 10;
 		}
-		else if (auto learnts = std::get_if<ClauseStorage>(&result))
-		{
-			for (auto &cl : learnts->all())
-				sat.add_clause(cl, cl.color);
-		}
-		else
-			assert(false);
 
 		if (sat.contradiction)
 			return 20;
@@ -215,27 +206,22 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 		// inprocessing
 		if (needInprocess)
 		{
-			if (searcher)
+			if (plt)
 			{
-				propStats += searcher->stats();
-				searcher.reset();
-
-				if (plt)
+				if (propStats.learn_events.size() >= 100)
 				{
-					if (propStats.learn_events.size() >= 100)
-					{
-						plt->clear();
-						plt->plot_range_data(
-						    propStats.learn_events |
-						        std::views::transform(&LearnEvent::size),
-						    "learnt size");
-						plt->plot_range_data(
-						    propStats.learn_events |
-						        std::views::transform(&LearnEvent::depth),
-						    "depth");
-					}
+					plt->clear();
+					plt->plot_range_data(
+					    propStats.learn_events |
+					        std::views::transform(&LearnEvent::size),
+					    "learnt size");
+					plt->plot_range_data(
+					    propStats.learn_events |
+					        std::views::transform(&LearnEvent::depth),
+					    "depth");
 				}
 			}
+
 			inprocess(sat, config, stoken);
 		}
 	}

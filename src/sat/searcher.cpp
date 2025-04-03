@@ -84,24 +84,8 @@ Lit Searcher::choose_branch()
 	return branchLit;
 }
 
-Color Searcher::on_learnt(std::span<const Lit> lits)
+void Searcher::run_restart(Result &result, std::stop_token stoken)
 {
-	if ((int)lits.size() <= config_.green_cutoff)
-	{
-		ngreen += 1;
-		learnts_.add_clause(lits, Color::green);
-		return Color::green;
-	}
-	else
-	{
-		nred += 1;
-		return Color::red;
-	}
-}
-
-void Searcher::run_restart(std::stop_token stoken)
-{
-	// util::StopwatchGuard _(p_.sat.stats.swSearch); TODO
 	int max_confls = restartSize(++iter_, config_);
 	int64_t nConfl = 0;
 	assert(p_.level() == 0);
@@ -116,7 +100,7 @@ void Searcher::run_restart(std::stop_token stoken)
 			// level 0 conflict -> UNSAT
 			if (p_.level() == 0)
 			{
-				on_learnt({});
+				result.learnts.add_clause({}, Color::green);
 				return;
 			}
 			assert(p_.conflict && p_.level() > 0);
@@ -125,7 +109,10 @@ void Searcher::run_restart(std::stop_token stoken)
 			p_.analyze_conflict(buf_, &act_, config_.otf);
 			assert(buf_.size() > 0);
 
-			auto color = on_learnt(buf_);
+			auto color = (int)buf_.size() <= config_.green_cutoff ? Color::green
+			                                                      : Color::red;
+			if (color == Color::green)
+				result.learnts.add_clause(buf_, color);
 			int backLevel = p_.backtrack_level(buf_);
 
 			// unroll to apropriate level and propagate new learnt clause
@@ -154,7 +141,7 @@ void Searcher::run_restart(std::stop_token stoken)
 		Lit branchLit = choose_branch();
 		if (branchLit == Lit::undef())
 		{
-			solution_ = p_.assign;
+			result.solution = p_.assign;
 			return;
 		}
 		// TODO: question: should we set polarity in case of conflict?
@@ -164,40 +151,27 @@ void Searcher::run_restart(std::stop_token stoken)
 	}
 }
 
-void Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
+Searcher::Result Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 {
-	auto log = util::Logger("searcher");
+	Result result;
 
 	p_.stats.clear();
 
-	while (p_.stats.nConfls() < max_confls && !stoken.stop_requested())
-	{
-		run_restart(stoken);
-		if (solution_)
-		{
-			log.info("found solution");
-			return;
-		}
-		else if (p_.conflict)
-		{
-			log.info("found contradiction");
-			learnts_.add_clause({}, Color::green);
-			return;
-		}
-	}
+	while (p_.stats.nConfls() < max_confls && !stoken.stop_requested() &&
+	       !p_.conflict && !result.solution)
+		run_restart(result, stoken);
 
-	util::Stopwatch sw;
-	sw.start();
+	result.stats = p_.stats;
+	p_.stats.clear();
+
+	// crude cleaning: remove everything not green
+	// TODO: while setting color=black does make PropEngine ignore the clauses,
+	// they are never actually removed?
 	for (Clause &cl : p_.clauses.all())
 		if (cl.color == Color::red)
 			cl.color = Color::black;
-	sw.stop();
 
-	log.info(
-	    "learnt {} green clauses out of {} conflicts ({:.2f} kconfls/s, {:.2f} "
-	    "kprops/s, {:.2f}s of cleaning)",
-	    ngreen, ngreen + nred, p_.stats.nConfls() / log.secs() / 1000,
-	    p_.stats.nProps() / log.secs() / 1000, sw.secs());
+	return result;
 }
 
 } // namespace dawn
