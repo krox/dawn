@@ -184,7 +184,7 @@ struct BVE
 		                             : score_never - 1;
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (cl.color == Color::blue)
+			if (cl.color() == Color::blue)
 			{
 				std::sort(cl.lits().begin(), cl.lits().end());
 				for (Lit a : cl.lits())
@@ -298,11 +298,11 @@ struct BVE
 		for (CRef i : occs[pos])
 			for (Lit x : sat.bins[neg])
 				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
-					add_clause(resolvent(cl, x, neg), cl.color);
+					add_clause(resolvent(cl, x, neg), cl.color());
 		for (CRef i : occs[neg])
 			for (Lit x : sat.bins[pos])
 				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
-					add_clause(resolvent(cl, x, pos), cl.color);
+					add_clause(resolvent(cl, x, pos), cl.color());
 
 		// add long-long resolvents
 		for (CRef i : occs[pos])
@@ -311,7 +311,7 @@ struct BVE
 				auto &a = sat.clauses[i];
 				auto &b = sat.clauses[j];
 				if (!is_resolvent_tautological(a, b))
-					add_clause(resolvent(a, b), min(a.color, b.color));
+					add_clause(resolvent(a, b), min(a.color(), b.color()));
 			}
 
 		// remove old long clauses from the problem
@@ -319,16 +319,16 @@ struct BVE
 		for (CRef i : occs[pos])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.color == Color::blue);
+			assert(cl.color() == Color::blue);
 			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.color = Color::black;
+			cl.set_color(Color::black);
 		}
 		for (CRef i : occs[neg])
 		{
 			Clause &cl = sat.clauses[i];
-			assert(cl.color == Color::blue);
+			assert(cl.color() == Color::blue);
 			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.color = Color::black;
+			cl.set_color(Color::black);
 		}
 		occs[pos].resize(0);
 		occs[neg].resize(0);
@@ -405,12 +405,12 @@ struct BVE
 				if (seen.add(x.var()))
 					todo.push_back(x.var());
 			for (CRef k : occs[pos])
-				if (sat.clauses[k].color == Color::blue)
+				if (sat.clauses[k].color() == Color::blue)
 					for (Lit x : sat.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
 			for (CRef k : occs[neg])
-				if (sat.clauses[k].color == Color::blue)
+				if (sat.clauses[k].color() == Color::blue)
 					for (Lit x : sat.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
@@ -429,10 +429,10 @@ struct BVE
 			{
 				// prune occ-lists
 				erase_if(occs[Lit(j, false)], [this](CRef ci) {
-					return sat.clauses[ci].color == Color::black;
+					return sat.clauses[ci].color() == Color::black;
 				});
 				erase_if(occs[Lit(j, true)], [this](CRef ci) {
-					return sat.clauses[ci].color == Color::black;
+					return sat.clauses[ci].color() == Color::black;
 				});
 
 				// prune implicit binaries
@@ -453,15 +453,15 @@ struct BVE
 		// remove reducible clauses that contain eliminated variables
 		for (auto &cl : sat.clauses.all())
 		{
-			if (cl.color == Color::black)
+			if (cl.color() == Color::black)
 				continue;
 			bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
 				return eliminated[a.var()];
 			});
 			if (elim)
 			{
-				assert(cl.color != Color::blue);
-				cl.color = Color::black;
+				assert(cl.color() != Color::blue);
+				cl.set_color(Color::black);
 			}
 		}
 
@@ -495,7 +495,7 @@ struct BCE
 	{
 		// sort lits and create occ-lists
 		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (cl.color == Color::blue)
+			if (cl.color() == Color::blue)
 			{
 				std::sort(cl.lits().begin(), cl.lits().end());
 				for (Lit a : cl.lits())
@@ -522,7 +522,7 @@ struct BCE
 		for (CRef i : occs[pos]) // try to eliminate i with variable v(pos)
 		{
 			// already removed (on a different variable)
-			if (sat.clauses[i].color == Color::black)
+			if (sat.clauses[i].color() == Color::black)
 				continue;
 
 			// check for (non-)tautologies
@@ -531,7 +531,7 @@ struct BCE
 					goto next;
 			for (CRef j : occs[neg])
 			{
-				if (sat.clauses[j].color == Color::black)
+				if (sat.clauses[j].color() == Color::black)
 					continue;
 				if (is_resolvent_tautological(sat.clauses[i].lits(),
 				                              sat.clauses[j].lits(), stamps))
@@ -546,7 +546,7 @@ struct BCE
 				nFound += 1;
 				auto cl = std::vector<Lit>(sat.clauses[i].begin(),
 				                           sat.clauses[i].end());
-				sat.clauses[i].color = Color::black;
+				sat.clauses[i].set_color(Color::black);
 
 				for (Lit &a : cl)
 					if (a.var() == v)
@@ -605,8 +605,8 @@ int run_blocked_clause_addition(Sat &sat)
 
 	// TODO: make BVA play nicely with colors
 	for (auto &cl : sat.clauses.all())
-		if (cl.color != Color::blue)
-			cl.color = Color::black;
+		if (cl.color() != Color::blue)
+			cl.set_color(Color::black);
 	sat.clauses.prune_black();
 
 	auto p = PropEngineLight(sat);

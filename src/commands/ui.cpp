@@ -84,7 +84,7 @@ void run_ui_command(Options opt)
 
 		logger.info("learnt {} clauses", result.learnts.count());
 		for (auto const &cl : result.learnts.all())
-			sat.add_clause(cl, cl.color);
+			sat.add_clause(cl, cl.color());
 
 		if (result.solution)
 		{
@@ -112,7 +112,7 @@ void run_ui_command(Options opt)
 	buttons.push_back(Button("vivify", [&] { run_vivification(sat, {}, {}); }));
 	buttons.push_back(Button("clean >10", [&] {
 		sat.clauses.prune([](Clause const &cl) {
-			return cl.color != dawn::Color::blue && cl.size() > 10;
+			return cl.color() != dawn::Color::blue && cl.size() > 10;
 		});
 	}));
 	buttons.push_back(Button("Quit", [&] { screen.Exit(); }));

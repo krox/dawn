@@ -58,7 +58,7 @@ int makeDisjunctions(Sat &sat)
 	// occ-lists per pair of literals
 	util::hash_map<Pair, std::vector<CRef>> pairOccs;
 	for (auto [ci, cl] : sat.clauses.enumerate())
-		if (cl.color == Color::blue || cl.size() <= 8)
+		if (cl.color() == Color::blue || cl.size() <= 8)
 			for (int i = 0; i < cl.size(); ++i)
 				for (int j = i + 1; j < cl.size(); ++j)
 					pairOccs[sort({cl[i], cl[j]})].push_back(ci);
@@ -121,7 +121,7 @@ int makeDisjunctions(Sat &sat)
 				pairOccs[sort({l, a})].push_back(ci);
 			}
 
-			sat.clauses[ci].add_literal_unchecked(a);
+			sat.clauses[ci].add_literal(a);
 
 			// TODO: add new pairs to queue
 		}
@@ -139,7 +139,7 @@ int makeDisjunctions(Sat &sat)
 			sat.add_unary(cl[0]);
 		else
 			assert(false);
-		cl.color = Color::black;
+		cl.set_color(Color::black);
 	}
 	sat.clauses.prune_black();
 

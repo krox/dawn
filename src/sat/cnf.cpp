@@ -145,12 +145,12 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 	// renumber long clauses
 	for (auto &cl : clauses.all())
 	{
-		if (cl.color == Color::black)
+		if (cl.color() == Color::black)
 			continue;
 		for (Lit &a : cl.lits())
 			a = trans[a.var()] ^ a.sign();
 		cl.normalize();
-		if (cl.color == Color::black)
+		if (cl.color() == Color::black)
 			continue;
 		if (cl.size() == 0)
 			add_empty();
@@ -159,7 +159,7 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 		if (cl.size() == 2)
 			add_binary(cl[0], cl[1]);
 		if (cl.size() <= 2)
-			cl.color = Color::black;
+			cl.set_color(Color::black);
 	}
 	clauses.prune_black();
 }
@@ -190,7 +190,7 @@ size_t Cnf::long_count_irred() const
 {
 	size_t r = 0;
 	for (auto &cl : clauses.all())
-		if (cl.color == Color::blue)
+		if (cl.color() == Color::blue)
 			++r;
 	return r;
 }
@@ -199,7 +199,7 @@ size_t Cnf::long_count_red() const
 {
 	size_t r = 0;
 	for (auto &cl : clauses.all())
-		if (cl.color != Color::blue && cl.color != Color::black)
+		if (cl.color() != Color::blue && cl.color() != Color::black)
 			++r;
 	return r;
 }
@@ -208,7 +208,7 @@ size_t Cnf::lit_count_irred() const
 {
 	size_t r = 0;
 	for (auto &cl : clauses.all())
-		if (cl.color == Color::blue)
+		if (cl.color() == Color::blue)
 			r += cl.size();
 	return r;
 }

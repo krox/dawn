@@ -21,8 +21,8 @@ namespace {
  */
 bool try_subsume(Clause &a, Clause &b)
 {
-	assert(a.color != Color::black);
-	assert(b.color != Color::black);
+	assert(a.color() != Color::black);
+	assert(b.color() != Color::black);
 
 	if (a.size() > b.size())
 		return false;
@@ -49,8 +49,8 @@ bool try_subsume(Clause &a, Clause &b)
 
 	if (x == Lit::undef())
 	{
-		a.color = max(a.color, b.color);
-		b.color = Color::black;
+		a.set_color(max(a.color(), b.color()));
+		b.set_color(Color::black);
 	}
 	else
 		b.remove_literal(x); // TODO: slightly subptimal performance...
@@ -73,7 +73,7 @@ class Subsumption
 	    : cnf(cnf), occs(cnf.var_count() * 2), seen(cnf.var_count() * 2)
 	{
 		for (auto [ci, cl] : cnf.clauses.enumerate())
-			if (cl.color != Color::black)
+			if (cl.color() != Color::black)
 				for (Lit a : cl.lits())
 					occs[a].push_back(ci);
 	}
@@ -124,13 +124,13 @@ class Subsumption
 		for (CRef k : occs[a.neg()])
 		{
 			auto &cl = cnf.clauses[k];
-			if (cl.color == Color::black)
+			if (cl.color() == Color::black)
 				continue;
 
 			for (Lit x : cnf.clauses[k].lits())
 				if (seen[x])
 				{
-					cnf.clauses[k].color = Color::black;
+					cnf.clauses[k].set_color(Color::black);
 					++nRemovedClsBin;
 					break;
 				}
@@ -140,7 +140,7 @@ class Subsumption
 		for (CRef k : occs[a])
 		{
 			auto &cl = cnf.clauses[k];
-			if (cl.color == Color::black)
+			if (cl.color() == Color::black)
 				continue;
 
 			for (Lit x : cl.lits())
@@ -152,7 +152,7 @@ class Subsumption
 						if (cl.size() == 2)
 						{
 							cnf.add_binary(cl[0], cl[1]);
-							cl.color = Color::black;
+							cl.set_color(Color::black);
 						}
 					}
 					break;
@@ -188,7 +188,7 @@ std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 	std::array<std::vector<CRef>, 128> clauses;
 	auto occs = std::vector<util::small_vector<CRef, 7>>(cnf.var_count());
 	for (auto [ci, cl] : cnf.clauses.enumerate())
-		if (cl.color != Color::black)
+		if (cl.color() != Color::black)
 		{
 			std::sort(cl.lits().begin(), cl.lits().end());
 			clauses[cl.size() < 128 ? cl.size() : 127].push_back(ci);
@@ -202,7 +202,7 @@ std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 		for (CRef i : clauses[size])
 		{
 			Clause &cl = cnf.clauses[i];
-			if (cl.color == Color::black)
+			if (cl.color() == Color::black)
 				continue; // can this happen at all here?
 
 			// choose variable in cl with shortest occ-list
@@ -217,11 +217,11 @@ std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 				if (i == j)   // dont subsume clauses with itself
 					continue; // can this happen here at all?
 				Clause &cl2 = cnf.clauses[j];
-				if (cl2.color == Color::black)
+				if (cl2.color() == Color::black)
 					continue; // already removed by different subsumption
 				if (try_subsume(cl, cl2))
 				{
-					if (cl2.color == Color::black)
+					if (cl2.color() == Color::black)
 						nRemovedClsLong += 1;
 					else
 					{
@@ -234,7 +234,7 @@ std::pair<int64_t, int64_t> subsumeLong(Cnf &cnf)
 								cnf.add_unary(cl2[0]);
 							else if (cl2.size() == 2)
 								cnf.add_binary(cl2[0], cl2[1]);
-							cl2.color = Color::black;
+							cl2.set_color(Color::black);
 						}
 					}
 				}

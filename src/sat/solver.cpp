@@ -182,7 +182,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 
 		propStats += result.stats;
 		for (auto const &cl : result.learnts.all())
-			sat.add_clause(cl, cl.color);
+			sat.add_clause(cl, cl.color());
 
 		if (result.solution)
 		{

@@ -168,8 +168,8 @@ Searcher::Result Searcher::run_epoch(int64_t max_confls, std::stop_token stoken)
 	// TODO: while setting color=black does make PropEngine ignore the clauses,
 	// they are never actually removed?
 	for (Clause &cl : p_.clauses.all())
-		if (cl.color == Color::red)
-			cl.color = Color::black;
+		if (cl.color() == Color::red)
+			cl.set_color(Color::black);
 
 	return result;
 }

@@ -39,7 +39,7 @@ struct Vivification
 	{
 		if (config.with_ternary)
 			for (Clause const &cl : cnf.clauses.all())
-				if (cl.size() == 3 && cl.color != Color::black)
+				if (cl.size() == 3 && cl.color() != Color::black)
 				{
 					ternaries[make_pair(cl[0], cl[1])].push_back(cl[2]);
 					ternaries[make_pair(cl[0], cl[2])].push_back(cl[1]);
@@ -208,7 +208,7 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 
 	for (auto &cl : cnf.clauses.all())
 	{
-		if (cl.color <= Color::red)
+		if (cl.color() <= Color::red)
 			continue;
 		if (stoken.stop_requested())
 			break;
@@ -217,15 +217,15 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 		if (viv.vivify_clause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
-			new_clauses.add_clause(buf, cl.color);
-			cl.color = Color::black;
+			new_clauses.add_clause(buf, cl.color());
+			cl.set_color(Color::black);
 		}
 		else if (config.with_ternary && buf.size() >= 4 &&
 		         viv.vivify_clause_ternary(buf))
 		{
 			nTernStrengthened += 1;
-			new_clauses.add_clause(buf, cl.color);
-			cl.color = Color::black;
+			new_clauses.add_clause(buf, cl.color());
+			cl.set_color(Color::black);
 		}
 	}
 
@@ -237,7 +237,7 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 
 	cnf.clauses.prune_black();
 	for (auto &cl : new_clauses.all())
-		cnf.add_clause(cl.lits(), cl.color);
+		cnf.add_clause(cl.lits(), cl.color());
 
 	log.info("removed {} lits, and bin-replaced {}, tern-replaced {}",
 	         viv.shortened, viv.strengthened, nTernStrengthened);

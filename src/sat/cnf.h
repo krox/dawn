@@ -90,7 +90,7 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 	for (auto &cl : clauses.all())
 	{
 		cl.normalize();
-		if (cl.color == Color::black || cl.size() >= 3)
+		if (cl.color() == Color::black || cl.size() >= 3)
 			continue;
 		if (cl.size() == 0)
 			add_empty();
@@ -100,7 +100,7 @@ inline Cnf::Cnf(int n, ClauseStorage clauses_)
 			add_binary(cl[0], cl[1]);
 		else
 			assert(false);
-		cl.color = Color::black;
+		cl.set_color(Color::black);
 	}
 	clauses.prune_black();
 }

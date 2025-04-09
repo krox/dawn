@@ -2,6 +2,7 @@
 
 #include "sat/assignment.h"
 #include "sat/clause.h"
+#include <ranges>
 #include <vector>
 
 namespace dawn {
@@ -67,16 +68,18 @@ inline void Extender::set_equivalence(Lit a, Lit b)
 inline void Extender::extend(Assignment &a) const
 {
 	/*fmt::print("starting extension with:\n");
-	for (auto [ci, cl] : clauses_)
-	{
-	    (void)ci;
-	    fmt::print("\t{}\n", cl);
-	}*/
+	fmt::print("{}\n", a);
+	fmt::print("{} rules:\n", clauses_.count());
+	for (auto &cl : clauses_.all())
+	    fmt::print("\t{}\n", cl);*/
 
 	assert(a.complete());
-	for (auto &cl : clauses_.all_reverse())
-		if (!a.satisfied(cl))
-			a.force_set(cl[0]);
+	std::vector<CRef> crefs;
+	for (CRef i : clauses_.crefs())
+		crefs.push_back(i);
+	for (CRef i : std::views::reverse(crefs))
+		if (!a.satisfied(clauses_[i]))
+			a.force_set(clauses_[i][0]);
 }
 
 inline size_t Extender::memory_usage() const { return clauses_.memory_usage(); }

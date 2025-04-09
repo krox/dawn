@@ -13,6 +13,7 @@
 #include <cassert>
 #include <cstdint>
 #include <functional>
+#include <ranges>
 #include <span>
 #include <tuple>
 #include <vector>
@@ -92,11 +93,13 @@ inline int normalize_clause(std::span<Lit> lits)
 
 enum class Color : uint8_t
 {
-	// "removed" clause. Actual removal with the next call to `prune`
+	// removed clause
+	//   - ignored by 'PropEngine' immediately
+	//   - physical removal by calling 'ClauseStorage::prune()'
 	black = 0,
 
-	// reducible clause. Might be kept for a while depending a local searcher
-	// heuristics.
+	// reducible clause
+	//   - might be kept for a while depending a local searcher heuristics
 	red = 1,
 
 	// also reducible, but estimated to be good enough to keep around
@@ -104,7 +107,10 @@ enum class Color : uint8_t
 	//   - communicated across threads
 	green = 2,
 
-	// irreducible clause. Only these have to be satisfied
+	// irreducible clause.
+	//   - only these have to be satisfied for a valid solution
+	//   - only these need to be considered by BVE (though heuristically, some
+	//     reducibles are resolved as well)
 	blue = 3,
 };
 
@@ -113,37 +119,63 @@ inline Color max(Color a, Color b) { return a > b ? a : b; }
 
 class Clause
 {
-  public:
 	// 4 byte header. Might be extended in the future.
 	// (as a comparison: Minisat uses 4 bytes header plus optionally 4 bytes
 	// footer. Cryptominisat seems to use 28 bytes header by default)
-	uint16_t size_;
-	Color color;
-	uint8_t reserved_;
+	uint32_t size_ : 10;
+	uint32_t capacity_ : 10;
+	uint32_t color_ : 4;
+	uint32_t reserved_ : 8; // glue, activity, etc.
 
 	// array of Lits
 	// Lit _lits[]; // not valid C++
+  public:
+	// maximum size of a clause (current implementation limit)
+	static constexpr size_t max_size() { return (1 << 10) - 1; }
 
-	Clause() {}
 	Clause(const Clause &) = delete;
+	Clause &operator=(const Clause &) = delete;
+
+	explicit Clause(size_t size, Color color)
+	    : size_((uint32_t)size), capacity_((uint32_t)size),
+	      color_(uint32_t(color)), reserved_(0)
+	{
+		assert(size <= max_size());
+	}
 
 	// array-like access to literals
-	std::span<Lit> lits() { return std::span<Lit>{(Lit *)(this + 1), size_}; }
+	std::span<Lit> lits() { return std::span<Lit>{(Lit *)(this + 1), size()}; }
 	std::span<const Lit> lits() const
 	{
-		return std::span<const Lit>{(Lit *)(this + 1), size_};
+		return std::span<const Lit>{(Lit *)(this + 1), size()};
 	}
 
 	// make Clause usable as span<Lit> without calling '.lits()' explicitly
 	uint16_t size() const { return size_; }
+	uint16_t capacity() const { return capacity_; }
+	Color color() const { return (Color)color_; }
 	Lit &operator[](size_t i) { return lits()[i]; }
-	const Lit &operator[](size_t i) const { return lits()[i]; }
+	Lit operator[](size_t i) const { return lits()[i]; }
 	operator std::span<Lit>() { return lits(); }
 	operator std::span<const Lit>() const { return lits(); }
 	auto begin() { return lits().begin(); }
 	auto begin() const { return lits().begin(); }
 	auto end() { return lits().end(); }
 	auto end() const { return lits().end(); }
+
+	void set_size(size_t s)
+	{
+		assert(s <= capacity_);
+		size_ = (uint32_t)s;
+	}
+
+	void shrink_unsafe()
+	{
+		assert(size_ <= capacity_);
+		capacity_ = size_;
+	}
+
+	void set_color(Color c) { color_ = (uint32_t)c; }
 
 	// remove a literal from this clause. returns false if not found
 	bool remove_literal(Lit a)
@@ -177,10 +209,10 @@ class Clause
 	}
 
 	// Add a literal to the clause.
-	// NOTE: this is unsafe, because the clause does not know its own capacity.
-	//       only use right after succesfully removing another literal.
-	void add_literal_unchecked(Lit a)
+	// Requires size < capacity of course.
+	void add_literal(Lit a)
 	{
+		assert(size_ < capacity_);
 		size_ += 1;
 		lits()[size_ - 1] = a;
 	}
@@ -208,49 +240,101 @@ class Clause
 	void normalize()
 	{
 		if (int s = normalize_clause(lits()); s == -1)
-			color = Color::black;
+			color_ = (uint32_t)Color::black;
 		else
 			size_ = (uint16_t)s;
 	}
+
+	// pointer to next clause, assuming dense storage in 'ClauseStorage'
+	Clause *next() { return (Clause *)((Lit *)(this + 1) + capacity_); }
+	Clause const *next() const
+	{
+		return (Clause const *)((Lit const *)(this + 1) + capacity_);
+	}
 };
 
+// iterator that advances by calling 'p->next()'.
+template <class T> class NextIterator
+{
+	T *ptr_;
+
+  public:
+	using value_type = T;
+	using reference = T &;
+	using pointer = T *;
+	using difference_type = ptrdiff_t;
+
+	NextIterator() = default;
+	NextIterator(T *ptr) : ptr_(ptr) {}
+	NextIterator &operator++()
+	{
+		ptr_ = ptr_->next();
+		return *this;
+	}
+	NextIterator operator++(int)
+	{
+		auto tmp = *this;
+		ptr_ = ptr_->next();
+		return tmp;
+	}
+	T &operator*() const { return *ptr_; }
+	T *operator->() const { return ptr_; }
+	constexpr bool operator==(NextIterator const &) const = default;
+};
+
+static_assert(std::forward_iterator<NextIterator<Clause>>);
+static_assert(std::forward_iterator<NextIterator<Clause const>>);
+
 // Reference to a clause inside a ClauseStorage object.
-// Technically just a (31 bit) index into an array.
+// Technically just an index, limited to 30 bits, so that we can use up to two
+// high bits in the 'Reason' and 'Watch' classes.
 class CRef
 {
-	// NOTE: highest bit is used for bit-packing in 'Watch' and 'Reason'
-	uint32_t _val;
+	uint32_t _val = UINT32_MAX;
 
   public:
 	CRef() = default;
 	constexpr explicit CRef(uint32_t val) : _val(val) {}
 
+	static constexpr uint32_t max() { return UINT32_MAX >> 2; }
 	static constexpr CRef undef() { return CRef{UINT32_MAX}; }
 
 	constexpr operator uint32_t() const { return _val; }
 
-	constexpr bool proper() const { return _val <= (UINT32_MAX >> 1); }
+	constexpr bool proper() const { return _val <= max(); }
 };
-
-#define CREF_MAX (UINT32_MAX >> 1)
 
 class ClauseStorage
 {
-  private:
+	// TODO: could extract a 'UntypedVector' class, avoiding 'vector' altogether
 	util::vector<Lit> store_;
-	std::vector<CRef> clauses_;
 
   public:
+	using iterator = NextIterator<Clause>;
+	using const_iterator = NextIterator<Clause const>;
+
+	iterator begin() { return (Clause *)store_.begin(); }
+	iterator end() { return (Clause *)store_.end(); }
+	const_iterator begin() const { return (Clause *)store_.begin(); }
+	const_iterator end() const { return (Clause *)store_.end(); }
+
+	// index of a clause in the store
+	CRef get_index(Clause const &cl) const
+	{
+		auto p = ptrdiff_t(&cl);
+		auto start = ptrdiff_t(store_.begin());
+		auto end = ptrdiff_t(store_.end());
+		assert(start <= p && p <= end);
+		return CRef((uint32_t)((p - start) / sizeof(Lit)));
+	}
+
 	// add a new clause, no checking of lits done
 	CRef add_clause(std::span<const Lit> lits, Color color)
 	{
-		if (lits.size() > UINT16_MAX)
-			throw std::runtime_error("clause to long for storage");
-
 		// allocate space for the new clause
 		store_.reserve_with_spare(store_.size() + lits.size() +
 		                          sizeof(Clause) / sizeof(Lit));
-		if (store_.size() > CREF_MAX)
+		if (store_.size() > CRef::max())
 			throw std::runtime_error("clause storage overflow");
 		auto r = CRef((uint32_t)store_.size());
 		Clause &cl = *(Clause *)(store_.end());
@@ -258,12 +342,10 @@ class ClauseStorage
 		                       sizeof(Clause) / sizeof(Lit));
 
 		// copy it over
-		cl.size_ = (uint16_t)lits.size();
-		cl.color = color;
+		std::construct_at<Clause>(&cl, lits.size(), color);
 		for (size_t i = 0; i < lits.size(); ++i)
 			cl[i] = lits[i];
 
-		clauses_.push_back(r);
 		return r;
 	}
 
@@ -273,44 +355,38 @@ class ClauseStorage
 	}
 
 	Clause &operator[](CRef i) { return *(Clause *)&store_[i]; }
-
 	const Clause &operator[](CRef i) const { return *(Clause *)&store_[i]; }
-
-	std::span<const CRef> crefs() const { return clauses_; }
-	auto crefs_reverse() const { return util::reverse(clauses_); }
 
 	auto all()
 	{
-		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
-		return util::transform(crefs(), deref);
+		return std::ranges::subrange(begin(), end()) |
+		       std::views::filter(
+		           [](auto &cl) { return cl.color() != Color::black; });
 	}
-
 	auto all() const
 	{
-		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
-		return util::transform(crefs(), deref);
+		return std::ranges::subrange(begin(), end()) |
+		       std::views::filter(
+		           [](auto &cl) { return cl.color() != Color::black; });
 	}
 
-	auto all_reverse() const
+	auto crefs() const
 	{
-		auto deref = [this](CRef i) -> auto & { return (*this)[i]; };
-		return util::transform(crefs_reverse(), deref);
+		return all() | std::views::transform(
+		                   [this](auto &cl) { return get_index(cl); });
 	}
-
 	auto enumerate()
 	{
-		auto deref = [this](CRef i) {
-			return std::make_tuple(i, std::ref((*this)[i]));
-		};
-		return util::transform(crefs(), deref);
+		return all() | std::views::transform([this](Clause &cl) {
+			       return std::make_tuple(get_index(cl), std::ref(cl));
+		       });
 	}
 
 	auto enumerate() const
 	{
-		auto deref = [this](CRef i) {
-			return std::make_tuple(i, std::ref((*this)[i]));
-		};
-		return util::transform(crefs(), deref);
+		return all() | std::views::transform([this](Clause const &cl) {
+			       return std::make_tuple(get_index(cl), std::ref(cl));
+		       });
 	}
 
 	// number of (non-removed) clauses
@@ -330,11 +406,7 @@ class ClauseStorage
 		return true;
 	}
 
-	size_t memory_usage() const
-	{
-		return store_.capacity() * sizeof(uint32_t) +
-		       clauses_.capacity() * sizeof(CRef);
-	}
+	size_t memory_usage() const { return store_.capacity() * sizeof(uint32_t); }
 
 	// remove all clauses that satisfy the predicate. Invalidates all CRef's.
 	void prune(util::function_view<bool(Clause const &)> f);
