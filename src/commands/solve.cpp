@@ -183,10 +183,6 @@ void setup_solve_command(CLI::App &app)
 	    ->group(g);
 	app.add_option("--bva", opt->config.bva, "bounded variable addition")
 	    ->group(g);
-	app.add_option("--inprocess-iters", opt->config.inprocessIters,
-	               "immediately repeat inprocessing if anything was found "
-	               "(default = 1 = probably enough)")
-	    ->group(g);
 
 	// verbosity
 	g = "Verbosity";

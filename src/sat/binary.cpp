@@ -267,7 +267,6 @@ void print_binary_stats(ImplicationGraph const &g)
 
 void run_binary_reduction(Cnf &cnf)
 {
-	auto log = util::Logger("TBR");
 	auto g = ImplicationGraph(cnf);
 
 	auto top = TopOrder(g);
@@ -319,17 +318,10 @@ void run_binary_reduction(Cnf &cnf)
 	assert(nFound % 2 == 0);
 
 	if (nFound)
-	{
 		cnf.bins = std::move(g.bins);
-		/*cnf.bins.resize(0);
-		for (Lit a : cnf.all_lits())
-		    for (Lit b : g[a])
-		        if (a < b)
-		            cnf.bins.push_back({a, b});*/
-	}
 
-	log.info("removed {} redundant binaries (using {:.2f}M props)", nFound / 2,
-	         propCount / 1024. / 1024.);
+	// log.info("removed {} redundant binaries (using {:.2f}M props)", nFound /
+	// 2, propCount / 1024. / 1024.);
 }
 
 } // namespace dawn

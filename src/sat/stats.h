@@ -33,14 +33,13 @@ struct SolverConfig
 	float restart_mult = 1.1; // only for geometric
 
 	// pre-/inprocessing
-	int inprocessIters = 1; // maximum number of iterations of inprocessing
-	int subsume = 2;        // subsumption and self-subsuming resolution
-	                        // (0=off, 1=binary, 2=full)
-	int bin_probing = 0;    // probe for binary clauses
-	int vivify = 2;         // clause vivification
-	int bve = 1;            // bounded variable elimination
-	int bce = 1;            // blocked clause elimination
-	int bva = 0;            // bounded variable addition
+	int subsume = 2;     // subsumption and self-subsuming resolution
+	                     // (0=off, 1=binary, 2=full)
+	int bin_probing = 0; // probe for binary clauses
+	int vivify = 2;      // clause vivification
+	int bve = 1;         // bounded variable elimination
+	int bce = 1;         // blocked clause elimination
+	int bva = 0;         // bounded variable addition
 
 	// other
 	int64_t max_confls = INT64_MAX; // stop solving

@@ -14,96 +14,40 @@
 
 namespace dawn {
 
-/*
-static void printHeader()
-{
-    fmt::print(
-        "c     vars    units     bins    longs  size   learnt  size  glue\n");
-}
-
-static void printLine(Sat &sat)
-{
-    // number of unary/binary clauses
-    size_t unaryCount = sat.units.size();
-    size_t binaryCount = 0;
-    for (auto &b : sat.bins)
-        binaryCount += b.size();
-    binaryCount /= 2;
-
-    // number/size/glue of irred/learnt long clauses
-    size_t longCount = 0;
-    size_t learntCount = 0;
-    size_t longLits = 0;
-    size_t learntLits = 0;
-    size_t learntGlue = 0;
-
-    for (auto &cl : sat.clauses.all())
-        if (cl.irred())
-        {
-            longCount += 1;
-            longLits += cl.size();
-        }
-        else
-        {
-            learntCount += 1;
-            learntLits += cl.size();
-            learntGlue += cl.glue;
-        }
-
-    fmt::print(
-        "c {:#8} {:#8} {:#8} {:#8} {:5.2f} {:#8} {:5.2f} {:5.2f} {:8.2f} MiB\n",
-        sat.var_count(), unaryCount, binaryCount, longCount,
-        (double)longLits / longCount, learntCount,
-        (double)learntLits / learntCount, (double)learntGlue / learntCount,
-        sat.memory_usage() / 1024. / 1024.);
-}
-*/
-
-/** run the full inprocessing */
+// run the full inprocessing
 void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 {
-
 	// printBinaryStats(sat);
 	cleanup(sat);
 
-	for (int iter = 0;
-	     config.inprocessIters == 0 || iter < config.inprocessIters; ++iter)
+	if (config.subsume >= 1)
 	{
-		bool change = false;
+		run_subsumption(sat);
+		cleanup(sat);
+	}
 
-		if (config.subsume >= 1)
-		{
-			change |= run_subsumption(sat);
-			cleanup(sat);
-		}
+	if (config.bin_probing)
+	{
+		probeBinary(sat);
+		cleanup(sat);
+	}
 
-		if (config.bin_probing)
-		{
-			change |= probeBinary(sat);
-			cleanup(sat);
-		}
+	VivifyConfig vivConfig;
+	if (config.vivify < 2)
+		vivConfig.with_binary = false;
 
-		VivifyConfig vivConfig;
-		if (config.vivify < 2)
-			vivConfig.with_binary = false;
+	if (config.vivify >= 1)
+	{
+		run_vivification(sat, vivConfig, stoken);
+		cleanup(sat); // bin-vivify really likes SCC and TBR before
+	}
 
+	if (config.bva >= 1)
+	{
+		makeDisjunctions(sat);
 		if (config.vivify >= 1)
-		{
-
-			change |= run_vivification(sat, vivConfig, stoken);
-			cleanup(sat); // bin-vivify really likes SCC and TBR before
-		}
-
-		if (config.bva >= 1)
-		{
-			change |= makeDisjunctions(sat);
-			if (config.vivify >= 1)
-				change |= run_vivification(sat, vivConfig, stoken);
-			cleanup(sat);
-		}
-
-		if (!change)
-			break;
+			run_vivification(sat, vivConfig, stoken);
+		cleanup(sat);
 	}
 }
 

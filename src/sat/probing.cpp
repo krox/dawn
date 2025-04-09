@@ -161,9 +161,6 @@ Lit probe(Lit a, PropEngineLight &p, util::bit_vector &done)
 
 bool run_probing(Cnf &cnf)
 {
-	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
-	auto log = util::Logger("probing");
-
 	if (cnf.contradiction)
 		return false;
 	auto p = PropEngineLight(cnf);
@@ -185,17 +182,7 @@ bool run_probing(Cnf &cnf)
 			}
 
 	assert(p.level() == 0);
-
-	if (nUnits || p.nHbr)
-	{
-		log.info("found {} failing lits and {} hyper bins", nUnits, p.nHbr);
-		return true;
-	}
-	else
-	{
-		log.info("-");
-		return false;
-	}
+	return nUnits || p.nHbr;
 }
 
 } // namespace dawn
