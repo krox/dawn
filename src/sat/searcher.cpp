@@ -34,6 +34,30 @@ int restartSize(int iter, Searcher::Config const &config)
 
 } // namespace
 
+Searcher::Searcher(Cnf const &cnf, Config const &config)
+    : p_(cnf), act_(cnf.var_count()), polarity_(cnf.var_count()),
+      config_(config)
+{
+	auto rng = std::default_random_engine(config.seed);
+	std::uniform_int_distribution<int> dist(0, 1);
+	if (config_.starting_polarity == Polarity::random)
+	{
+		for (int i = 0; i < cnf.var_count(); ++i)
+			polarity_[i] = dist(rng);
+	}
+	else if (config_.starting_polarity == Polarity::negative)
+	{
+		for (int i = 0; i < cnf.var_count(); ++i)
+			polarity_[i] = false;
+	}
+	else
+	{
+		assert(config_.starting_polarity == Polarity::positive);
+		for (int i = 0; i < cnf.var_count(); ++i)
+			polarity_[i] = true;
+	}
+}
+
 Lit Searcher::choose_branch()
 {
 	// choose a branching variable

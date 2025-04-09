@@ -7,16 +7,26 @@
 
 namespace dawn {
 
+enum class Polarity
+{
+	positive,
+	negative,
+	random
+};
+
 // Core of a CDCL solver. This wraps a PropEngine together with some auxiliary
 // state (variable activity, polarity).
 //   * 'Searcher' owns all its data (clauses, activity heap, ...), so multiple
 //     instances can be created and run concurrently.
-// TODO: some support to run this concurrently in a separate thread.
 class Searcher
 {
   public:
 	struct Config
 	{
+		// initialization
+		Polarity starting_polarity = Polarity::negative;
+		uint64_t seed = 0;
+
 		// conflict analysis
 		int otf = 2; // on-the-fly strengthening of learnt clauses
 		             // (0=off, 1=basic, 2=recursive)
@@ -70,10 +80,7 @@ class Searcher
 
 	// This copies all clauses into the Searcher, so that it can be used
 	// indepndent of the original CNF formula.
-	explicit Searcher(Cnf const &cnf, Config const &config)
-	    : p_(cnf), act_(cnf.var_count()), polarity_(cnf.var_count()),
-	      config_(config)
-	{}
+	explicit Searcher(Cnf const &cnf, Config const &config);
 
 	// Keeps running restarts until a satisfying assignment or a contradiction
 	// is found, or some limit is reached.
