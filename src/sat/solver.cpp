@@ -58,23 +58,12 @@ void preprocess(Sat &sat)
 	run_subsumption(sat);
 	cleanup(sat);
 
-	// clause elimination (no resolution)
-	// (pure/unused)
-	EliminationConfig elimConfig = {};
-	elimConfig.level = 1;
-	run_elimination(sat, elimConfig);
-
 	// elimination and subsumption influence each other quite a bit. SatELite
 	// alternatates them until fixed point. Cryptominisat seems to do multiple
 	// passes with increasing max-growth. For now, we just copy that strategy...
 	for (int growth : {0, 8, 16})
 	{
-		run_blocked_clause_elimination(sat);
-		elimConfig.level = 5;
-		elimConfig.growth = growth;
-		run_elimination(sat, elimConfig);
-
-		// little bit of searching
+		run_elimination(sat, {.growth = growth});
 		cleanup(sat);
 		run_subsumption(sat);
 		cleanup(sat);

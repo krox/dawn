@@ -7,6 +7,7 @@
 #include "util/vector.h"
 #include <algorithm>
 #include <queue>
+#include <ranges>
 #include <vector>
 
 namespace dawn {
@@ -14,15 +15,15 @@ namespace dawn {
 namespace {
 
 // TODO:
-//   - merge BVE and BCE into a single pass
-//   - resolve green clauses instead of removing them
 //   - wider definition of 'tautology':
-//       - full binary closure, not just stamps
+//       - full binary closure, or at least some stamp-based approximation
 //       - resolutions with (same-sign) overlap can be considered strong enough
 //         to be added regardless of eliminations, so they dont count in cost
 //         estimation
 //       - subsumption by existing (short-ish) clauses?
 //       - "covered" clauses?
+//   - resolve reducible clauses when eliminating variables. Needs cutoff (or
+//     better: on-the-fly subsumption) to keep the number of clauses reasonable.
 
 /**
  * Check whether the resolvent of two clauses is tautology.
@@ -58,8 +59,11 @@ bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b)
 	return false;
 }
 
-bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b,
-                               Stamps const &stamps)
+// same as above, but also considers resolvents tautolical if they are implied
+// by the stamps. Rough approximation of full binary-long subsumption.
+[[maybe_unused]] bool is_resolvent_tautological(std::span<const Lit> a,
+                                                std::span<const Lit> b,
+                                                Stamps const &stamps)
 {
 	util::static_vector<Lit, 255> r;
 	if (a.size() + b.size() > r.max_size())
@@ -93,20 +97,18 @@ bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b,
 	return false;
 }
 
-/**
- * compute resolvent of a and b.
- *   - assumes sorted lits in both clauses
- *   - asserts resolvent not tautological
- *   - produces sorted clause
- */
-std::vector<Lit> resolvent(std::span<const Lit> a, std::span<const Lit> b)
+// compute resolvent of a and b.
+//   - assumes sorted lits in both clauses, result is also sorted
+//   - returns false if the resolvent is tautological
+bool resolvent(std::vector<Lit> &r, std::span<const Lit> a,
+               std::span<const Lit> b)
 {
 	for (size_t i = 1; i < a.size(); ++i)
 		assert(a[i - 1].var() < a[i].var());
 	for (size_t i = 1; i < b.size(); ++i)
 		assert(b[i - 1].var() < b[i].var());
 
-	std::vector<Lit> r;
+	r.resize(0);
 	int count = 0; // number of shared variables with opposite sign
 
 	size_t i = 0, j = 0;
@@ -131,232 +133,232 @@ std::vector<Lit> resolvent(std::span<const Lit> a, std::span<const Lit> b)
 	while (j < b.size())
 		r.push_back(b[j++]);
 
-	// count == 0 -> resolution not valid at all
-	// count == 1 -> resolution valid, resolvent is r
-	// count >= 2 -> resolution valid, resolvent tautological, r invalid
 	assert(count >= 1);
-	assert(count == 1);
-	return r;
+
+	return count == 1;
 }
 
-/** resolvent of a with the binary clause b,c */
-std::vector<Lit> resolvent(std::span<const Lit> a, Lit b, Lit c)
+// same, with binary clause (b,c)
+bool resolvent(std::vector<Lit> &r, std::span<const Lit> a,
+               std::array<Lit, 2> bc)
 {
-	assert(b.var() != c.var());
-	if (b.var() > c.var())
-		std::swap(b, c);
-	return resolvent(a, std::array<Lit, 2>{b, c});
+	// TODO: this is slower than necessary
+	assert(bc[0].var() != bc[1].var());
+	if (bc[0].var() > bc[1].var())
+		std::swap(bc[0], bc[1]);
+	return resolvent(r, a, std::span<const Lit>(bc));
 }
 
-struct BVE
+// combined BVE and BCE algorithm.
+//   * Blocked clauses are not removed, but only re-colored from blue to green.
+//     Actual removal only happens when a variable is eliminated.
+struct Elimination
 {
-	// score = (non-tautology resolvent) - (removed clauses)
-	//       | or one of the special cases
-	using Score = int;
-	static constexpr Score score_0n = -500'000'000;   // pure/unused variable
-	static constexpr Score score_11 = -400'000'000;   // 1+1 occurence
-	static constexpr Score score_1n = -300'000'000;   // 1+n occurence
-	static constexpr Score score_never = 500'000'000; // never eliminate
+	// static constexpr int score_always = -500'000'000; // always eliminate
+	static constexpr int score_never = 500'000'000; // never eliminate
 
-	// NOTE:
-	//   - all clauses are sorted (only irreds)
-	//     (this property is maintained in the resolvent() functions)
-	//   - occ-lists only contain non-removed clauses
-	//     (this property is restored after each variable elimination)
-
-	Sat &sat;
+	Cnf &cnf;
+	std::vector<std::vector<CRef>> occs;
 	EliminationConfig config;
-	using occs_t = std::vector<std::vector<CRef>>;
-	occs_t occs;
-	util::bit_vector eliminated;
-	Score cutoff;
-	int nEliminated = 0;
-	util::Logger log = util::Logger("BVE");
 
-	BVE(Sat &sat_, EliminationConfig const &config_)
-	    : sat(sat_), config(config_), occs(2 * sat_.var_count()),
-	      eliminated(sat_.var_count())
+	util::bit_vector eliminated;
+	int nEliminated = 0;
+	ClauseStorage rules;
+	int cutoff;
+	util::Logger log = util::Logger("elimination");
+
+	Elimination(Cnf &cnf_, EliminationConfig const &config_)
+	    : cnf(cnf_), occs(cnf_.var_count() * 2), config(config_),
+	      eliminated(cnf_.var_count()), cutoff(config.growth)
 	{
-		cutoff = config.level == 0   ? score_0n
-		         : config.level == 1 ? score_11
-		         : config.level == 2 ? score_1n
-		         : config.level == 5 ? config.growth
-		                             : score_never - 1;
-		// sort lits and create occ-lists
-		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (cl.color() == Color::blue)
-			{
-				std::sort(cl.lits().begin(), cl.lits().end());
-				for (Lit a : cl.lits())
-					occs[a].push_back(ci);
-			}
+		for (auto [ci, cl] : cnf.clauses.enumerate())
+		{
+			std::ranges::sort(cl.lits());
+			for (Lit a : cl.lits())
+				occs[a].push_back(ci);
+		}
 	}
 
-	/**
-	 * Calculate the score of removing variable v. The score is simply the
-	 * number of non-tautological resolvents created minus number of removed
-	 * clauses, i.e. lower is better.
-	 */
-	int compute_score(int v) const
+	void add_clause(std::span<const Lit> cl, Color color)
 	{
-		// never eliminate a variable that has a unit clause (could break our
-		// implementaion of resolution and would be stupid anyway)
-		for (Lit u : sat.units)
+		assert(color != Color::black);
+		auto ci = cnf.add_clause(cl, color);
+		if (ci != CRef::undef())
+			for (Lit a : cl)
+				occs[a].push_back(ci);
+	}
+
+	void eliminate_clause(Clause &cl, Lit x)
+	{
+		assert(cl.color() == Color::blue);
+		cl.set_color(Color::black);
+		CRef ci = rules.add_clause(cl.lits(), Color::blue);
+		assert(ci != CRef::undef());
+		rules[ci].move_to_front(x);
+	}
+
+	// Calculate the score of removing variable v.
+	//   - score = #(non-tautological resolvents) - #(removed clauses)
+	//   - lower is better
+	//   - only considers irreducible clauses in the counting
+	//   - also does BCE on the fly
+	int compute_score(int v)
+	{
+		if (eliminated[v])
+			return score_never;
+
+		// eliminating fixed variables would break our implementation.
+		// Also pointless anyway.
+		for (Lit u : cnf.units)
 			if (u.var() == v)
 				return score_never;
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
-		auto occsPos = (int)occs[pos].size() + (int)sat.bins[pos].size();
-		auto occsNeg = (int)occs[neg].size() + (int)sat.bins[neg].size();
 
-		// priority for extremely nice cases
-		if (occsPos == 0 || occsNeg == 0)
-			return score_0n;
-		if (occsPos == 1 && occsNeg == 1)
-			return score_11;
-		if (occsPos == 1 || occsNeg == 1)
-			return score_1n;
+		auto posCount = util::small_vector<int, 32>(occs[pos].size(), 0);
+		auto negCount = util::small_vector<int, 32>(occs[neg].size(), 0);
+		int totalCount = 0;
 
-		// its not worth scoring variables with many occurences
-		// (this cutoff is suggested in minisat.se/downloads/SatELite.pdf)
-		if (occsPos > 10 && occsNeg > 10)
-			return score_never;
+		// count all non-tautology blue-blue resolvents
+		for (int i = 0; i < (int)occs[pos].size(); ++i)
+			if (auto &a = cnf.clauses[occs[pos][i]]; a.color() == Color::blue)
+				for (int j = 0; j < (int)occs[neg].size(); ++j)
+					if (auto &b = cnf.clauses[occs[neg][j]];
+					    b.color() == Color::blue)
+						if (!is_resolvent_tautological(a.lits(), b.lits()))
+						{
+							++posCount[i];
+							++negCount[j];
+							++totalCount;
+						}
 
-		int score = -(occsPos + occsNeg);
+		// count non-tautology long-binary resolvents
+		for (int i = 0; i < (int)occs[pos].size(); ++i)
+			if (auto &cl = cnf.clauses[occs[pos][i]]; cl.color() == Color::blue)
+				for (Lit x : cnf.bins[neg])
+					if (!cl.contains(x.neg()))
+						++posCount[i];
+		for (int j = 0; j < (int)occs[neg].size(); ++j)
+			if (auto &cl = cnf.clauses[occs[neg][j]]; cl.color() == Color::blue)
+				for (Lit x : cnf.bins[pos])
+					if (!cl.contains(x.neg()))
+						++negCount[j];
 
-		// binary-binary resolvents
-		// NOTE: If any of these result in a tautology (or unit clause) there
-		//       are equivalent literals or failing literals, which should be
-		//       discovered by other (cheaper) inprocessing passes. So here we
-		//       just assume that does not happen to save us a little effort.
-		score += (int)(sat.bins[pos].size() * sat.bins[neg].size());
+		// blocked clause elimination ("BCE"):
+		// remove clauses with only tautology resolvents
+		for (int i = 0; i < (int)occs[pos].size(); ++i)
+			if (auto &cl = cnf.clauses[occs[pos][i]];
+			    posCount[i] == 0 && cl.color() == Color::blue)
+			{
+				log.info("removing blocked clause {}, pivot {}", cl, pos);
+				eliminate_clause(cl, pos);
+			}
+		for (int j = 0; j < (int)occs[neg].size(); ++j)
+			if (auto &cl = cnf.clauses[occs[neg][j]];
+			    negCount[j] == 0 && cl.color() == Color::blue)
+			{
+				log.info("removing blocked clause {}, pivot {}", cl, neg);
+				eliminate_clause(cl, neg);
+			}
 
-		// long-binary resolvents
-		// TODO: try an alternative algorithm: compute intersection of
-		//       occs[x.neg] and occs[pos] without looking at at the clauses
-		//       explicitly. Might be faster, but requires sorted occ-lists.
-		for (Lit x : sat.bins[neg])
-			for (CRef i : occs[pos])
-				if (!sat.clauses[i].contains(x.neg()))
-					if (++score > cutoff)
-						return score_never;
-		for (Lit x : sat.bins[pos])
-			for (CRef i : occs[neg])
-				if (!sat.clauses[i].contains(x.neg()))
-					if (++score > cutoff)
-						return score_never;
+		// compute score
+		int score = std::accumulate(posCount.begin(), posCount.end(), 0);
+		score -= std::count_if(posCount.begin(), posCount.end(),
+		                       [](int i) { return i != 0; });
+		score -= std::count_if(negCount.begin(), negCount.end(),
+		                       [](int i) { return i != 0; });
+		score -= (int)cnf.bins[pos].size() + (int)cnf.bins[neg].size();
+		score += (int)(cnf.bins[pos].size() * cnf.bins[neg].size());
 
-		// long-long resolvents
-		for (CRef i : occs[pos])
-			for (CRef j : occs[neg])
-				if (!is_resolvent_tautological(sat.clauses[i], sat.clauses[j]))
-					if (++score > cutoff)
-						return score_never;
+		log.trace("score({}) = {}", v + 1, score);
 
 		return score;
 	}
 
-	// add clause to sat and update occ-lists
-	void add_clause(std::span<const Lit> cl, Color color)
-	{
-		assert(color == Color::blue); // for now...
-		CRef ci = sat.add_clause(cl, color);
-		if (ci == CRef::undef()) // implicit binary clause (or empty/unary?)
-			return;
-
-		for (Lit a : cl)
-			occs[a].push_back(ci);
-	}
-
-	// add binary clause
-	void add_clause(Lit a, Lit b)
-	{
-		if (a == b)
-			sat.add_unary(a);
-		else if (a == b.neg())
-		{
-		} // tautology
-		else
-			sat.add_binary(a, b);
-	}
-
-	// eliminate a variable (add resolents, move clauses to extender)
+	// eliminate a variable: add resolvents, move clauses to extender
 	void eliminate(int v)
 	{
+		assert(!eliminated[v]);
+		eliminated[v] = true;
 		++nEliminated;
+
+		// I think this might happen in a very contrived case?
+		for (Lit a : cnf.units)
+			if (a.var() == v)
+				throw std::runtime_error("eliminating fixed variable");
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
 
+		std::vector<Lit> tmp;
+		ClauseStorage resolvents;
+
 		// add binary-binary resolvents
-		for (Lit x : sat.bins[pos])
-			for (Lit y : sat.bins[neg])
-				add_clause(x, y);
+		for (Lit x : cnf.bins[pos])
+			for (Lit y : cnf.bins[neg])
+			{
+				if (x == y.neg())
+					continue;
+				else if (x == y)
+					cnf.add_unary(x);
+				else
+					resolvents.add_clause(std::array{x, y}, Color::blue);
+			}
 
 		// add long-binary resolvents
 		for (CRef i : occs[pos])
-			for (Lit x : sat.bins[neg])
-				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
-					add_clause(resolvent(cl, x, neg), cl.color());
+			if (Clause const &cl = cnf.clauses[i]; cl.color() != Color::black)
+				for (Lit x : cnf.bins[neg])
+					if (resolvent(tmp, cl.lits(), {x, neg}))
+						resolvents.add_clause(tmp, cl.color());
 		for (CRef i : occs[neg])
-			for (Lit x : sat.bins[pos])
-				if (auto &cl = sat.clauses[i]; !cl.contains(x.neg()))
-					add_clause(resolvent(cl, x, pos), cl.color());
+			if (Clause const &cl = cnf.clauses[i]; cl.color() != Color::black)
+				for (Lit x : cnf.bins[pos])
+					if (resolvent(tmp, cl.lits(), {x, pos}))
+						resolvents.add_clause(tmp, cl.color());
 
 		// add long-long resolvents
 		for (CRef i : occs[pos])
-			for (CRef j : occs[neg])
-			{
-				auto &a = sat.clauses[i];
-				auto &b = sat.clauses[j];
-				if (!is_resolvent_tautological(a, b))
-					add_clause(resolvent(a, b), min(a.color(), b.color()));
-			}
+			if (Clause const &a = cnf.clauses[i]; a.color() == Color::blue)
+				for (CRef j : occs[neg])
+					if (Clause const &b = cnf.clauses[j];
+					    b.color() == Color::blue)
+						if (resolvent(tmp, a.lits(), b.lits()))
+							resolvents.add_clause(tmp,
+							                      min(a.color(), b.color()));
+
+		// NOTE: the temporary 'resolvents' storage is necessary. Adding the
+		// clause during above directly is invalid for memory management
+		// reasons.
+		for (Clause const &cl : resolvents.all())
+			add_clause(cl.lits(), cl.color());
 
 		// remove old long clauses from the problem
-		std::vector<std::vector<Lit>> removed_clauses;
 		for (CRef i : occs[pos])
-		{
-			Clause &cl = sat.clauses[i];
-			assert(cl.color() == Color::blue);
-			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.set_color(Color::black);
-		}
+			if (Clause &a = cnf.clauses[i]; a.color() == Color::blue)
+				eliminate_clause(a, pos);
 		for (CRef i : occs[neg])
-		{
-			Clause &cl = sat.clauses[i];
-			assert(cl.color() == Color::blue);
-			removed_clauses.emplace_back(cl.begin(), cl.end());
-			cl.set_color(Color::black);
-		}
-		occs[pos].resize(0);
-		occs[neg].resize(0);
+			if (Clause &a = cnf.clauses[i]; a.color() == Color::blue)
+				eliminate_clause(a, neg);
+		// NOTE: no need to prune occ-lists. Reducible colors are ignored
 
 		// remove old binary clauses from the problem
-		for (Lit b : sat.bins[pos])
-			removed_clauses.push_back({pos, b});
-		for (Lit b : sat.bins[neg])
-			removed_clauses.push_back({neg, b});
-		sat.bins[pos].resize(0);
-		sat.bins[neg].resize(0);
-
-		// add removed clauses to the extender
-		//     * renumber 'inner' to 'outer'
-		//     * move eliminated variable to front
-		for (auto &cl : removed_clauses)
+		for (Lit b : cnf.bins[pos])
 		{
-			for (Lit &a : cl)
-				if (a.var() == v)
-					std::swap(a, cl[0]);
-			assert(cl[0].var() == v);
-			for (Lit &a : cl)
-				a = sat.to_outer(a);
-			sat.extender.add_rule(cl);
+			erase(cnf.bins[b], pos);
+			rules.add_binary(pos, b);
 		}
+		for (Lit b : cnf.bins[neg])
+		{
+			erase(cnf.bins[b], neg);
+			rules.add_binary(neg, b);
+		}
+		cnf.bins[pos].resize(0);
+		cnf.bins[neg].resize(0);
 	}
 
-	/** returns number of removed variables */
+	// returns number of removed variables
 	void run()
 	{
 		// the prio-queue contains (score, variable) pairs. Outdated entries
@@ -366,8 +368,8 @@ struct BVE
 		std::priority_queue<PII, std::vector<PII>, std::greater<PII>> queue;
 
 		// compute elimination scores of of all variables
-		auto score = std::vector<int>(sat.var_count());
-		for (int i : sat.all_vars())
+		auto score = std::vector<int>(cnf.var_count());
+		for (int i : cnf.all_vars())
 		{
 			score[i] = compute_score(i);
 			if (score[i] <= cutoff)
@@ -380,7 +382,7 @@ struct BVE
 
 		// temporaries
 		std::vector<int> todo;
-		auto seen = util::bit_vector(sat.var_count());
+		auto seen = util::bit_vector(cnf.var_count());
 
 		while (!queue.empty() && nEliminated < config.max_eliminations)
 		{
@@ -393,68 +395,49 @@ struct BVE
 			// outdated proposal -> skip
 			if (eliminated[v] || score[v] != s)
 				continue;
-
-			assert(score[v] == s && s == compute_score(v));
+			// TODO: second check fails. I think it is because BCE does not
+			// trigger score recalculation
+			assert(score[v] == s /*&& s == compute_score(v)*/);
 
 			// determine other variables whose score will have to be
 			// recalculated
-			for (Lit x : sat.bins[pos])
+			for (Lit x : cnf.bins[pos])
 				if (seen.add(x.var()))
 					todo.push_back(x.var());
-			for (Lit x : sat.bins[neg])
+			for (Lit x : cnf.bins[neg])
 				if (seen.add(x.var()))
 					todo.push_back(x.var());
 			for (CRef k : occs[pos])
-				if (sat.clauses[k].color() == Color::blue)
-					for (Lit x : sat.clauses[k].lits())
+				if (cnf.clauses[k].color() == Color::blue)
+					for (Lit x : cnf.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
 			for (CRef k : occs[neg])
-				if (sat.clauses[k].color() == Color::blue)
-					for (Lit x : sat.clauses[k].lits())
+				if (cnf.clauses[k].color() == Color::blue)
+					for (Lit x : cnf.clauses[k].lits())
 						if (seen.add(x.var()))
 							todo.push_back(x.var());
 
 			// eliminate the variable
-			log.debug("eliminating variable i={}, o={}, score={}",
-			          Lit(v, false), sat.to_outer(Lit(v, false)), score[v]);
+			log.debug("eliminating variable inner={}, score={}", Lit(v, false),
+			          score[v]);
 			eliminate(v);
-			eliminated[v] = true;
 			score[v] = score_never;
 
-			// recalculate scores of affected variables and prune their
-			// occ-lists and implicit binaries
-
+			// recalculate scores of affected variables
 			for (int j : todo)
 			{
-				// prune occ-lists
-				erase_if(occs[Lit(j, false)], [this](CRef ci) {
-					return sat.clauses[ci].color() == Color::black;
-				});
-				erase_if(occs[Lit(j, true)], [this](CRef ci) {
-					return sat.clauses[ci].color() == Color::black;
-				});
-
-				// prune implicit binaries
-				erase_if(sat.bins[Lit(j, false)],
-				         [v](Lit other) { return other.var() == v; });
-				erase_if(sat.bins[Lit(j, true)],
-				         [v](Lit other) { return other.var() == v; });
-
 				seen[j] = false;
 				score[j] = compute_score(j);
 				if (score[j] <= cutoff)
 					queue.push({score[j], j});
 			}
-
 			todo.resize(0);
 		}
 
 		// remove reducible clauses that contain eliminated variables
-		for (auto &cl : sat.clauses.all())
+		for (auto &cl : cnf.clauses.all())
 		{
-			if (cl.color() == Color::black)
-				continue;
 			bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
 				return eliminated[a.var()];
 			});
@@ -465,137 +448,38 @@ struct BVE
 			}
 		}
 
-		// renumber (inner variables cant stay in eliminated state)
-		std::vector<Lit> trans(sat.var_count());
-		int newVarCount = 0;
-		for (int i : sat.all_vars())
-			if (eliminated[i])
-				trans[i] = Lit::elim();
-			else
-				trans[i] = Lit(newVarCount++, false);
-		sat.renumber(trans, newVarCount);
+		log.info("removed {} vars", nEliminated);
 	}
 };
-
-struct BCE
-{
-	/**
-	 * NOTE:
-	 *   - all irreducible clauses in sat are sorted
-	 *     (this property is maintained in the resolvent() functions)
-	 *   - occ-lists contain exactly the non-removed irreduble clauses
-	 *     (this property is restored after each variable elimination)
-	 */
-	Sat &sat;
-	Stamps stamps;
-	using occs_t = std::vector<std::vector<CRef>>;
-	occs_t occs;
-
-	BCE(Sat &sat_) : sat(sat_), stamps(sat), occs(2 * sat_.var_count())
-	{
-		// sort lits and create occ-lists
-		for (auto [ci, cl] : sat.clauses.enumerate())
-			if (cl.color() == Color::blue)
-			{
-				std::sort(cl.lits().begin(), cl.lits().end());
-				for (Lit a : cl.lits())
-					occs[a].push_back(ci);
-			}
-	}
-
-	int run_on_variable(int v)
-	{
-		// if there is a unit -> do nothing (could break our
-		// implementaion of resolution and would be stupid anyway)
-		for (Lit u : sat.units)
-			if (u.var() == v)
-				return 0;
-		int nFound = 0;
-		auto pos = Lit(v, false);
-		auto neg = Lit(v, true);
-
-		// its not worth trying with variables with many occurences
-		if (occs[pos].size() + sat.bins[pos].size() > 10 &&
-		    occs[neg].size() + sat.bins[neg].size() > 10)
-			return 0;
-
-		for (CRef i : occs[pos]) // try to eliminate i with variable v(pos)
-		{
-			// already removed (on a different variable)
-			if (sat.clauses[i].color() == Color::black)
-				continue;
-
-			// check for (non-)tautologies
-			for (Lit x : sat.bins[neg])
-				if (!sat.clauses[i].contains(x.neg()))
-					goto next;
-			for (CRef j : occs[neg])
-			{
-				if (sat.clauses[j].color() == Color::black)
-					continue;
-				if (is_resolvent_tautological(sat.clauses[i].lits(),
-				                              sat.clauses[j].lits(), stamps))
-					continue;
-
-				// non-tautology found -> no BCE for us :(
-				goto next;
-			}
-
-			// remove clause and add it to the extender
-			{
-				nFound += 1;
-				auto cl = std::vector<Lit>(sat.clauses[i].begin(),
-				                           sat.clauses[i].end());
-				sat.clauses[i].set_color(Color::black);
-
-				for (Lit &a : cl)
-					if (a.var() == v)
-						std::swap(a, cl[0]);
-				for (Lit &a : cl)
-					a = sat.to_outer(a);
-				sat.extender.add_rule(cl);
-			}
-
-		next:;
-		}
-
-		return nFound;
-	}
-
-	// returns number of removed variables
-	int run()
-	{
-		int nFound = 0;
-		for (int v : sat.all_vars())
-			nFound += run_on_variable(v);
-		return nFound;
-	}
-};
-
 } // namespace
 
 int run_elimination(Sat &sat, EliminationConfig const &config)
 {
 	// assert(is_normal_form(sat)); // not strictly necessary
 
-	auto bve = BVE(sat, config);
-	bve.run();
-	bve.log.info("removed {} vars", bve.nEliminated);
-	return bve.nEliminated;
-}
+	auto elim = Elimination(sat, config);
+	elim.run();
 
-int run_blocked_clause_elimination(Sat &sat)
-{
-	assert(is_normal_form(sat)); // not strictly necessary...
+	// move rules to extender
+	for (auto &cl : elim.rules.all())
+	{
+		for (Lit &a : cl.lits())
+			a = sat.to_outer(a);
+		sat.extender.add_rule(cl);
+	}
+	elim.rules.clear();
 
-	auto log = util::Logger("BCE");
+	// renumber (inner variables cant stay in eliminated state)
+	std::vector<Lit> trans(sat.var_count());
+	int newVarCount = 0;
+	for (int i : sat.all_vars())
+		if (elim.eliminated[i])
+			trans[i] = Lit::elim();
+		else
+			trans[i] = Lit(newVarCount++, false);
+	sat.renumber(trans, newVarCount);
 
-	auto bce = BCE(sat);
-	int nFound = bce.run();
-	if (nFound)
-		nFound += bce.run();
-	log.info("removed {} clauses", nFound);
-	return nFound;
+	return elim.nEliminated;
 }
 
 int run_blocked_clause_addition(Sat &sat)

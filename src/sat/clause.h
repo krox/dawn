@@ -240,9 +240,21 @@ class Clause
 	void normalize()
 	{
 		if (int s = normalize_clause(lits()); s == -1)
-			color_ = (uint32_t)Color::black;
+			set_color(Color::black);
 		else
-			size_ = (uint16_t)s;
+			set_size(s);
+	}
+
+	// move literal 'a' to the front. asserts that 'a' is in the clause
+	void move_to_front(Lit a)
+	{
+		for (Lit &b : lits())
+			if (b == a)
+			{
+				std::swap(lits()[0], b);
+				return;
+			}
+		assert(false);
 	}
 
 	// pointer to next clause, assuming dense storage in 'ClauseStorage'

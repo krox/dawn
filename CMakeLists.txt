@@ -6,7 +6,7 @@ include(cmake/CPM.cmake)
 CPMAddPackage(
 	NAME util
 	GITHUB_REPOSITORY krox/util
-	GIT_TAG e2a4122fc803dbb74200b782c97a64c2ca481a60
+	GIT_TAG 6d2ce16c91695ca0a0a7c19577dc824d7fe52b30
 )
 
 CPMAddPackage(
