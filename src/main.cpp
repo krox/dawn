@@ -18,6 +18,7 @@ void setup_solve_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);
 void setup_gen_hard_command(CLI::App &app);
+void setup_gen_circuit_command(CLI::App &app);
 void setup_sha256_command(CLI::App &app);
 void setup_stats_command(CLI::App &app);
 void setup_ui_command(CLI::App &app);
@@ -45,6 +46,10 @@ int main(int argc, char *argv[])
 	            "by (but less sophisticated than) the 'sgen' generator(s) by "
 	            "Ivor Spence");
 	setup_gen_hard_command(*cmd_hard);
+	auto cmd_circuit =
+	    cmd->add_subcommand("circuit", "generate a CNF instance from a random, "
+	                                   "layered circuit with fixed output");
+	setup_gen_circuit_command(*cmd_circuit);
 	cmd = app.add_subcommand("stats", "print statistics about a CNF formula");
 	setup_stats_command(*cmd);
 	cmd = app.add_subcommand("ui", "start the UI for interactive solving");
