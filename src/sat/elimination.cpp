@@ -162,7 +162,7 @@ struct Elimination
 	EliminationConfig config;
 
 	util::bit_vector eliminated;
-	int nEliminated = 0;
+	int nEliminated = 0, nBCE = 0;
 	ClauseStorage rules;
 	int cutoff;
 	util::Logger log = util::Logger("elimination");
@@ -251,14 +251,16 @@ struct Elimination
 			if (auto &cl = cnf.clauses[occs[pos][i]];
 			    posCount[i] == 0 && cl.color() == Color::blue)
 			{
-				log.info("removing blocked clause {}, pivot {}", cl, pos);
+				nBCE++;
+				log.debug("removing blocked clause {}, pivot {}", cl, pos);
 				eliminate_clause(cl, pos);
 			}
 		for (int j = 0; j < (int)occs[neg].size(); ++j)
 			if (auto &cl = cnf.clauses[occs[neg][j]];
 			    negCount[j] == 0 && cl.color() == Color::blue)
 			{
-				log.info("removing blocked clause {}, pivot {}", cl, neg);
+				nBCE++;
+				log.debug("removing blocked clause {}, pivot {}", cl, neg);
 				eliminate_clause(cl, neg);
 			}
 
@@ -448,7 +450,8 @@ struct Elimination
 			}
 		}
 
-		log.info("removed {} vars", nEliminated);
+		log.info("removed {} vars and found {} blocked clauses", nEliminated,
+		         nBCE);
 	}
 };
 } // namespace
