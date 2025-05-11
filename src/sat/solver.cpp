@@ -14,6 +14,26 @@
 
 namespace dawn {
 
+void print_stats(Cnf const &cnf)
+{
+	util::IntHistogram blue, red;
+	blue.add(0, cnf.contradiction ? 1 : 0);
+	blue.add(1, cnf.unary_count());
+	blue.add(2, cnf.binary_count());
+	for (auto &cl : cnf.clauses.all())
+		if (cl.color() == Color::blue)
+			blue.add(cl.size());
+		else
+			red.add(cl.size());
+	auto log = util::Logger("stats");
+	log.info("nvars = {}", cnf.var_count());
+	for (int k = 0; k <= std::max(blue.max(), red.max()); ++k)
+		if (blue.bin(k) || red.bin(k))
+			log.info("nclauses[{:3}] = {:5} + {:5}", k, blue.bin(k),
+			         red.bin(k));
+	log.info("nclauses[all] = {:5} + {:5}", blue.count(), red.count());
+}
+
 // run the full inprocessing
 void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 {
@@ -53,21 +73,32 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 
 void preprocess(Sat &sat)
 {
-	// cheap search/strengthening
-	cleanup(sat);
-	run_subsumption(sat);
-	cleanup(sat);
-
 	// elimination and subsumption influence each other quite a bit. SatELite
 	// alternatates them until fixed point. Cryptominisat seems to do multiple
 	// passes with increasing max-growth. For now, we just copy that strategy...
-	for (int growth : {0, 8, 16})
-	{
-		run_elimination(sat, {.growth = growth});
-		cleanup(sat);
-		run_subsumption(sat);
-		cleanup(sat);
-	}
+
+	cleanup(sat);
+	run_subsumption(sat);
+	cleanup(sat);
+	print_stats(sat);
+
+	run_elimination(sat, {.growth = 0, .max_resolvents = 10'000});
+	cleanup(sat);
+	run_subsumption(sat);
+	cleanup(sat);
+	print_stats(sat);
+
+	run_elimination(sat, {.growth = 8, .max_resolvents = 10'000});
+	cleanup(sat);
+	run_subsumption(sat);
+	cleanup(sat);
+	print_stats(sat);
+
+	run_elimination(sat, {.growth = 16, .max_resolvents = 10'000});
+	cleanup(sat);
+	run_subsumption(sat);
+	cleanup(sat);
+	print_stats(sat);
 }
 
 int solve(Sat &sat, Assignment &sol, SolverConfig const &config,

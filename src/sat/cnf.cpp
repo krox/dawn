@@ -119,6 +119,11 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 				Lit c = trans[a.var()] ^ a.sign();
 				Lit d = trans[b.var()] ^ b.sign();
 
+				if (c == Lit::elim() || c == Lit::undef() || d == Lit::elim() ||
+				    d == Lit::undef())
+					throw std::runtime_error(
+					    "invalid renumbering: elim/undef in binary clause");
+
 				// (true, x), (x, -x) -> tautology
 				if (c == Lit::one() || d == Lit::one() || c == d.neg())
 					continue;

@@ -142,8 +142,8 @@ void cleanup(Sat &sat)
 	}
 	run_binary_reduction(sat);
 	sat.clauses.prune_black();
-	log.info("now at {} vars, {} bins, {} irred, {} learnt", sat.var_count(),
-	         sat.binary_count(), sat.long_count_irred(), sat.long_count_red());
+	log.debug("now at {} vars, {} bins, {} irred, {} learnt", sat.var_count(),
+	          sat.binary_count(), sat.long_count_irred(), sat.long_count_red());
 }
 
 bool is_normal_form(Cnf const &cnf)

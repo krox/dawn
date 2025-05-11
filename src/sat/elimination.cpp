@@ -3,6 +3,7 @@
 #include "fmt/format.h"
 #include "sat/binary.h"
 #include "sat/propengine.h"
+#include "sat/subsumption.h"
 #include "util/bit_vector.h"
 #include "util/vector.h"
 #include <algorithm>
@@ -158,44 +159,100 @@ struct Elimination
 	static constexpr int score_never = 500'000'000; // never eliminate
 
 	Cnf &cnf;
-	std::vector<std::vector<CRef>> occs;
+	std::vector<std::vector<CRef>> occs;    // all occurrences
+	std::vector<std::vector<CRef>> watches; // one watch per clause
 	EliminationConfig config;
 
 	util::bit_vector eliminated;
-	int nEliminated = 0, nBCE = 0;
+	int64_t nEliminated = 0, nBCE = 0, nResolvents;
 	ClauseStorage rules;
 	int cutoff;
 	util::Logger log = util::Logger("elimination");
 
 	Elimination(Cnf &cnf_, EliminationConfig const &config_)
-	    : cnf(cnf_), occs(cnf_.var_count() * 2), config(config_),
-	      eliminated(cnf_.var_count()), cutoff(config.growth)
+	    : cnf(cnf_), occs(cnf_.var_count() * 2), watches(cnf_.var_count() * 2),
+	      config(config_), eliminated(cnf_.var_count()), cutoff(config.growth)
 	{
 		for (auto [ci, cl] : cnf.clauses.enumerate())
 		{
+			assert(cl.size() != 0);
+			assert(cl.color() != Color::black);
+
 			std::ranges::sort(cl.lits());
 			for (Lit a : cl.lits())
 				occs[a].push_back(ci);
+			watches[cl[0]].push_back(ci);
 		}
 	}
 
-	void add_clause(std::span<const Lit> cl, Color color)
+	// assumes sorted lits
+	static bool is_subset(std::span<const Lit> a, std::span<const Lit> b)
 	{
-		assert(color != Color::black);
-		auto ci = cnf.add_clause(cl, color);
-		if (ci != CRef::undef())
-			for (Lit a : cl)
-				occs[a].push_back(ci);
+		size_t i = 0, j = 0;
+		while (i < a.size() && j < b.size())
+		{
+			if (a[i] < b[j])
+				return false;
+			else if (a[i] > b[j])
+				++j;
+			else
+			{
+				++i;
+				++j;
+			}
+		}
+		return i == a.size();
 	}
 
-	void eliminate_clause(Clause &cl, Lit x)
+	// returns true if the clause was actually added. False if it was
+	// rejected via subsumption.
+	bool add_clause(std::span<const Lit> cl, Color color)
 	{
-		assert(cl.color() == Color::blue);
-		cl.set_color(Color::black);
-		CRef ci = rules.add_clause(cl.lits(), Color::blue);
+		assert(color != Color::black);
+
+		// forward subsumption check
+		for (Lit a : cl)
+			for (CRef i : watches[a])
+				if (auto &cl2 = cnf.clauses[i]; cl2.color() != Color::black)
+					if (is_subset(cl2.lits(), cl))
+					{
+						cl2.set_color(max(cl2.color(), color));
+						return false;
+					}
+
+		// TODO: binary subsumption, SSR, (some?) backwards subsumption
+
+		// hard cutoff for very long reducible clauses
+		// if (color != Color::blue && cl.size() > 12)
+		//     return false;
+
+		// actually add the clause
+		auto ci = cnf.add_clause(cl, color);
+		if (ci != CRef::undef())
+		{
+			for (Lit a : cl)
+				occs[a].push_back(ci);
+			watches[cl[0]].push_back(ci);
+		}
+		return true;
+	}
+
+	void add_rule(std::span<const Lit> cl, Lit x)
+	{
+		CRef ci = rules.add_clause(cl, Color::blue);
 		assert(ci != CRef::undef());
 		rules[ci].move_to_front(x);
 	}
+
+	// return true if 'cl' is subsumed by something in the occ lists
+	// (requires sorted lits)
+	/*bool is_subsumed(Clause &cl)
+	{
+	    for (Lit a : cl)
+	        for (CRef i : watches[a])
+	            if (Clause &cl2 = cnf.clauses[i]; cl2.color() != Color::black)
+	                try_subsume(cl2, cl);
+	}*/
 
 	// Calculate the score of removing variable v.
 	//   - score = #(non-tautological resolvents) - #(removed clauses)
@@ -215,6 +272,8 @@ struct Elimination
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
+		auto blocked_color =
+		    config.discard_blocked ? Color::black : Color::green;
 
 		auto posCount = util::small_vector<int, 32>(occs[pos].size(), 0);
 		auto negCount = util::small_vector<int, 32>(occs[neg].size(), 0);
@@ -253,7 +312,8 @@ struct Elimination
 			{
 				nBCE++;
 				log.debug("removing blocked clause {}, pivot {}", cl, pos);
-				eliminate_clause(cl, pos);
+				add_rule(cl, pos);
+				cl.set_color(blocked_color);
 			}
 		for (int j = 0; j < (int)occs[neg].size(); ++j)
 			if (auto &cl = cnf.clauses[occs[neg][j]];
@@ -261,7 +321,8 @@ struct Elimination
 			{
 				nBCE++;
 				log.debug("removing blocked clause {}, pivot {}", cl, neg);
-				eliminate_clause(cl, neg);
+				add_rule(cl, neg);
+				cl.set_color(blocked_color);
 			}
 
 		// compute score
@@ -292,6 +353,12 @@ struct Elimination
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
+		Color resolve_color =
+		    config.resolve_reducible ? Color::red : Color::blue;
+
+		log.debug("eliminating variable {} ({}+{} bins, {}+{} occs)", pos,
+		          cnf.bins[pos].size(), cnf.bins[neg].size(), occs[pos].size(),
+		          occs[neg].size());
 
 		std::vector<Lit> tmp;
 		ClauseStorage resolvents;
@@ -310,40 +377,41 @@ struct Elimination
 
 		// add long-binary resolvents
 		for (CRef i : occs[pos])
-			if (Clause const &cl = cnf.clauses[i]; cl.color() != Color::black)
+			if (Clause const &cl = cnf.clauses[i]; cl.color() >= resolve_color)
 				for (Lit x : cnf.bins[neg])
 					if (resolvent(tmp, cl.lits(), {x, neg}))
 						resolvents.add_clause(tmp, cl.color());
 		for (CRef i : occs[neg])
-			if (Clause const &cl = cnf.clauses[i]; cl.color() != Color::black)
+			if (Clause const &cl = cnf.clauses[i]; cl.color() >= resolve_color)
 				for (Lit x : cnf.bins[pos])
 					if (resolvent(tmp, cl.lits(), {x, pos}))
 						resolvents.add_clause(tmp, cl.color());
 
 		// add long-long resolvents
 		for (CRef i : occs[pos])
-			if (Clause const &a = cnf.clauses[i]; a.color() == Color::blue)
+			if (Clause const &a = cnf.clauses[i]; a.color() >= resolve_color)
 				for (CRef j : occs[neg])
 					if (Clause const &b = cnf.clauses[j];
-					    b.color() == Color::blue)
+					    b.color() >= resolve_color)
 						if (resolvent(tmp, a.lits(), b.lits()))
 							resolvents.add_clause(tmp,
 							                      min(a.color(), b.color()));
 
-		// NOTE: the temporary 'resolvents' storage is necessary. Adding the
-		// clause during above directly is invalid for memory management
-		// reasons.
-		for (Clause const &cl : resolvents.all())
-			add_clause(cl.lits(), cl.color());
-
 		// remove old long clauses from the problem
 		for (CRef i : occs[pos])
-			if (Clause &a = cnf.clauses[i]; a.color() == Color::blue)
-				eliminate_clause(a, pos);
+		{
+			Clause &a = cnf.clauses[i];
+			if (a.color() == Color::blue)
+				add_rule(a, pos);
+			a.set_color(Color::black);
+		}
 		for (CRef i : occs[neg])
-			if (Clause &a = cnf.clauses[i]; a.color() == Color::blue)
-				eliminate_clause(a, neg);
-		// NOTE: no need to prune occ-lists. Reducible colors are ignored
+		{
+			Clause &a = cnf.clauses[i];
+			if (a.color() == Color::blue)
+				add_rule(a, neg);
+			a.set_color(Color::black);
+		}
 
 		// remove old binary clauses from the problem
 		for (Lit b : cnf.bins[pos])
@@ -358,6 +426,19 @@ struct Elimination
 		}
 		cnf.bins[pos].resize(0);
 		cnf.bins[neg].resize(0);
+
+		// NOTE: Only start adding resolvents after all old clauses are removed.
+		// Simplest way to keep the subsumption-logic in add_clause consistent.
+		int64_t resolvent_count = 0;
+		for (Clause const &cl : resolvents.all())
+		{
+			if (add_clause(cl.lits(), cl.color()))
+				++resolvent_count;
+		}
+		nResolvents += resolvent_count;
+
+		log.debug("eliminated variable {}, adding {} resolvents", pos,
+		          resolvent_count);
 	}
 
 	// returns number of removed variables
@@ -386,72 +467,78 @@ struct Elimination
 		std::vector<int> todo;
 		auto seen = util::bit_vector(cnf.var_count());
 
-		while (!queue.empty() && nEliminated < config.max_eliminations)
+		while (!queue.empty() && nEliminated < config.max_eliminations &&
+		       nResolvents < config.max_resolvents)
 		{
-			auto [s, v] = queue.top();
-			auto pos = Lit(v, false);
-			auto neg = Lit(v, true);
-			queue.pop();
-			assert(s <= cutoff);
-
-			// outdated proposal -> skip
-			if (eliminated[v] || score[v] != s)
-				continue;
-			// TODO: second check fails. I think it is because BCE does not
-			// trigger score recalculation
-			assert(score[v] == s /*&& s == compute_score(v)*/);
-
-			// determine other variables whose score will have to be
-			// recalculated
-			for (Lit x : cnf.bins[pos])
-				if (seen.add(x.var()))
-					todo.push_back(x.var());
-			for (Lit x : cnf.bins[neg])
-				if (seen.add(x.var()))
-					todo.push_back(x.var());
-			for (CRef k : occs[pos])
-				if (cnf.clauses[k].color() == Color::blue)
-					for (Lit x : cnf.clauses[k].lits())
-						if (seen.add(x.var()))
-							todo.push_back(x.var());
-			for (CRef k : occs[neg])
-				if (cnf.clauses[k].color() == Color::blue)
-					for (Lit x : cnf.clauses[k].lits())
-						if (seen.add(x.var()))
-							todo.push_back(x.var());
-
-			// eliminate the variable
-			log.debug("eliminating variable inner={}, score={}", Lit(v, false),
-			          score[v]);
-			eliminate(v);
-			score[v] = score_never;
-
-			// recalculate scores of affected variables
-			for (int j : todo)
+			// get the next variable to eliminate
+			if (queue.size() > 1)
+				cutoff = queue.top().first;
+			else
+				cutoff = score_never;
 			{
-				seen[j] = false;
-				score[j] = compute_score(j);
-				if (score[j] <= cutoff)
-					queue.push({score[j], j});
-			}
-			todo.resize(0);
-		}
+				auto [s, v] = queue.top();
+				auto pos = Lit(v, false);
+				auto neg = Lit(v, true);
+				queue.pop();
+				assert(s <= cutoff);
 
-		// remove reducible clauses that contain eliminated variables
-		for (auto &cl : cnf.clauses.all())
-		{
-			bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
-				return eliminated[a.var()];
-			});
-			if (elim)
+				// outdated proposal -> skip
+				if (eliminated[v] || score[v] != s)
+					continue;
+				// TODO: second check fails. I think it is because BCE does not
+				// trigger score recalculation
+				assert(score[v] == s /*&& s == compute_score(v)*/);
+
+				// determine other variables whose score will have to be
+				// recalculated
+				for (Lit x : cnf.bins[pos])
+					if (seen.add(x.var()))
+						todo.push_back(x.var());
+				for (Lit x : cnf.bins[neg])
+					if (seen.add(x.var()))
+						todo.push_back(x.var());
+				for (CRef k : occs[pos])
+					if (cnf.clauses[k].color() == Color::blue)
+						for (Lit x : cnf.clauses[k].lits())
+							if (seen.add(x.var()))
+								todo.push_back(x.var());
+				for (CRef k : occs[neg])
+					if (cnf.clauses[k].color() == Color::blue)
+						for (Lit x : cnf.clauses[k].lits())
+							if (seen.add(x.var()))
+								todo.push_back(x.var());
+
+				// eliminate the variable
+				eliminate(v);
+				score[v] = score_never;
+
+				// recalculate scores of affected variables
+				for (int j : todo)
+				{
+					seen[j] = false;
+					score[j] = compute_score(j);
+					if (score[j] <= cutoff)
+						queue.push({score[j], j});
+				}
+				todo.resize(0);
+			}
+
+			// remove reducible clauses that contain eliminated variables
+			for (auto &cl : cnf.clauses.all())
 			{
-				assert(cl.color() != Color::blue);
-				cl.set_color(Color::black);
+				bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
+					return eliminated[a.var()];
+				});
+				if (elim)
+				{
+					assert(cl.color() != Color::blue);
+					cl.set_color(Color::black);
+				}
 			}
 		}
-
-		log.info("removed {} vars and found {} blocked clauses", nEliminated,
-		         nBCE);
+		log.info(
+		    "found {} blocked clauses, removed {} vars and added {} resolvents",
+		    nBCE, nEliminated, nResolvents);
 	}
 };
 } // namespace
