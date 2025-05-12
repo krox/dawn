@@ -194,6 +194,9 @@ inline void Cnf::add_clause_safe(std::span<const Lit> lits)
 	}
 }
 
+// simple statistics (clause-size histograms and such)
+void print_stats(Cnf const &cnf);
+
 } // namespace dawn
 
 template <> struct fmt::formatter<dawn::Cnf>

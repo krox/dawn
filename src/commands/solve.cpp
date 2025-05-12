@@ -189,25 +189,6 @@ void setup_solve_command(CLI::App &app)
 	app.add_flag("--watch-stats", opt->watch_stats,
 	             "print watchlist statistics after solving")
 	    ->group(g);
-	app.add_flag_function(
-	       "--silent",
-	       [](int64_t) {
-		       util::Logger::set_level(util::Logger::Level::warning);
-	       },
-	       "remove most logging")
-	    ->group(g);
-	app.add_option("--debug", "increase verbosity of some component")
-	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
-	    ->each([](std::string s) {
-		    util::Logger::set_level(s, util::Logger::Level::debug);
-	    })
-	    ->group(g);
-	app.add_option("--trace", "increase verbosity of some component even more")
-	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
-	    ->each([](std::string s) {
-		    util::Logger::set_level(s, util::Logger::Level::trace);
-	    })
-	    ->group(g);
 	app.add_flag("--plot", opt->config.plot,
 	             "live plotting of learning (requires gnuplot, somewhat "
 	             "experimental)")

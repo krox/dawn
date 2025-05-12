@@ -15,6 +15,7 @@
 using namespace dawn;
 
 void setup_solve_command(CLI::App &app);
+void setup_simplify_command(CLI::App &app);
 void setup_check_command(CLI::App &app);
 void setup_gen_command(CLI::App &app);
 void setup_gen_hard_command(CLI::App &app);
@@ -29,8 +30,32 @@ int main(int argc, char *argv[])
 	CLI::App app{"sat solver"};
 	app.require_subcommand(1);
 
+	auto g = "Verbosity";
+
+	app.add_flag_function(
+	       "--silent",
+	       [](int64_t) {
+		       util::Logger::set_level(util::Logger::Level::warning);
+	       },
+	       "remove most logging")
+	    ->group(g);
+	app.add_option("--debug", "increase verbosity of some component")
+	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
+	    ->each([](std::string s) {
+		    util::Logger::set_level(s, util::Logger::Level::debug);
+	    })
+	    ->group(g);
+	app.add_option("--trace", "increase verbosity of some component even more")
+	    ->multi_option_policy(CLI::MultiOptionPolicy::TakeAll)
+	    ->each([](std::string s) {
+		    util::Logger::set_level(s, util::Logger::Level::trace);
+	    })
+	    ->group(g);
+
 	auto cmd = app.add_subcommand("solve", "solve a CNF formula");
 	setup_solve_command(*cmd);
+	cmd = app.add_subcommand("simplify", "simplify a CNF formula");
+	setup_simplify_command(*cmd);
 	cmd = app.add_subcommand("check", "check a solution to a CNF formula");
 	setup_check_command(*cmd);
 	cmd = app.add_subcommand("gen", "generate a CNF instance");

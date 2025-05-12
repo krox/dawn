@@ -33,6 +33,7 @@ set(files_cpp
 	src/commands/gen_hard.cpp
 	src/commands/gen_circuit.cpp
 	src/commands/sha256.cpp
+	src/commands/simplify.cpp
 	src/commands/solve.cpp
 	src/commands/stats.cpp
 	src/commands/test.cpp

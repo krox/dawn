@@ -164,7 +164,7 @@ struct Elimination
 	EliminationConfig config;
 
 	util::bit_vector eliminated;
-	int64_t nEliminated = 0, nBCE = 0, nResolvents;
+	int64_t nEliminated = 0, nBCE = 0, nResolvents = 0;
 	ClauseStorage rules;
 	int cutoff;
 	util::Logger log = util::Logger("elimination");

@@ -1,6 +1,7 @@
 #include "sat/cnf.h"
 
 #include "fmt/format.h"
+#include "util/logging.h"
 #include "util/stats.h"
 #include <algorithm>
 #include <cassert>
@@ -233,4 +234,25 @@ util::IntHistogram Cnf::clause_histogram() const
 		r.add(cl.size());
 	return r;
 }
+
+void print_stats(Cnf const &cnf)
+{
+	util::IntHistogram blue, red;
+	blue.add(0, cnf.contradiction ? 1 : 0);
+	blue.add(1, cnf.unary_count());
+	blue.add(2, cnf.binary_count());
+	for (auto &cl : cnf.clauses.all())
+		if (cl.color() == Color::blue)
+			blue.add(cl.size());
+		else
+			red.add(cl.size());
+	auto log = util::Logger("stats");
+	log.info("nvars = {}", cnf.var_count());
+	for (int k = 0; k <= std::max(blue.max(), red.max()); ++k)
+		if (blue.bin(k) || red.bin(k))
+			log.info("nclauses[{:3}] = {:5} + {:5}", k, blue.bin(k),
+			         red.bin(k));
+	log.info("nclauses[all] = {:5} + {:5}", blue.count(), red.count());
+}
+
 } // namespace dawn
