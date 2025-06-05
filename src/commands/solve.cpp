@@ -23,6 +23,7 @@ namespace {
 struct Options
 {
 	std::string cnfFile, solFile;
+	std::string binary_solution_file;
 	bool shuffle = false;
 	int64_t seed = 0;
 	int timeout = 0;
@@ -95,6 +96,26 @@ void run_solve_command(Options opt)
 				assert(false);
 		}
 
+		// print to binary file
+		if (opt.binary_solution_file != "")
+		{
+			// write
+			auto buf = util::bit_vector(sol.var_count());
+			for (int i = 0; i < sol.var_count(); ++i)
+				buf[i] = sol.satisfied(Lit(i, false));
+
+			// write buf to file
+
+			std::ofstream f(opt.binary_solution_file, std::ios::binary);
+			if (!f)
+				throw std::runtime_error(
+				    "Could not open binary solution file: " +
+				    opt.binary_solution_file);
+
+			f.write((const char *)buf.data(), (buf.size() + 7) / 8);
+			f.close();
+		}
+
 		break;
 	}
 
@@ -112,6 +133,9 @@ void setup_solve_command(CLI::App &app)
 	app.add_option("input", opt->cnfFile, "input CNF in dimacs format")
 	    ->type_name("<filename>");
 	app.add_option("output", opt->solFile, "output solution in dimacs format")
+	    ->type_name("<filename>");
+	app.add_option("--binary-solution", opt->binary_solution_file,
+	               "output solution as plain binary file")
 	    ->type_name("<filename>");
 
 	// general options
