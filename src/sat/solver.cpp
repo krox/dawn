@@ -115,14 +115,17 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 		sconfig.restart_type = config.restart_type;
 		sconfig.restart_base = config.restart_base;
 		sconfig.restart_mult = config.restart_mult;
+		util::Stopwatch sw;
+		sw.start();
 		auto result = Searcher(sat, sconfig).run_epoch(10'000, stoken);
+		sw.stop();
 
 		log.info("learnt {} green clauses out of {} conflicts ({:.2f} "
 		         "kconfls/s, {:.2f} "
 		         "kprops/s)",
 		         result.learnts.count(), result.stats.nConfls(),
-		         result.stats.nConfls() / log.secs() / 1000,
-		         result.stats.nProps() / log.secs() / 1000);
+		         result.stats.nConfls() / sw.secs() / 1000,
+		         result.stats.nProps() / sw.secs() / 1000);
 
 		propStats += result.stats;
 		for (auto const &cl : result.learnts.all())
@@ -167,6 +170,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 			}
 
 			inprocess(sat, config, stoken);
+			print_stats(sat);
 		}
 	}
 }
