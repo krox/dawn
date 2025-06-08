@@ -189,6 +189,8 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 	std::vector<Lit> buf;
 	ClauseStorage new_clauses;
 	int nTernStrengthened = 0;
+	int nHitsOld = 0, nHitsNew = 0;
+	int nOld = 0, nNew = 0;
 
 	// shortening binaries is essentially probing, which is done elsewhere.
 	// but strengthening binaries along other binaries is kinda cool and we do
@@ -213,19 +215,43 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 		if (stoken.stop_requested())
 			break;
 
+		// TODO: rate limit vivification. As can be seen by the "old" vs "new"
+		// statistics, vivifying fresh learnt clauses is quite effective, but
+		// trying old ones again rarely results in anything.
+
+		if (cl.has_flag(Flag::vivified))
+			nOld += 1;
+		else
+			nNew += 1;
 		buf.assign(cl.begin(), cl.end());
 		if (viv.vivify_clause(buf, config.with_binary))
 		{
 			assert(buf.size() <= cl.size());
 			new_clauses.add_clause(buf, cl.color());
 			cl.set_color(Color::black);
+			if (cl.has_flag(Flag::vivified))
+				nHitsOld += 1;
+			else
+				nHitsNew += 1;
 		}
+		// TODO: get rid of the "size >= 4" condition. Tern-Strengthening
+		// terneries would be great. Just be careful to not strengthen a clause
+		// with itself.
 		else if (config.with_ternary && buf.size() >= 4 &&
 		         viv.vivify_clause_ternary(buf))
 		{
 			nTernStrengthened += 1;
 			new_clauses.add_clause(buf, cl.color());
 			cl.set_color(Color::black);
+			if (cl.has_flag(Flag::vivified))
+				nHitsOld += 1;
+			else
+				nHitsNew += 1;
+		}
+		else
+		{
+			// nothing changed, 'cl' counts as "fully vivified"
+			cl.set_flag(Flag::vivified);
 		}
 	}
 
@@ -241,6 +267,9 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 
 	log.info("removed {} lits, and bin-replaced {}, tern-replaced {}",
 	         viv.shortened, viv.strengthened, nTernStrengthened);
+	log.info("processed {} old clauses ({:.2f}%% hit rate) and {} new clauses "
+	         "({:.2f}%% hit rate)",
+	         nOld, 100. * nHitsOld / nOld, nNew, 100. * nHitsNew / nNew);
 
 	return viv.shortened + viv.strengthened;
 }

@@ -117,6 +117,11 @@ enum class Color : uint8_t
 inline Color min(Color a, Color b) { return a < b ? a : b; }
 inline Color max(Color a, Color b) { return a > b ? a : b; }
 
+enum class Flag : uint8_t
+{
+	vivified = 1, // clause was fully vivified at some point
+};
+
 class Clause
 {
 	// 4 byte header. Might be extended in the future.
@@ -125,7 +130,7 @@ class Clause
 	uint32_t size_ : 10;
 	uint32_t capacity_ : 10;
 	uint32_t color_ : 4;
-	uint32_t reserved_ : 8; // glue, activity, etc.
+	uint32_t flags_ : 8;
 
 	// array of Lits
 	// Lit _lits[]; // not valid C++
@@ -138,7 +143,7 @@ class Clause
 
 	explicit Clause(size_t size, Color color)
 	    : size_((uint32_t)size), capacity_((uint32_t)size),
-	      color_(uint32_t(color)), reserved_(0)
+	      color_(uint32_t(color)), flags_(0)
 	{
 		assert(size <= max_size());
 	}
@@ -176,6 +181,10 @@ class Clause
 	}
 
 	void set_color(Color c) { color_ = (uint32_t)c; }
+
+	void set_flag(Flag f) { flags_ |= (uint8_t)f; }
+	void clear_flag(Flag f) { flags_ &= ~(uint8_t)f; }
+	bool has_flag(Flag f) const { return (flags_ & (uint8_t)f) != 0; }
 
 	// remove a literal from this clause. returns false if not found
 	bool remove_literal(Lit a)
