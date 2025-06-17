@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 #include "util/bit_vector.h"
 #include "util/vector.h"
 #include <vector>
@@ -58,7 +58,7 @@ struct Stamps
 // Find and replace equivalent variables.
 //    - Very fast (linear in problem size)
 //    - Returns number of equivalences found (sat is unchanged if zero)
-int run_scc(Sat &);
+int run_scc(Cnf &);
 
 // remove redundant binary clauses
 void run_binary_reduction(Cnf &);

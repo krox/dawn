@@ -1,8 +1,8 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
 #include "sat/register.h"
-#include "sat/sat.h"
 #include "sat/solver.h"
 using namespace dawn;
 
@@ -174,7 +174,7 @@ struct Options
 
 void run_sha256_command(const Options &opt)
 {
-	Sat sat;
+	Cnf sat;
 
 	assert(opt.input_bits % 32 == 0);
 	std::vector<Register<32>> data;

@@ -1,6 +1,6 @@
 #include "CLI/CLI.hpp"
 #include "sat/assignment.h"
-#include "sat/sat.h"
+#include "sat/cnf.h"
 #include <string>
 
 using namespace dawn;

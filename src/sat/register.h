@@ -2,22 +2,22 @@
 
 // helper functions to create sat instances from binary integer expressions
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 
 namespace dawn {
 
 template <int N> struct Register
 {
 	std::array<Lit, N> lits_;
-	Sat &sat_;
+	Cnf &sat_;
 
-	Register(Sat &sat, uint32_t value = 0) : sat_(sat)
+	Register(Cnf &sat, uint32_t value = 0) : sat_(sat)
 	{
 		for (int i = 0; i < N; ++i)
 			lits_[i] = Lit::fixed(!((value >> i) & 1));
 	}
 
-	static Register unknown(Sat &sat)
+	static Register unknown(Cnf &sat)
 	{
 		auto r = Register(sat);
 		for (int i = 0; i < N; ++i)
@@ -34,7 +34,7 @@ template <int N> struct Register
 	}
 };
 
-Lit make_and(Sat &sat, Lit a, Lit b)
+Lit make_and(Cnf &sat, Lit a, Lit b)
 {
 	if (a == Lit::zero() || b == Lit::zero())
 		return Lit::zero();
@@ -48,12 +48,12 @@ Lit make_and(Sat &sat, Lit a, Lit b)
 	return r;
 }
 
-Lit make_or(Sat &sat, Lit a, Lit b)
+Lit make_or(Cnf &sat, Lit a, Lit b)
 {
 	return make_and(sat, a.neg(), b.neg()).neg();
 }
 
-Lit make_xor(Sat &sat, Lit a, Lit b)
+Lit make_xor(Cnf &sat, Lit a, Lit b)
 {
 	if (a.fixed())
 		return b ^ !a.sign();
@@ -65,7 +65,7 @@ Lit make_xor(Sat &sat, Lit a, Lit b)
 	return r;
 }
 
-Lit make_xor(Sat &sat, Lit a, Lit b, Lit c)
+Lit make_xor(Cnf &sat, Lit a, Lit b, Lit c)
 {
 	if (a.fixed())
 		return make_xor(sat, b, c) ^ !a.sign();
@@ -79,7 +79,7 @@ Lit make_xor(Sat &sat, Lit a, Lit b, Lit c)
 	return r;
 }
 
-Lit make_maj(Sat &sat, Lit a, Lit b, Lit c)
+Lit make_maj(Cnf &sat, Lit a, Lit b, Lit c)
 {
 	if (a == Lit::zero())
 		return make_and(sat, b, c);
@@ -99,7 +99,7 @@ Lit make_maj(Sat &sat, Lit a, Lit b, Lit c)
 	return r;
 }
 
-Lit make_choose(Sat &sat, Lit a, Lit b, Lit c)
+Lit make_choose(Cnf &sat, Lit a, Lit b, Lit c)
 {
 	if (a == Lit::one())
 		return b;

@@ -11,7 +11,7 @@ namespace dawn {
 namespace {
 
 /** does NOT clear 'seen' */
-int markImplied(Sat const &sat, util::bit_vector &seen, Lit root)
+int markImplied(Cnf const &sat, util::bit_vector &seen, Lit root)
 {
 	assert((int)seen.size() == sat.var_count() * 2);
 	if (seen[root])
@@ -39,7 +39,7 @@ int markImplied(Sat const &sat, util::bit_vector &seen, Lit root)
 
 } // namespace
 
-int makeDisjunctions(Sat &sat)
+int makeDisjunctions(Cnf &sat)
 {
 	auto log = util::Logger("BVA");
 
@@ -147,7 +147,7 @@ int makeDisjunctions(Sat &sat)
 	return nFound;
 }
 
-void substituteDisjunctions(Sat &sat)
+void substituteDisjunctions(Cnf &sat)
 {
 	// build occ lists (per lit)
 	auto occs = std::vector<std::vector<CRef>>(sat.var_count() * 2);

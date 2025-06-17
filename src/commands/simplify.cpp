@@ -1,8 +1,8 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
 #include "sat/elimination.h"
-#include "sat/sat.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
 
@@ -18,7 +18,7 @@ struct Options
 void run_simplify_command(Options opt)
 {
 	auto [clauses, varCount] = parseCnf(opt.input);
-	Sat sat = Sat(varCount, std::move(clauses));
+	auto sat = Cnf(varCount, std::move(clauses));
 
 	print_stats(sat);
 

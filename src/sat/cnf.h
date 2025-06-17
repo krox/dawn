@@ -1,7 +1,11 @@
 #pragma once
 
 #include "sat/clause.h"
+#include "sat/reconstruction.h"
+#include "sat/stats.h"
+#include "util/bit_vector.h"
 #include "util/iterator.h"
+#include "util/logging.h"
 #include "util/stats.h"
 #include "util/vector.h"
 #include <cassert>
@@ -15,7 +19,11 @@ namespace dawn {
 //   - does not contain watches or occurence lists or anything advanced
 class Cnf
 {
+	Reconstruction recon_;
+
   public:
+	util::xoshiro256 rng;
+
 	bool contradiction = false;
 	std::vector<Lit> units;
 	using bins_t = std::vector<util::small_vector<Lit, 7>>;
@@ -34,6 +42,14 @@ class Cnf
 	int add_var();
 	int var_count() const;
 
+	// ranges for convenient iteration
+	auto all_vars() const { return util::iota_view(0, var_count()); }
+	auto all_lits() const
+	{
+		return util::transform(util::iota_view(0, 2 * var_count()),
+		                       [](int i) { return Lit(i); });
+	}
+
 	// add clause (no checking of tautologies and such)
 	void add_empty();
 	void add_unary(Lit a);
@@ -42,16 +58,17 @@ class Cnf
 	CRef add_long(std::span<const Lit> lits, Color color);
 	CRef add_clause(std::span<const Lit> lits, Color color);
 
+	// add clause (normalizes clause)
+	void add_clause_safe(std::span<const Lit> lits);
+	void add_clause_safe(std::string_view lits);
+
+	// add gates (normalizes clauses)
 	void add_and_clause_safe(Lit a, Lit b, Lit c);           // a = b & c
 	void add_or_clause_safe(Lit a, Lit b, Lit c);            // a = b | c
 	void add_xor_clause_safe(Lit a, Lit b, Lit c);           // a = b ^ c
 	void add_xor_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b ^ c ^ d
 	void add_maj_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b+c+d >= 2
 	void add_choose_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b ? c : d
-
-	// add clause (normalizes clause)
-	void add_clause_safe(std::span<const Lit> lits);
-	void add_clause_safe(std::string_view lits);
 
 	// number of clauses
 	size_t unary_count() const;
@@ -63,13 +80,10 @@ class Cnf
 	size_t lit_count_irred() const;
 	util::IntHistogram clause_histogram() const;
 
-	// ranges for convenient iteration
-	auto all_vars() const { return util::iota_view(0, var_count()); }
-	auto all_lits() const
-	{
-		return util::transform(util::iota_view(0, 2 * var_count()),
-		                       [](int i) { return Lit(i); });
-	}
+	// solution reconstruction for non-equivalent transformations
+	void add_rule(std::span<const Lit> cl);
+	void add_rule(std::span<const Lit> cl, Lit pivot);
+	Assignment reconstruct_solution(Assignment const &a) const;
 
 	// renumber variables allowing for fixed and equivalent vars
 	//     - invalidates all CRefs
@@ -77,33 +91,8 @@ class Cnf
 	//     - if trans[v] is Lit::elim(), v may not appear in any clause
 	void renumber(std::span<const Lit> trans, int newVarCount);
 
-	// sort clauses and literals in clauses. Invalidates all CRefs, just
-	// intended for nicer human-readable output
-	void sort_clauses();
-
 	size_t memory_usage() const;
 };
-
-inline Cnf::Cnf(int n, ClauseStorage clauses_)
-    : bins(2 * n), clauses(std::move(clauses_))
-{
-	for (auto &cl : clauses.all())
-	{
-		cl.normalize();
-		if (cl.color() == Color::black || cl.size() >= 3)
-			continue;
-		if (cl.size() == 0)
-			add_empty();
-		else if (cl.size() == 1)
-			add_unary(cl[0]);
-		else if (cl.size() == 2)
-			add_binary(cl[0], cl[1]);
-		else
-			assert(false);
-		cl.set_color(Color::black);
-	}
-	clauses.prune_black();
-}
 
 inline int Cnf::var_count() const { return (int)bins.size() / 2; }
 
@@ -178,21 +167,27 @@ inline CRef Cnf::add_clause(std::span<const Lit> lits, Color color)
 	return CRef::undef();
 }
 
-inline void Cnf::add_clause_safe(std::span<const Lit> lits)
-{
-	util::small_vector<Lit, 16> buf;
-	for (auto a : lits)
-	{
-		assert(a.proper() || a.fixed());
-		buf.push_back(a);
-	}
-	int s = normalize_clause({buf.begin(), buf.end()});
-	if (s != -1)
-	{
-		buf.resize(s);
-		add_clause({buf.begin(), buf.end()}, Color::blue);
-	}
-}
+// cheap simplifications that should probably be run before and after any more
+// serious searches
+//   * runs until fixed point:
+//       * unit propagation
+//       * equivalent literal substitution
+//       * failed literal probing
+//       * hyper binary resolution
+//       * transitive binary reduction
+//       * compactify clause storage
+//   * TODO:
+//       * pure literal elimination
+//       * disconnected components?
+void cleanup(Cnf &);
+
+// check that
+//     * no contradiction
+//     * no unit clauses
+//     * no equivalent variables
+bool is_normal_form(Cnf const &);
+
+void shuffleVariables(Cnf &d);
 
 // simple statistics (clause-size histograms and such)
 void print_stats(Cnf const &cnf);

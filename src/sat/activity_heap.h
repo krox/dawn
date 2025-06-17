@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 
 namespace dawn {
 

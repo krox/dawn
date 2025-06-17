@@ -1,6 +1,12 @@
 #include "sat/cnf.h"
 
+// TODO: move the 'cleanup' function somewhere else. Having it here creates
+// (weak) cycles in the modules (cnf.cpp -> probing.h -> cnf.h)
+
 #include "fmt/format.h"
+#include "sat/binary.h"
+#include "sat/probing.h"
+#include "sat/propengine.h"
 #include "util/logging.h"
 #include "util/stats.h"
 #include <algorithm>
@@ -9,6 +15,54 @@
 #include <sstream>
 
 namespace dawn {
+
+Cnf::Cnf(int n, ClauseStorage clauses_)
+    : recon_(n), bins(2 * n), clauses(std::move(clauses_))
+{
+	for (auto &cl : clauses.all())
+	{
+		cl.normalize();
+		if (cl.color() == Color::black || cl.size() >= 3)
+			continue;
+		if (cl.size() == 0)
+			add_empty();
+		else if (cl.size() == 1)
+			add_unary(cl[0]);
+		else if (cl.size() == 2)
+			add_binary(cl[0], cl[1]);
+		else
+			assert(false);
+		cl.set_color(Color::black);
+	}
+	clauses.prune_black();
+}
+
+void Cnf::add_clause_safe(std::span<const Lit> lits)
+{
+	util::small_vector<Lit, 16> buf;
+	for (auto a : lits)
+	{
+		assert(a.proper() || a.fixed());
+		buf.push_back(a);
+	}
+	int s = normalize_clause({buf.begin(), buf.end()});
+	if (s != -1)
+	{
+		buf.resize(s);
+		add_clause({buf.begin(), buf.end()}, Color::blue);
+	}
+}
+
+void Cnf::add_clause_safe(std::string_view cl)
+{
+	std::vector<Lit> lits;
+	std::istringstream iss{std::string{cl}};
+	for (auto it = std::istream_iterator<std::string>(iss),
+	          end = std::istream_iterator<std::string>();
+	     it != end; ++it)
+		lits.push_back(Lit::fromDimacs(std::stoi(*it)));
+	add_clause_safe(lits);
+}
 
 void Cnf::add_and_clause_safe(Lit a, Lit b, Lit c)
 {
@@ -64,17 +118,6 @@ void Cnf::add_choose_clause_safe(Lit a, Lit b, Lit c, Lit d)
 	add_clause_safe({{a.neg(), c, d}});
 }
 
-void Cnf::add_clause_safe(std::string_view cl)
-{
-	std::vector<Lit> lits;
-	std::istringstream iss{std::string{cl}};
-	for (auto it = std::istream_iterator<std::string>(iss),
-	          end = std::istream_iterator<std::string>();
-	     it != end; ++it)
-		lits.push_back(Lit::fromDimacs(std::stoi(*it)));
-	add_clause_safe(lits);
-}
-
 void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 {
 	// check input
@@ -82,6 +125,8 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 	for (Lit l : trans)
 		assert(l.fixed() || l == Lit::elim() ||
 		       (l.proper() && l.var() < newVarCount));
+
+	recon_.renumber(trans, newVarCount);
 
 	// renumber units
 	{
@@ -170,6 +215,97 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 	clauses.prune_black();
 }
 
+namespace {
+
+int runUnitPropagation(Cnf &sat)
+{
+	// early out if no units
+	if (!sat.contradiction && sat.units.empty())
+		return 0;
+
+	// the PropEngine constructor already does all the UP we want
+	auto p = PropEngineLight(sat);
+
+	// conflict -> add empty clause and remove everything else
+	if (p.conflict)
+	{
+		sat.add_empty();
+		sat.units.resize(0);
+		for (int i = 0; i < sat.var_count() * 2; ++i)
+			sat.bins[i].resize(0);
+		sat.clauses.clear();
+		int n = sat.var_count();
+		sat.renumber(std::vector<Lit>(n, Lit::elim()), 0);
+		return n;
+	}
+
+	assert(p.trail().size() != 0);
+
+	auto trans = std::vector<Lit>(sat.var_count(), Lit::undef());
+	for (Lit u : p.trail())
+	{
+		assert(trans[u.var()] != Lit::fixed(u.sign()).neg());
+		trans[u.var()] = Lit::fixed(u.sign());
+	}
+	int newVarCount = 0;
+	for (int i : sat.all_vars())
+	{
+		if (trans[i] == Lit::undef())
+			trans[i] = Lit(newVarCount++, false);
+	}
+
+	// NOTE: this renumber() changes sat and thus invalidates p
+	sat.renumber(trans, newVarCount);
+	assert(sat.units.empty());
+
+	return (int)p.trail().size();
+}
+} // namespace
+
+void cleanup(Cnf &sat)
+{
+	auto log = util::Logger("cleanup");
+
+	// NOTE: Theoretically, this loop could become quadratic. But in practice,
+	// I never saw more than a few iterations, so we dont bother capping it.
+	while (true)
+	{
+		runUnitPropagation(sat);
+		if (run_scc(sat))
+			continue;
+		if (run_probing(sat))
+			continue;
+		break;
+	}
+	run_binary_reduction(sat);
+	sat.clauses.prune_black();
+	log.debug("now at {} vars, {} bins, {} irred, {} learnt", sat.var_count(),
+	          sat.binary_count(), sat.long_count_irred(), sat.long_count_red());
+}
+
+bool is_normal_form(Cnf const &cnf)
+{
+	if (cnf.contradiction && cnf.var_count() != 0)
+		return false;
+	if (!cnf.units.empty())
+		return false;
+	if (auto top = TopOrder(cnf); !top.valid)
+		return false;
+	return true;
+}
+
+void shuffleVariables(Cnf &sat)
+{
+	auto trans = std::vector<Lit>(sat.var_count());
+	for (int i : sat.all_vars())
+	{
+		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.rng));
+		int j = std::uniform_int_distribution<int>(0, i)(sat.rng);
+		std::swap(trans[i], trans[j]);
+	}
+	sat.renumber(trans, sat.var_count());
+}
+
 size_t Cnf::memory_usage() const
 {
 	size_t r = 0;
@@ -253,6 +389,16 @@ void print_stats(Cnf const &cnf)
 			log.info("nclauses[{:3}] = {:5} + {:5}", k, blue.bin(k),
 			         red.bin(k));
 	log.info("nclauses[all] = {:5} + {:5}", blue.count(), red.count());
+}
+
+void Cnf::add_rule(std::span<const Lit> cl) { recon_.add_rule(cl); }
+void Cnf::add_rule(std::span<const Lit> cl, Lit pivot)
+{
+	recon_.add_rule(cl, pivot);
+}
+Assignment Cnf::reconstruct_solution(Assignment const &a) const
+{
+	return recon_(a);
 }
 
 } // namespace dawn

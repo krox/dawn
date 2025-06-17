@@ -1,7 +1,7 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 #include "sat/searcher.h"
 #include "sat/solver.h"
 #include "sat/subsumption.h"
@@ -73,7 +73,7 @@ void run_ui_command(Options opt)
 	});
 
 	auto [originalClauses, varCount] = parseCnf(opt.cnfFile);
-	Sat sat = Sat(varCount, originalClauses); // clauses are copied here!
+	auto sat = Cnf(varCount, originalClauses); // clauses are copied here!
 
 	SolverConfig config;
 	config.max_learnt = 1000;

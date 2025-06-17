@@ -1,7 +1,7 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 
 using namespace dawn;
 
@@ -15,7 +15,7 @@ struct Options
 void run_stats_command(Options opt)
 {
 	auto [clauses, varCount] = parseCnf(opt.input);
-	Sat sat = Sat(varCount, std::move(clauses)); // clauses are copied here!
+	auto sat = Cnf(varCount, std::move(clauses)); // clauses are copied here!
 
 	// print statistics about sat
 	fmt::print("nvars  = {:>8}\n", sat.var_count());

@@ -153,7 +153,7 @@ class Tarjan
 
 } // namespace
 
-int run_scc(Sat &sat)
+int run_scc(Cnf &sat)
 {
 	if (sat.contradiction || sat.bins.empty())
 		return 0;

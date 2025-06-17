@@ -1,7 +1,7 @@
 #include "catch2/catch_test_macros.hpp"
 
+#include "sat/cnf.h"
 #include "sat/elimination.h"
-#include "sat/sat.h"
 
 #include "fmt/format.h"
 #include "fmt/ostream.h"
@@ -9,7 +9,7 @@
 using namespace dawn;
 
 TEST_CASE("parser and clause normalization") {
-  Sat sat(5);
+  Cnf sat(5);
   sat.add_clause_safe("1 -1");
   sat.add_clause_safe("1 2 3");
   sat.add_clause_safe("1 1 1 2 3");
@@ -24,7 +24,7 @@ TEST_CASE("parser and clause normalization") {
 }
 
 TEST_CASE("bounded variable elimination", "[BVE]") {
-  Sat sat(5);
+  Cnf sat(5);
   sat.add_clause_safe("1 2 3");
   sat.add_clause_safe("1 2 -3");
   sat.add_clause_safe("1 2");

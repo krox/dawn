@@ -50,7 +50,6 @@ set(files_cpp
 	src/sat/propengine.cpp
 	src/sat/reconstruction.cpp
 	src/sat/redshift.cpp
-	src/sat/sat.cpp
 	src/sat/searcher.cpp
 	src/sat/solver.cpp
 	src/sat/stats.cpp

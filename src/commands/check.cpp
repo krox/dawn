@@ -1,7 +1,7 @@
 #include "CLI/CLI.hpp"
 #include "fmt/format.h"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 #include "sat/solver.h"
 
 using namespace dawn;

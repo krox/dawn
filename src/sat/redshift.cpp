@@ -16,13 +16,13 @@ class Redshift
 
   public:
 	util::Logger log = util::Logger("redshift");
-	Sat &sat;
+	Cnf &sat;
 	PropEngineLight p;
 	std::vector<std::vector<CRef>> occs;
 
 	int64_t nBC = 0, nRUP = 0, nRAT = 0;
 
-	Redshift(Sat &sat_) : sat(sat_), p(sat, false), occs(sat.var_count() * 2)
+	Redshift(Cnf &sat_) : sat(sat_), p(sat, false), occs(sat.var_count() * 2)
 	{
 		for (auto [i, cl] : sat.clauses.enumerate())
 			if (cl.color() == Color::blue)
@@ -101,7 +101,7 @@ bool Redshift::is_redundant(Clause const &cl)
 };
 } // namespace
 
-void dawn::run_redshift(Sat &sat, redshift_config const &config)
+void dawn::run_redshift(Cnf &sat, redshift_config const &config)
 {
 	(void)config;
 

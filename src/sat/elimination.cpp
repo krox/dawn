@@ -556,7 +556,7 @@ struct Elimination
 };
 } // namespace
 
-int run_elimination(Sat &sat, EliminationConfig const &config)
+int run_elimination(Cnf &sat, EliminationConfig const &config)
 {
 	// assert(is_normal_form(sat)); // not strictly necessary
 
@@ -581,7 +581,7 @@ int run_elimination(Sat &sat, EliminationConfig const &config)
 	return elim.nEliminated;
 }
 
-int run_blocked_clause_addition(Sat &sat)
+int run_blocked_clause_addition(Cnf &sat)
 {
 	assert(is_normal_form(sat));
 	auto log = util::Logger("BCA");

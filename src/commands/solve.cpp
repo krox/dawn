@@ -1,6 +1,6 @@
 #include "CLI/CLI.hpp"
+#include "sat/cnf.h"
 #include "sat/dimacs.h"
-#include "sat/sat.h"
 #include "sat/solver.h"
 #include "sat/stats.h"
 #include <csignal>
@@ -37,7 +37,7 @@ void run_solve_command(Options opt)
 	    [](std::string_view msg) { fmt::print("c {}\n", msg); });
 	// read CNF from file or stdin
 	auto [originalClauses, varCount] = parseCnf(opt.cnfFile);
-	Sat sat = Sat(varCount, originalClauses); // clauses are copied here!
+	auto sat = Cnf(varCount, originalClauses); // clauses are copied here!
 
 	if (opt.seed == -1)
 		opt.seed = std::random_device()();

@@ -1,6 +1,6 @@
 #include "CLI/CLI.hpp"
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 
 #include "catch2/catch_session.hpp"
 

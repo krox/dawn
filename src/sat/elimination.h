@@ -1,6 +1,6 @@
 #pragma once
 
-#include "sat/sat.h"
+#include "sat/cnf.h"
 
 #include <climits>
 
@@ -38,10 +38,10 @@ struct EliminationConfig
 };
 
 // returns number of removed variables
-int run_elimination(Sat &sat, EliminationConfig const &config);
+int run_elimination(Cnf &, EliminationConfig const &config);
 
 // should this be here?
-int run_blocked_clause_addition(Sat &sat);
+int run_blocked_clause_addition(Cnf &);
 
 // Check whether the resolvent of two clauses is tautological.
 //   * assumes that the lits in both clauses are sorted. If they are not, some

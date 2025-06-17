@@ -16,7 +16,7 @@
 namespace dawn {
 
 // run the full inprocessing
-void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
+void inprocess(Cnf &sat, SolverConfig const &config, std::stop_token stoken)
 {
 	// printBinaryStats(sat);
 	cleanup(sat);
@@ -52,7 +52,7 @@ void inprocess(Sat &sat, SolverConfig const &config, std::stop_token stoken)
 	}
 }
 
-void preprocess(Sat &sat)
+void preprocess(Cnf &sat)
 {
 	// elimination and subsumption influence each other quite a bit. SatELite
 	// alternatates them until fixed point. Cryptominisat seems to do multiple
@@ -85,7 +85,7 @@ void preprocess(Sat &sat)
 	print_stats(sat);
 }
 
-int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
+int solve(Cnf &sat, Assignment &sol, SolverConfig const &config,
           std::stop_token stoken)
 {
 	auto log = util::Logger("solver");

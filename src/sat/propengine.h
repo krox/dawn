@@ -66,7 +66,7 @@ class PropEngine
   public:
 	// NOTE: units are "stored" as level 0 assignments, so no need to have
 	// them explicitly here.
-	Sat::bins_t bins;
+	Cnf::bins_t bins;
 	ClauseStorage clauses;
 
   private:
