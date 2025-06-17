@@ -394,7 +394,7 @@ template <typename F> struct Guard
 	~Guard() { f(); }
 };
 
-PropEngineLight::PropEngineLight(Cnf &cnf)
+PropEngineLight::PropEngineLight(Cnf &cnf, bool attach_clauses)
     : cnf(cnf), watches(cnf.var_count() * 2), assign(cnf.var_count())
 {
 	// empty clause -> don't bother doing anything
@@ -405,14 +405,15 @@ PropEngineLight::PropEngineLight(Cnf &cnf)
 	}
 
 	// attach long clauses
-	for (auto [i, c] : cnf.clauses.enumerate())
-	{
-		if (c.color() == Color::black)
-			continue;
-		assert(c.size() >= 3);
-		watches[c[0]].push_back(i);
-		watches[c[1]].push_back(i);
-	}
+	if (attach_clauses)
+		for (auto [i, c] : cnf.clauses.enumerate())
+		{
+			if (c.color() == Color::black)
+				continue;
+			assert(c.size() >= 3);
+			watches[c[0]].push_back(i);
+			watches[c[1]].push_back(i);
+		}
 
 	// propagate unary clauses
 	for (auto l : cnf.units)
@@ -428,6 +429,33 @@ PropEngineLight::PropEngineLight(Cnf &cnf)
 		if (conflict)
 			return;
 	}
+}
+
+void PropEngineLight::attach_clause(CRef cref)
+{
+	assert(cref.proper());
+	Clause const &cl = cnf.clauses[cref];
+	assert(cl.size() >= 2);
+	assert(cl.color() != Color::black);
+	assert(!assign[cl[0]] && !assign[cl[0].neg()]);
+	assert(!assign[cl[1]] && !assign[cl[1].neg()]);
+	watches[cl[0]].push_back(cref);
+	watches[cl[1]].push_back(cref);
+}
+
+void PropEngineLight::detach_clause(CRef cref)
+{
+	assert(cref.proper());
+	Clause const &cl = cnf.clauses[cref];
+	assert(cl.size() >= 2);
+	assert(cl.color() != Color::black);
+	assert(!assign[cl[0]] && !assign[cl[0].neg()]);
+	assert(!assign[cl[1]] && !assign[cl[1].neg()]);
+
+	auto &ws0 = watches[cl[0]];
+	auto &ws1 = watches[cl[1]];
+	ws0.erase(std::remove(ws0.begin(), ws0.end(), cref), ws0.end());
+	ws1.erase(std::remove(ws1.begin(), ws1.end(), cref), ws1.end());
 }
 
 void PropEngineLight::propagate_binary(Lit x)
@@ -567,6 +595,17 @@ int PropEngineLight::propagate_neg(std::span<const Lit> xs)
 	return r;
 }
 
+int PropEngineLight::propagate_neg(std::span<const Lit> xs, Lit a)
+{
+	int r = 0;
+	for (Lit x : xs)
+		if (int s = propagate(x.neg() ^ (x == a)); s == -1)
+			return -1;
+		else
+			r += s;
+	return r;
+}
+
 void PropEngineLight::mark()
 {
 	assert(!conflict);
@@ -602,6 +641,15 @@ int PropEngineLight::probe_neg(std::span<const Lit> xs)
 	assert(!conflict);
 	mark();
 	int r = propagate_neg(xs);
+	unroll();
+	return r;
+}
+
+int PropEngineLight::probe_neg(std::span<const Lit> xs, Lit pivot)
+{
+	assert(!conflict);
+	mark();
+	int r = propagate_neg(xs, pivot);
 	unroll();
 	return r;
 }

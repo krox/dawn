@@ -6,6 +6,7 @@
 #include "sat/elimination.h"
 #include "sat/probing.h"
 #include "sat/propengine.h"
+#include "sat/redshift.h"
 #include "sat/searcher.h"
 #include "sat/subsumption.h"
 #include "sat/vivification.h"
@@ -62,18 +63,21 @@ void preprocess(Sat &sat)
 	cleanup(sat);
 	print_stats(sat);
 
+	run_redshift(sat, {});
 	run_elimination(sat, {.growth = 0, .max_resolvents = 10'000});
 	cleanup(sat);
 	run_subsumption(sat);
 	cleanup(sat);
 	print_stats(sat);
 
+	run_redshift(sat, {});
 	run_elimination(sat, {.growth = 8, .max_resolvents = 10'000});
 	cleanup(sat);
 	run_subsumption(sat);
 	cleanup(sat);
 	print_stats(sat);
 
+	run_redshift(sat, {});
 	run_elimination(sat, {.growth = 16, .max_resolvents = 10'000});
 	cleanup(sat);
 	run_subsumption(sat);

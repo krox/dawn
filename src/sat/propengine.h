@@ -191,8 +191,13 @@ class PropEngineLight
 
 	int64_t nHbr = 0;
 
-	/** constructor */
-	explicit PropEngineLight(Cnf &cnf);
+	// constructor attaches all clauses
+	explicit PropEngineLight(Cnf &cnf, bool attach_clauses = true);
+
+	// NOTE: only clauses with cl[0] and cl[1] unassigned can be
+	// attached/detached
+	void attach_clause(CRef cref); // add a clause to the watch lists
+	void detach_clause(CRef cref); // remove a clause from the watch lists
 
 	// assign literal and perform unit propagation
 	//     - returns number of set propagations (including x)
@@ -208,10 +213,14 @@ class PropEngineLight
 	// propagate the negation of multiple literals.
 	int propagate_neg(std::span<const Lit> xs);
 
+	// propagate the negation of the xs, except for the pivot, for which the
+	// positive is propagated.
+	int propagate_neg(std::span<const Lit> xs, Lit pivot);
+
 	// propagate and immediately backtracks. same return as propagate()
 	int probe(Lit x);
-
 	int probe_neg(std::span<const Lit> xs);
+	int probe_neg(std::span<const Lit> xs, Lit pivot);
 
 	void mark();       // create a new level
 	void unroll();     // unrolls one level

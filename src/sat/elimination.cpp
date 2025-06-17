@@ -13,8 +13,6 @@
 
 namespace dawn {
 
-namespace {
-
 // TODO:
 //   - wider definition of 'tautology':
 //       - full binary closure, or at least some stamp-based approximation
@@ -27,11 +25,6 @@ namespace {
 //     better: on-the-fly subsumption) to keep the number of clauses reasonable.
 
 /**
- * Check whether the resolvent of two clauses is tautology.
- * NOTE: this method assumes that the lits in both clauses are sorted. If they
- *       are not, it just produces some false-negatives. This means the scoring
- *       will be too pessimistic, but nothing will be broken. Though in the
- *       current implementation, no such thing can happen.
  * TODO: in case the resolvent is not tautological, we could trivially determine
  *       its size. If it is very small, it might be worthwhile to add it as
  *       a learnt clause, even if no variable-elimination takes place.
@@ -59,6 +52,26 @@ bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b)
 	assert(count == 1);
 	return false;
 }
+
+bool is_resolvent_tautological_unsorted(std::span<const Lit> a,
+                                        std::span<const Lit> b)
+{
+	// NOTE: This is O(n^2). Copying the clauses to temporary storage and
+	// sorting would give O(n log n), but my hunch is this is still better in
+	// practice. If this becomes a bottleneck, some SIMD should be used.
+	int count = 0; // number of shared variables with opposite sign
+	for (Lit x : a)
+		for (Lit y : b)
+		{
+			if (x == y.neg())
+				if (++count >= 2)
+					return true;
+		}
+	assert(count == 1);
+	return false;
+}
+
+namespace {
 
 // same as above, but also considers resolvents tautolical if they are implied
 // by the stamps. Rough approximation of full binary-long subsumption.
