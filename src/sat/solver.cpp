@@ -121,8 +121,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 		sw.stop();
 
 		log.info("learnt {} green clauses out of {} conflicts ({:.2f} "
-		         "kconfls/s, {:.2f} "
-		         "kprops/s)",
+		         "kconfls/s, {:.2f} kprops/s)",
 		         result.learnts.count(), result.stats.nConfls(),
 		         result.stats.nConfls() / sw.secs() / 1000,
 		         result.stats.nProps() / sw.secs() / 1000);
@@ -134,9 +133,7 @@ int solve(Sat &sat, Assignment &sol, SolverConfig const &config,
 		if (result.solution)
 		{
 			assert(!sat.contradiction);
-			sol = sat.to_outer(*result.solution);
-			sol.fix_unassigned();
-			sat.extender.extend(sol);
+			sol = sat.reconstruct_solution(*result.solution);
 			return 10;
 		}
 

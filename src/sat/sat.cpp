@@ -13,56 +13,14 @@ namespace dawn {
 
 void Sat::renumber(std::span<const Lit> trans, int newVarCount)
 {
-	// checks input and renumbers actual clauses
 	Cnf::renumber(trans, newVarCount);
-
-	// renumber translation arrays
-	auto to_outer_old = std::move(to_outer_);
-	to_outer_ = std::vector<Lit>(newVarCount, Lit::undef());
-	for (int i = 0; i < (int)trans.size(); ++i)
-	{
-		if (trans[i].fixed())
-		{
-			extender.set_literal(to_outer_old[i] ^ trans[i].sign());
-		}
-		else if (trans[i] == Lit::elim())
-		{
-		}
-		else if (trans[i].proper())
-		{
-			if (to_outer_[trans[i].var()] == Lit::undef())
-				to_outer_[trans[i].var()] = to_outer_old[i] ^ trans[i].sign();
-			else
-				// equivalence. just push the information to the extender
-				extender.set_equivalence(to_outer_old[i] ^ trans[i].sign(),
-				                         to_outer_[trans[i].var()]);
-		}
-		else
-			assert(false);
-	}
-	for (Lit a : to_outer_)
-		assert(a.proper());
-}
-
-Assignment Sat::to_outer(Assignment const &a) const
-{
-	assert(a.var_count() == var_count());
-	auto r = Assignment(var_count_outer());
-	for (int i = 0; i < var_count(); ++i)
-	{
-		if (a(i) == ltrue)
-			r.set(to_outer_[i]);
-		else if (a(i) == lfalse)
-			r.set(to_outer_[i].neg());
-	}
-	return r;
+	recon_.renumber(trans, newVarCount);
 }
 
 size_t Sat::memory_usage() const
 {
 	size_t r = Cnf::memory_usage();
-	r += to_outer_.capacity() * sizeof(Lit);
-	r += extender.memory_usage();
+	r += recon_.memory_usage();
 	return r;
 }
 

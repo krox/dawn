@@ -48,6 +48,7 @@ set(files_cpp
 	src/sat/elimination.cpp
 	src/sat/probing.cpp
 	src/sat/propengine.cpp
+	src/sat/reconstruction.cpp
 	src/sat/sat.cpp
 	src/sat/searcher.cpp
 	src/sat/solver.cpp

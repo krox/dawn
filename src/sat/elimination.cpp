@@ -552,11 +552,7 @@ int run_elimination(Sat &sat, EliminationConfig const &config)
 
 	// move rules to extender
 	for (auto &cl : elim.rules.all())
-	{
-		for (Lit &a : cl.lits())
-			a = sat.to_outer(a);
-		sat.extender.add_rule(cl);
-	}
+		sat.add_rule(cl);
 	elim.rules.clear();
 
 	// renumber (inner variables cant stay in eliminated state)

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "sat/cnf.h"
-#include "sat/extender.h"
+#include "sat/reconstruction.h"
 #include "sat/stats.h"
 #include "util/bit_vector.h"
 #include "util/logging.h"
@@ -14,13 +14,11 @@ namespace dawn {
 class Sat : public Cnf
 {
   private:
-	std::vector<Lit> to_outer_; // inner variable -> outer literal
+	// mapping to original variables.
+	Reconstruction recon_;
+
   public:
 	util::xoshiro256 rng;
-
-	// Rules needed to extend solution to original problem.
-	// 'outer' variable numbering.
-	Extender extender;
 
 	// constructors
 	explicit Sat(int n, ClauseStorage clauses_ = {});
@@ -30,16 +28,20 @@ class Sat : public Cnf
 	Sat(Sat const &) = delete;
 	Sat &operator=(Sat const &) = delete;
 
-	// translate inner to outer (can return Lit::zero()/Lit::one() for fixed)
-	Lit to_outer(Lit a) const;
-	Assignment to_outer(Assignment const &) const;
-
 	// add variables
 	int add_var();
 
-	// add/count variables in the 'outer problem
-	int add_var_outer();
-	int var_count_outer() const;
+	void add_rule(std::span<const Lit> cl) { recon_.add_rule(cl); }
+
+	void add_rule(std::span<const Lit> cl, Lit pivot)
+	{
+		recon_.add_rule(cl, pivot);
+	}
+
+	Assignment reconstruct_solution(Assignment const &a) const
+	{
+		return recon_(a);
+	}
 
 	/**
 	 * - renumber variables allowing for fixed and equivalent vars
@@ -59,36 +61,15 @@ class Sat : public Cnf
 void shuffleVariables(Sat &sat);
 
 inline Sat::Sat(int n, ClauseStorage clauses_)
-    : Cnf(n, std::move(clauses_)), to_outer_(n), extender(n)
-{
-	for (int i = 0; i < n; ++i)
-		to_outer_[i] = Lit(i, false);
-}
-
-inline Lit Sat::to_outer(Lit a) const
-{
-	if (!a.proper())
-		return a;
-	assert(a.var() < var_count());
-	return to_outer_[a.var()] ^ a.sign();
-}
-
-inline int Sat::var_count_outer() const { return extender.var_count(); }
+    : Cnf(n, std::move(clauses_)), recon_(n)
+{}
 
 inline int Sat::add_var()
 {
-	int inner = var_count();
-	int outer = extender.add_var();
+	int i = var_count();
 	bins.emplace_back();
 	bins.emplace_back();
-	to_outer_.push_back(Lit(outer, false));
-	return inner;
-}
-
-inline int Sat::add_var_outer()
-{
-	int i = add_var();
-	return to_outer_[i].var();
+	return i;
 }
 
 // create list of all clauses (active and extension) in outer numbering

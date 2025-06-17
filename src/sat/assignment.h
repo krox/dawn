@@ -26,14 +26,9 @@ class lbool
 	constexpr explicit operator bool() const noexcept { return v_ == 1; }
 
 	constexpr bool operator==(lbool b) const noexcept { return v_ == b.v_; }
-	constexpr bool operator!=(lbool b) const noexcept { return v_ != b.v_; }
 	constexpr bool operator==(bool b) const noexcept
 	{
 		return *this == lbool(b);
-	}
-	constexpr bool operator!=(bool b) const noexcept
-	{
-		return *this != lbool(b);
 	}
 
 	constexpr lbool operator~() const noexcept
@@ -82,7 +77,7 @@ class Assignment
 
 	explicit Assignment(int n) : assign_(2 * n) {}
 
-	Assignment(util::bit_vector a) noexcept : assign_(std::move(a))
+	explicit Assignment(util::bit_vector a) noexcept : assign_(std::move(a))
 	{
 		assert(assign_.size() % 2 == 0);
 		for (int i = 0; i < var_count(); ++i)
