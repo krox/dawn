@@ -32,8 +32,8 @@ struct EliminationConfig
 	// maximum number of variables to eliminate
 	int64_t max_eliminations = INT64_MAX;
 
-	// maximum number of resolvents to generate before stopping BVE (including
-	// reducible resolvents, if 'resolve_reducible' is set)
+	// maximum number of resolvents to generate before stopping
+	//   * reducible resolvents are counted towards this limit
 	int64_t max_resolvents = INT64_MAX;
 };
 

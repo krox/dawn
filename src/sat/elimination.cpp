@@ -177,14 +177,22 @@ struct Elimination
 	EliminationConfig config;
 
 	util::bit_vector eliminated;
+	std::vector<int> score;
 	int64_t nEliminated = 0, nBCE = 0, nResolvents = 0;
-	ClauseStorage rules;
 	int cutoff;
 	util::Logger log = util::Logger("elimination");
+	// the prio-queue contains (score, variable) pairs. Outdated entries
+	// are allowed, so we have to check whenever we are about to
+	// implement a proposal
+	using PII = std::pair<int, int>;
+	std::priority_queue<PII, std::vector<PII>, std::greater<PII>> queue;
+
+	util::bit_set dirty; // variables that need to be re-evaluated
 
 	Elimination(Cnf &cnf_, EliminationConfig const &config_)
 	    : cnf(cnf_), occs(cnf_.var_count() * 2), watches(cnf_.var_count() * 2),
-	      config(config_), eliminated(cnf_.var_count()), cutoff(config.growth)
+	      config(config_), eliminated(cnf_.var_count()),
+	      score(cnf_.var_count()), cutoff(config.growth)
 	{
 		for (auto [ci, cl] : cnf.clauses.enumerate())
 		{
@@ -250,23 +258,6 @@ struct Elimination
 		return true;
 	}
 
-	void add_rule(std::span<const Lit> cl, Lit x)
-	{
-		CRef ci = rules.add_clause(cl, Color::blue);
-		assert(ci != CRef::undef());
-		rules[ci].move_to_front(x);
-	}
-
-	// return true if 'cl' is subsumed by something in the occ lists
-	// (requires sorted lits)
-	/*bool is_subsumed(Clause &cl)
-	{
-	    for (Lit a : cl)
-	        for (CRef i : watches[a])
-	            if (Clause &cl2 = cnf.clauses[i]; cl2.color() != Color::black)
-	                try_subsume(cl2, cl);
-	}*/
-
 	// Calculate the score of removing variable v.
 	//   - score = #(non-tautological resolvents) - #(removed clauses)
 	//   - lower is better
@@ -325,7 +316,9 @@ struct Elimination
 			{
 				nBCE++;
 				log.debug("removing blocked clause {}, pivot {}", cl, pos);
-				add_rule(cl, pos);
+				for (Lit x : cl)
+					dirty.add(x.var());
+				cnf.add_rule(cl, pos);
 				cl.set_color(blocked_color);
 			}
 		for (int j = 0; j < (int)occs[neg].size(); ++j)
@@ -334,7 +327,9 @@ struct Elimination
 			{
 				nBCE++;
 				log.debug("removing blocked clause {}, pivot {}", cl, neg);
-				add_rule(cl, neg);
+				for (Lit x : cl)
+					dirty.add(x.var());
+				cnf.add_rule(cl, neg);
 				cl.set_color(blocked_color);
 			}
 
@@ -415,14 +410,14 @@ struct Elimination
 		{
 			Clause &a = cnf.clauses[i];
 			if (a.color() == Color::blue)
-				add_rule(a, pos);
+				cnf.add_rule(a, pos);
 			a.set_color(Color::black);
 		}
 		for (CRef i : occs[neg])
 		{
 			Clause &a = cnf.clauses[i];
 			if (a.color() == Color::blue)
-				add_rule(a, neg);
+				cnf.add_rule(a, neg);
 			a.set_color(Color::black);
 		}
 
@@ -430,12 +425,12 @@ struct Elimination
 		for (Lit b : cnf.bins[pos])
 		{
 			erase(cnf.bins[b], pos);
-			rules.add_binary(pos, b);
+			cnf.add_rule({{pos, b}});
 		}
 		for (Lit b : cnf.bins[neg])
 		{
 			erase(cnf.bins[b], neg);
-			rules.add_binary(neg, b);
+			cnf.add_rule({{neg, b}});
 		}
 		cnf.bins[pos].resize(0);
 		cnf.bins[neg].resize(0);
@@ -454,104 +449,87 @@ struct Elimination
 		          resolvent_count);
 	}
 
+	// find best variable to eliminate next.
+	// returns -1 if no more candidates are available.
+	int choose_var()
+	{
+		// recompute all potentially-outdated scores
+		// note: this loop effectively does BCE till fixed-point
+		while (!dirty.empty())
+		{
+			int v = dirty.pop();
+			score[v] = compute_score(v);
+			if (score[v] <= cutoff)
+				queue.push({score[v], v});
+		}
+
+		while (!queue.empty())
+		{
+			auto [s, v] = queue.top();
+			queue.pop();
+			if (!eliminated[v] && score[v] == s)
+				return v;
+		}
+		return -1;
+	}
+
 	// returns number of removed variables
 	void run()
 	{
-		// the prio-queue contains (score, variable) pairs. Outdated entries
-		// are allowed, so we have to check whenever we are about to
-		// implement a proposal
-		using PII = std::pair<int, int>;
-		std::priority_queue<PII, std::vector<PII>, std::greater<PII>> queue;
-
-		// compute elimination scores of of all variables
-		auto score = std::vector<int>(cnf.var_count());
 		for (int i : cnf.all_vars())
-		{
-			score[i] = compute_score(i);
-			if (score[i] <= cutoff)
-				queue.push({score[i], i});
-		}
+			dirty.add(i);
 
-		// early-out if nothing is happening
-		if (queue.empty())
-			return;
-
-		// temporaries
-		std::vector<int> todo;
-		auto seen = util::bit_vector(cnf.var_count());
-
-		while (!queue.empty() && nEliminated < config.max_eliminations &&
+		while (nEliminated < config.max_eliminations &&
 		       nResolvents < config.max_resolvents)
 		{
-			// get the next variable to eliminate
-			if (queue.size() > 1)
-				cutoff = queue.top().first;
-			else
-				cutoff = score_never;
+			int v = choose_var();
+			if (v == -1)
+				break;
+
+			// Consistency check for the scores. Incorrect scores (e.g.
+			// forgetting to set the dirty flag) can harm effectiveness a lot
+			// without being evident from normal testing.
+			assert(score[v] == compute_score(v));
+
+			auto pos = Lit(v, false);
+			auto neg = Lit(v, true);
+
+			// determine other variables whose score will have to be
+			// recalculated
+			for (Lit x : cnf.bins[pos])
+				dirty.add(x.var());
+			for (Lit x : cnf.bins[neg])
+				dirty.add(x.var());
+			for (CRef k : occs[pos])
+				if (cnf.clauses[k].color() == Color::blue)
+					for (Lit x : cnf.clauses[k].lits())
+						dirty.add(x.var());
+			for (CRef k : occs[neg])
+				if (cnf.clauses[k].color() == Color::blue)
+					for (Lit x : cnf.clauses[k].lits())
+						dirty.add(x.var());
+
+			// eliminate the variable
+			eliminate(v);
+			score[v] = score_never;
+		}
+
+		// remove reducible clauses that contain eliminated variables
+		for (auto &cl : cnf.clauses.all())
+		{
+			bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
+				return eliminated[a.var()];
+			});
+			if (elim)
 			{
-				auto [s, v] = queue.top();
-				auto pos = Lit(v, false);
-				auto neg = Lit(v, true);
-				queue.pop();
-				assert(s <= cutoff);
-
-				// outdated proposal -> skip
-				if (eliminated[v] || score[v] != s)
-					continue;
-				// TODO: second check fails. I think it is because BCE does not
-				// trigger score recalculation
-				assert(score[v] == s /*&& s == compute_score(v)*/);
-
-				// determine other variables whose score will have to be
-				// recalculated
-				for (Lit x : cnf.bins[pos])
-					if (seen.add(x.var()))
-						todo.push_back(x.var());
-				for (Lit x : cnf.bins[neg])
-					if (seen.add(x.var()))
-						todo.push_back(x.var());
-				for (CRef k : occs[pos])
-					if (cnf.clauses[k].color() == Color::blue)
-						for (Lit x : cnf.clauses[k].lits())
-							if (seen.add(x.var()))
-								todo.push_back(x.var());
-				for (CRef k : occs[neg])
-					if (cnf.clauses[k].color() == Color::blue)
-						for (Lit x : cnf.clauses[k].lits())
-							if (seen.add(x.var()))
-								todo.push_back(x.var());
-
-				// eliminate the variable
-				eliminate(v);
-				score[v] = score_never;
-
-				// recalculate scores of affected variables
-				for (int j : todo)
-				{
-					seen[j] = false;
-					score[j] = compute_score(j);
-					if (score[j] <= cutoff)
-						queue.push({score[j], j});
-				}
-				todo.resize(0);
-			}
-
-			// remove reducible clauses that contain eliminated variables
-			for (auto &cl : cnf.clauses.all())
-			{
-				bool elim = std::any_of(cl.begin(), cl.end(), [this](Lit a) {
-					return eliminated[a.var()];
-				});
-				if (elim)
-				{
-					assert(cl.color() != Color::blue);
-					cl.set_color(Color::black);
-				}
+				assert(cl.color() != Color::blue);
+				cl.set_color(Color::black);
 			}
 		}
-		log.info(
-		    "found {} blocked clauses, removed {} vars and added {} resolvents",
-		    nBCE, nEliminated, nResolvents);
+
+		log.info("[g={}] found {} blocked clauses, removed {} vars and added "
+		         "{} resolvents",
+		         cutoff, nBCE, nEliminated, nResolvents);
 	}
 };
 } // namespace
@@ -562,11 +540,6 @@ int run_elimination(Cnf &sat, EliminationConfig const &config)
 
 	auto elim = Elimination(sat, config);
 	elim.run();
-
-	// move rules to extender
-	for (auto &cl : elim.rules.all())
-		sat.add_rule(cl);
-	elim.rules.clear();
 
 	// renumber (inner variables cant stay in eliminated state)
 	std::vector<Lit> trans(sat.var_count());
