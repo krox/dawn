@@ -59,6 +59,60 @@ class Lit
 	constexpr Lit operator^(bool sign) const { return Lit(val_ ^ sign); }
 };
 
+// the binary part of a sat instance, in the form of a (directed) graph
+struct BinaryGraph
+{
+	// semi-private, use with care. only invariant is symmetry:
+	// bins[a] contains b if and only if bins[b] contains a.
+	std::vector<util::small_vector<Lit, 7>> bins_;
+
+	BinaryGraph() = default;
+	BinaryGraph(int n) : bins_(2 * n) {}
+
+	int add_var()
+	{
+		bins_.emplace_back();
+		bins_.emplace_back();
+		return (int)(bins_.size() / 2 - 1);
+	}
+	int var_count() const noexcept { return (int)(bins_.size() / 2); }
+
+	auto &operator[](Lit a) noexcept { return bins_.at(a); }
+	auto const &operator[](Lit a) const noexcept { return bins_.at(a); }
+
+	void add(Lit a, Lit b)
+	{
+		assert(a.proper() && uint32_t(a) < bins_.size());
+		assert(b.proper() && uint32_t(b) < bins_.size());
+		assert(a.var() != b.var());
+
+		bins_[a].push_back(b);
+		bins_[b].push_back(a);
+	}
+
+	size_t clause_count() const noexcept
+	{
+		size_t count = 0;
+		for (auto const &v : bins_)
+			count += v.size();
+		return count / 2;
+	}
+
+	void clear() noexcept
+	{
+		for (auto &v : bins_)
+			v.clear();
+	}
+
+	size_t memory_usage() const noexcept
+	{
+		size_t size = bins_.capacity() * sizeof(bins_[0]);
+		for (auto const &v : bins_)
+			size += v.capacity() * sizeof(Lit);
+		return size;
+	}
+};
+
 // - removes duplicates and Lit::zero()
 // - returns -1 for tautologies and Lit::one()
 // - otherwiese, returns new size

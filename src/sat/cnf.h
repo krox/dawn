@@ -26,8 +26,7 @@ class Cnf
 
 	bool contradiction = false;
 	std::vector<Lit> units;
-	using bins_t = std::vector<util::small_vector<Lit, 7>>;
-	bins_t bins;
+	BinaryGraph bins;
 	ClauseStorage clauses;
 
 	// constructors
@@ -94,15 +93,8 @@ class Cnf
 	size_t memory_usage() const;
 };
 
-inline int Cnf::var_count() const { return (int)bins.size() / 2; }
-
-inline int Cnf::add_var()
-{
-	int inner = var_count();
-	bins.emplace_back();
-	bins.emplace_back();
-	return inner;
-}
+inline int Cnf::var_count() const { return bins.var_count(); }
+inline int Cnf::add_var() { return bins.add_var(); }
 
 inline void Cnf::add_empty() { contradiction = true; }
 
@@ -114,17 +106,7 @@ inline void Cnf::add_unary(Lit a)
 	units.push_back(a);
 }
 
-inline void Cnf::add_binary(Lit a, Lit b)
-{
-	assert(a.proper());
-	assert(a.var() < var_count());
-	assert(b.proper());
-	assert(b.var() < var_count());
-	assert(a.var() != b.var());
-
-	bins[a].push_back(b);
-	bins[b].push_back(a);
-}
+inline void Cnf::add_binary(Lit a, Lit b) { bins.add(a, b); }
 
 inline CRef Cnf::add_ternary(Lit a, Lit b, Lit c, Color color)
 {

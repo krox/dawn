@@ -66,7 +66,7 @@ class PropEngine
   public:
 	// NOTE: units are "stored" as level 0 assignments, so no need to have
 	// them explicitly here.
-	Cnf::bins_t bins;
+	BinaryGraph bins;
 	ClauseStorage clauses;
 
   private:

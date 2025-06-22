@@ -7,19 +7,8 @@
 
 namespace dawn {
 
-ImplicationGraph::ImplicationGraph(Cnf const &cnf) : bins(cnf.var_count() * 2)
-{
-	for (Lit a : cnf.all_lits())
-		for (Lit b : cnf.bins[a])
-			if (a < b)
-			{
-				bins[a].push_back(b);
-				bins[b].push_back(a);
-			}
-}
-
 namespace {
-void top_order_dfs(Lit a, TopOrder &r, ImplicationGraph const &g)
+void top_order_dfs(Lit a, TopOrder &r, BinaryGraph const &g)
 {
 	if (r.order[a] >= 0)
 		return;
@@ -37,7 +26,7 @@ void top_order_dfs(Lit a, TopOrder &r, ImplicationGraph const &g)
 }
 } // namespace
 
-TopOrder::TopOrder(ImplicationGraph const &g) : valid(true)
+TopOrder::TopOrder(BinaryGraph const &g) : valid(true)
 {
 	order.resize(2 * g.var_count(), -1);
 	lits.reserve(2 * g.var_count());
@@ -48,7 +37,7 @@ TopOrder::TopOrder(ImplicationGraph const &g) : valid(true)
 }
 
 namespace {
-void stamps_dfs(Lit a, Stamps &r, int &time, ImplicationGraph const &g)
+void stamps_dfs(Lit a, Stamps &r, int &time, BinaryGraph const &g)
 {
 	if (r.start[a] != -1)
 		return;
@@ -59,31 +48,31 @@ void stamps_dfs(Lit a, Stamps &r, int &time, ImplicationGraph const &g)
 }
 } // namespace
 
-Stamps::Stamps(Cnf const &cnf)
-    : start(cnf.var_count() * 2, -1), end(cnf.var_count() * 2, -1)
+Stamps::Stamps(BinaryGraph const &_g)
+    : start(_g.var_count() * 2, -1), end(_g.var_count() * 2, -1)
 {
+	auto g = _g;
 	// Sort binaries by topological order.
 	// Not strictly necessary, but should improve effectivity.
-	auto g = ImplicationGraph(cnf);
 	auto top = TopOrder(g);
 	if (!top.valid)
 		throw std::runtime_error(
 		    "tried to compute stamps with non-acyclic graph");
 	auto cmp = [&top](Lit a, Lit b) { return top.order[a] < top.order[b]; };
-	for (auto &bs : g.bins)
+	for (auto &bs : g.bins_)
 		std::sort(bs.begin(), bs.end(), cmp);
 
 	int time = 0;
 	for (Lit a : top.lits)
 		stamps_dfs(a, *this, time, g);
-	assert(time == 4 * cnf.var_count());
+	assert(time == 4 * g.var_count());
 }
 
 namespace {
 class Tarjan
 {
   public:
-	ImplicationGraph const &g;
+	BinaryGraph const &g;
 	util::bit_vector visited;
 	std::vector<int> back;
 	std::vector<Lit> stack;
@@ -92,7 +81,7 @@ class Tarjan
 	std::vector<Lit> equ;
 	int nComps = 0; // number of SCC's
 
-	Tarjan(ImplicationGraph const &g)
+	Tarjan(BinaryGraph const &g)
 	    : g(g), visited(g.var_count() * 2), back(g.var_count() * 2, 0),
 	      equ(g.var_count(), Lit::undef())
 	{}
@@ -155,10 +144,10 @@ class Tarjan
 
 int run_scc(Cnf &sat)
 {
-	if (sat.contradiction || sat.bins.empty())
+	if (sat.contradiction)
 		return 0;
 
-	auto g = ImplicationGraph(sat);
+	auto const &g = sat.bins;
 	if (TopOrder(g).valid)
 		return 0;
 
@@ -184,7 +173,7 @@ int run_scc(Cnf &sat)
 	return nFound;
 }
 
-void print_binary_stats(ImplicationGraph const &g)
+void print_binary_stats(BinaryGraph const &g)
 {
 	int nIsolated = 0; // vertices with no binary clauses
 	int nRoots = 0;    // vertices with only outgoing edges
@@ -267,14 +256,14 @@ void print_binary_stats(ImplicationGraph const &g)
 
 void run_binary_reduction(Cnf &cnf)
 {
-	auto g = ImplicationGraph(cnf);
+	auto &g = cnf.bins;
 
 	auto top = TopOrder(g);
 	if (!top.valid) // require acyclic
 		throw std::runtime_error("tried to run TBR without SCC first");
 
 	// sort clauses by topological order
-	for (auto &c : g.bins)
+	for (auto &c : g.bins_)
 		unique_sort(
 		    c, [&top](Lit a, Lit b) { return top.order[a] < top.order[b]; });
 
@@ -316,9 +305,6 @@ void run_binary_reduction(Cnf &cnf)
 		});
 	}
 	assert(nFound % 2 == 0);
-
-	if (nFound)
-		cnf.bins = std::move(g.bins);
 
 	// log.info("removed {} redundant binaries (using {:.2f}M props)", nFound /
 	// 2, propCount / 1024. / 1024.);

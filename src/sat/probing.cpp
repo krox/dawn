@@ -24,7 +24,7 @@ int probeBinary(Cnf &cnf)
 	if (p.conflict)
 		return 0;
 
-	auto top = TopOrder(cnf);
+	auto top = TopOrder(cnf.bins);
 	auto seenA = util::bit_vector(cnf.var_count() * 2);
 	auto seenB = util::bit_vector(cnf.var_count() * 2);
 	std::vector<Lit> buf;

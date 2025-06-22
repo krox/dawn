@@ -17,7 +17,7 @@
 namespace dawn {
 
 Cnf::Cnf(int n, ClauseStorage clauses_)
-    : recon_(n), bins(2 * n), clauses(std::move(clauses_))
+    : recon_(n), bins(n), clauses(std::move(clauses_))
 {
 	for (auto &cl : clauses.all())
 	{
@@ -148,10 +148,10 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 
 	// renumber binaries
 	{
-		bins_t binsOld(newVarCount * 2);
+		BinaryGraph binsOld(newVarCount);
 		std::swap(bins, binsOld);
 
-		for (int i = 0; i < (int)binsOld.size(); ++i)
+		for (int i = 0; i < binsOld.var_count() * 2; ++i)
 		{
 			const auto a = Lit(i);
 
@@ -213,6 +213,8 @@ void Cnf::renumber(std::span<const Lit> trans, int newVarCount)
 			cl.set_color(Color::black);
 	}
 	clauses.prune_black();
+
+	assert(var_count() == newVarCount);
 }
 
 namespace {
@@ -231,8 +233,7 @@ int runUnitPropagation(Cnf &sat)
 	{
 		sat.add_empty();
 		sat.units.resize(0);
-		for (int i = 0; i < sat.var_count() * 2; ++i)
-			sat.bins[i].resize(0);
+		sat.bins.clear();
 		sat.clauses.clear();
 		int n = sat.var_count();
 		sat.renumber(std::vector<Lit>(n, Lit::elim()), 0);
@@ -289,7 +290,7 @@ bool is_normal_form(Cnf const &cnf)
 		return false;
 	if (!cnf.units.empty())
 		return false;
-	if (auto top = TopOrder(cnf); !top.valid)
+	if (!TopOrder(cnf.bins).valid)
 		return false;
 	return true;
 }
@@ -310,21 +311,14 @@ size_t Cnf::memory_usage() const
 {
 	size_t r = 0;
 	r += units.capacity() * sizeof(Lit);
-	for (auto &b : bins)
-		r += b.capacity() * sizeof(Lit);
+	r += bins.memory_usage();
 	r += clauses.memory_usage();
 	return r;
 }
 
 size_t Cnf::unary_count() const { return units.size(); }
 
-size_t Cnf::binary_count() const
-{
-	size_t r = 0;
-	for (auto &b : bins)
-		r += b.size();
-	return r / 2;
-}
+size_t Cnf::binary_count() const { return bins.clause_count(); }
 
 size_t Cnf::long_count() const { return clauses.count(); }
 

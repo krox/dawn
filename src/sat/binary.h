@@ -15,20 +15,6 @@ namespace dawn {
 //    - removes duplicate and redundant binaries
 //    - sorts binaries w.r.t. some (approximate) top-order
 
-// the binary part of a sat instance, in the form of a (directed) graph
-struct ImplicationGraph
-{
-	std::vector<util::small_vector<Lit, 7>> bins;
-
-	// Leavig this constructor non-explicit for now, so the functions dealing
-	// only with binary clauses can be called on a sat instance directly.
-	ImplicationGraph(Cnf const &);
-
-	int var_count() const { return (int)(bins.size() / 2); }
-	auto &operator[](Lit a) { return bins[a]; }
-	auto const &operator[](Lit a) const { return bins[a]; }
-};
-
 // Topological order of all literals, i.e., an order such that all binary
 // implications go 'from left to right'. If there are cycles in the graph
 // (indicated by valid=false), no strict topological order exists, but the
@@ -40,7 +26,7 @@ struct TopOrder
 	std::vector<int> order; // position of each lit
 	bool valid;             // false if there are cycles
 
-	TopOrder(ImplicationGraph const &);
+	TopOrder(BinaryGraph const &);
 };
 
 // Fast, incomplete reachability in the binary implication graph.
@@ -52,7 +38,7 @@ struct Stamps
 	// returns true if an implication a => b is found.
 	bool has_path(Lit a, Lit b) const;
 
-	Stamps(Cnf const &);
+	Stamps(BinaryGraph const &);
 };
 
 // Find and replace equivalent variables.
@@ -64,7 +50,7 @@ int run_scc(Cnf &);
 void run_binary_reduction(Cnf &);
 
 // print some stats about the binary implication graph
-void print_binary_stats(ImplicationGraph const &g);
+void print_binary_stats(BinaryGraph const &g);
 
 inline bool Stamps::has_path(Lit a, Lit b) const
 {
