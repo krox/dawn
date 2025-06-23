@@ -1,7 +1,6 @@
 #include "sat/solver.h"
 
 #include "fmt/format.h"
-#include "sat/binary.h"
 #include "sat/disjunction.h"
 #include "sat/elimination.h"
 #include "sat/probing.h"

@@ -43,13 +43,4 @@ int run_elimination(Cnf &, EliminationConfig const &config);
 // should this be here?
 int run_blocked_clause_addition(Cnf &);
 
-// Check whether the resolvent of two clauses is tautological.
-//   * assumes that the lits in both clauses are sorted. If they are not, some
-//     tautologies might go unnoticed.
-bool is_resolvent_tautological(std::span<const Lit> a, std::span<const Lit> b);
-
-// same as above. Slower, but does not require sorted clauses.
-bool is_resolvent_tautological_unsorted(std::span<const Lit> a,
-                                        std::span<const Lit> b);
-
 } // namespace dawn

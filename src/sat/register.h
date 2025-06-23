@@ -99,7 +99,7 @@ Lit make_maj(Cnf &sat, Lit a, Lit b, Lit c)
 	return r;
 }
 
-Lit make_choose(Cnf &sat, Lit a, Lit b, Lit c)
+Lit make_ite(Cnf &sat, Lit a, Lit b, Lit c)
 {
 	if (a == Lit::one())
 		return b;
@@ -108,7 +108,7 @@ Lit make_choose(Cnf &sat, Lit a, Lit b, Lit c)
 	// plenty more special cases missing...
 
 	Lit r = Lit(sat.add_var(), false);
-	sat.add_choose_clause_safe(r, a, b, c);
+	sat.add_ite_clause_safe(r, a, b, c);
 	return r;
 }
 
@@ -179,13 +179,13 @@ Register<N> maj(Register<N> const &a, Register<N> const &b,
 }
 
 template <int N>
-Register<N> choose(Register<N> const &a, Register<N> const &b,
-                   Register<N> const &c)
+Register<N> ite(Register<N> const &a, Register<N> const &b,
+                Register<N> const &c)
 {
 	assert(&a.sat_ == &b.sat_ && &a.sat_ == &c.sat_);
 	auto r = Register<N>(a.sat_);
 	for (int i = 0; i < N; ++i)
-		r.lits_[i] = make_choose(a.sat_, a.lits_[i], b.lits_[i], c.lits_[i]);
+		r.lits_[i] = make_ite(a.sat_, a.lits_[i], b.lits_[i], c.lits_[i]);
 	return r;
 }
 

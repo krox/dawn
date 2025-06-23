@@ -40,7 +40,6 @@ set(files_cpp
 	src/commands/ui.cpp
 	tests/tests.cpp
 	src/sat/assignment.cpp
-	src/sat/binary.cpp
 	src/sat/clause.cpp
 	src/sat/cnf.cpp
 	src/sat/dimacs.cpp

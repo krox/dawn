@@ -76,7 +76,7 @@ void sha256_transform(std::span<Register<32>> state,
 	assert(rounds <= 64);
 	for (size_t i = 0; i < (size_t)rounds; ++i)
 	{
-		Register<32> t1 = h + ep1(e) + choose(e, f, g) + sha256_k[i] + m[i];
+		Register<32> t1 = h + ep1(e) + ite(e, f, g) + sha256_k[i] + m[i];
 		Register<32> t2 = ep0(a) + maj(a, b, c);
 		h = g;
 		g = f;

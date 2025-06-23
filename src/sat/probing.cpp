@@ -1,6 +1,5 @@
 #include "sat/probing.h"
 
-#include "sat/binary.h"
 #include "sat/propengine.h"
 #include <climits>
 

@@ -43,7 +43,7 @@ void run_solve_command(Options opt)
 		opt.seed = std::random_device()();
 	sat.rng.seed(opt.seed);
 	if (opt.shuffle)
-		shuffleVariables(sat);
+		shuffle_variables(sat);
 
 	std::signal(SIGINT, &interruptHandler);
 	if (opt.timeout > 0)

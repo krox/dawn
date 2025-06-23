@@ -49,7 +49,7 @@ class Cnf
 		                       [](int i) { return Lit(i); });
 	}
 
-	// add clause (no checking of tautologies and such)
+	// add clause (no normalization)
 	void add_empty();
 	void add_unary(Lit a);
 	void add_binary(Lit a, Lit b);
@@ -62,12 +62,12 @@ class Cnf
 	void add_clause_safe(std::string_view lits);
 
 	// add gates (normalizes clauses)
-	void add_and_clause_safe(Lit a, Lit b, Lit c);           // a = b & c
-	void add_or_clause_safe(Lit a, Lit b, Lit c);            // a = b | c
-	void add_xor_clause_safe(Lit a, Lit b, Lit c);           // a = b ^ c
-	void add_xor_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b ^ c ^ d
-	void add_maj_clause_safe(Lit a, Lit b, Lit c, Lit d);    // a = b+c+d >= 2
-	void add_choose_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b ? c : d
+	void add_and_clause_safe(Lit a, Lit b, Lit c);        // a = b & c
+	void add_or_clause_safe(Lit a, Lit b, Lit c);         // a = b | c
+	void add_xor_clause_safe(Lit a, Lit b, Lit c);        // a = b ^ c
+	void add_xor_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b ^ c ^ d
+	void add_maj_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b+c+d >= 2
+	void add_ite_clause_safe(Lit a, Lit b, Lit c, Lit d); // a = b ? c : d
 
 	// number of clauses
 	size_t unary_count() const;
@@ -93,16 +93,76 @@ class Cnf
 	size_t memory_usage() const;
 };
 
-inline int Cnf::var_count() const { return bins.var_count(); }
+// Topological order of all literals, i.e., an order such that all binary
+// implications go 'from left to right'. If there are cycles in the graph
+// (indicated by valid=false), no strict topological order exists, but the
+// computed order is still some approximation thereof (namely a "post-order in
+// the reversed graph), which might still be useful heuristically.
+struct TopOrder
+{
+	std::vector<Lit> lits;  // literals in order
+	std::vector<int> order; // position of each lit
+	bool valid;             // false if there are cycles
+
+	TopOrder(BinaryGraph const &);
+};
+
+// propagate unit clauses until fixed-point
+int run_unit_propagation(Cnf &);
+
+// Find and replace equivalent variables.
+//    - Very fast (linear in problem size)
+//    - Returns number of equivalences found (cnf is unchanged if zero)
+//    - Replacing lits in long clauses can lead to new binary clauses and
+//    thus
+//      equivalences. Therefore this function needs to be iterated in
+//      order to guarantee acyclicity of the binary graph.
+int run_scc(Cnf &);
+
+// remove redundant binary clauses
+//   - fails if there are cycles in the binary implication graph
+//   - O(n^2) in principle, but very fast in practice
+//   - as a side effect, binaries in cnf.bins are sorted in topological
+//   order
+//     (which is useful for some heuristic arguments)
+void run_binary_reduction(Cnf &);
+
+// runs cheap simplifications until fixed-point. This should usually be run
+// before and after any more serious searches and transformations. Includes:
+//   * unit propagation
+//   * equivalent literal substitution
+//   * failed literal probing with full hyper binary resolution
+//   * transitive binary reduction
+//   * compactify clause storage
+//   * TODO:
+//       * pure literal elimination
+//       * disconnected components?
+void cleanup(Cnf &);
+
+// check that
+//     * no contradiction
+//     * no unit clauses
+//     * no equivalent variables
+bool is_normal_form(Cnf const &);
+
+// randomly shuffle variable numbers and signs
+void shuffle_variables(Cnf &d);
+
+// print some stats about the binary implication graph
+void print_binary_stats(BinaryGraph const &g);
+
+// simple statistics (clause-size histograms and such)
+void print_stats(Cnf const &cnf);
+
 inline int Cnf::add_var() { return bins.add_var(); }
+
+inline int Cnf::var_count() const { return bins.var_count(); }
 
 inline void Cnf::add_empty() { contradiction = true; }
 
 inline void Cnf::add_unary(Lit a)
 {
-	assert(a.proper());
-	assert(a.var() < var_count());
-
+	assert(a.proper() && a.var() < var_count());
 	units.push_back(a);
 }
 
@@ -148,31 +208,6 @@ inline CRef Cnf::add_clause(std::span<const Lit> lits, Color color)
 		assert(false);
 	return CRef::undef();
 }
-
-// cheap simplifications that should probably be run before and after any more
-// serious searches
-//   * runs until fixed point:
-//       * unit propagation
-//       * equivalent literal substitution
-//       * failed literal probing
-//       * hyper binary resolution
-//       * transitive binary reduction
-//       * compactify clause storage
-//   * TODO:
-//       * pure literal elimination
-//       * disconnected components?
-void cleanup(Cnf &);
-
-// check that
-//     * no contradiction
-//     * no unit clauses
-//     * no equivalent variables
-bool is_normal_form(Cnf const &);
-
-void shuffleVariables(Cnf &d);
-
-// simple statistics (clause-size histograms and such)
-void print_stats(Cnf const &cnf);
 
 } // namespace dawn
 
