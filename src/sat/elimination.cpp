@@ -1,6 +1,7 @@
 #include "sat/elimination.h"
 
 #include "fmt/format.h"
+#include "sat/clause.h"
 #include "sat/propengine.h"
 #include "sat/subsumption.h"
 #include "util/bit_vector.h"
@@ -12,16 +13,9 @@
 
 namespace dawn {
 
-// TODO:
-//   - wider definition of 'tautology':
-//       - full binary closure, or at least some stamp-based approximation
-//       - resolutions with (same-sign) overlap can be considered strong enough
-//         to be added regardless of eliminations, so they dont count in cost
-//         estimation
-//       - subsumption by existing (short-ish) clauses?
-//       - "covered" clauses?
-//   - resolve reducible clauses when eliminating variables. Needs cutoff (or
-//     better: on-the-fly subsumption) to keep the number of clauses reasonable.
+// Todo/Ideas:
+//   - Even more on-the-fly reasoning: {binary,long-}subsumption during scoring,
+//     more complete BC/RUP/RAT/CCE during clause addition?
 //   - in case the resolvent is not tautological, we could trivially determine
 //     its size. If it is very small, it might be worthwhile to add it as
 //     a learnt clause, even if no variable-elimination takes place.
@@ -80,6 +74,8 @@ bool resolvent(std::vector<Lit> &r, std::span<const Lit> a,
 	return resolvent(r, a, std::span<const Lit>(bc));
 }
 
+} // namespace
+
 // combined BVE and BCE algorithm.
 //   * Blocked clauses are not removed, but only re-colored from blue to green.
 //     Actual removal only happens when a variable is eliminated.
@@ -91,12 +87,14 @@ struct Elimination
 	Cnf &cnf;
 	std::vector<std::vector<CRef>> occs;    // all occurrences
 	std::vector<std::vector<CRef>> watches; // one watch per clause
+	ImplCache cache;                        // for bin-subsumption/SSR
 	EliminationConfig config;
 
 	util::bit_vector eliminated;
 	std::vector<int> score;
 	int64_t nEliminated = 0, nBCE = 0, nResolvents = 0;
-	int cutoff;
+	int64_t nSizeRejected = 0, nBinRejected = 0, nLongRejected = 0;
+	int64_t nBinShortened = 0;
 	util::Logger log = util::Logger("elimination");
 	// the prio-queue contains (score, variable) pairs. Outdated entries
 	// are allowed, so we have to check whenever we are about to
@@ -125,8 +123,8 @@ struct Elimination
 
 	Elimination(Cnf &cnf_, EliminationConfig const &config_)
 	    : cnf(cnf_), occs(cnf_.var_count() * 2), watches(cnf_.var_count() * 2),
-	      config(config_), eliminated(cnf_.var_count()),
-	      score(cnf_.var_count()), cutoff(config.growth)
+	      cache(cnf_.bins), config(config_), eliminated(cnf_.var_count()),
+	      score(cnf_.var_count())
 	{
 		for (auto [ci, cl] : cnf.clauses.enumerate())
 		{
@@ -160,10 +158,17 @@ struct Elimination
 	}
 
 	// returns true if the clause was actually added. False if it was
-	// rejected via subsumption.
-	bool add_clause(std::span<const Lit> cl, Color color)
+	// rejected via subsumption. NOTE: cl might be modified in the process
+	bool add_clause(Clause &cl)
 	{
-		assert(color != Color::black);
+		assert(cl.color() != Color::black);
+
+		// hard cutoff for very long reducible clauses
+		if (cl.color() != Color::blue && (int)cl.size() > config.green_cutoff)
+		{
+			nSizeRejected += 1;
+			return false;
+		}
 
 		// forward subsumption check
 		for (Lit a : cl)
@@ -171,18 +176,33 @@ struct Elimination
 				if (auto &cl2 = cnf.clauses[i]; cl2.color() != Color::black)
 					if (is_subset(cl2.lits(), cl))
 					{
-						cl2.set_color(max(cl2.color(), color));
+						nLongRejected += 1;
+						cl2.set_color(max(cl2.color(), cl.color()));
 						return false;
 					}
 
-		// TODO: binary subsumption, SSR, (some?) backwards subsumption
+		// binary subsumption + binary SSR
+		auto s = cl.size();
+		cache.normalize(cl);
+		if (cl.color() == Color::black)
+		{
+			nBinRejected += 1;
+			return false;
+		}
+		nBinShortened += s - cl.size();
 
-		// hard cutoff for very long reducible clauses
-		// if (color != Color::blue && cl.size() > 12)
-		//     return false;
+		// TODO: SSR, (some?) backwards subsumption
+
+		// rare corner case: if a reducible resolvent is binary (or became so
+		// after shortening), it will influence scoring (because binaries are
+		// implicitly irreducible). This is not captured by the dirtying logic
+		// of 'eliminate'. Thus this is handled here.
+		if (cl.color() != Color::blue && cl.size() <= 2)
+			for (Lit a : cl)
+				dirty.add(a.var());
 
 		// actually add the clause
-		auto ci = cnf.add_clause(cl, color);
+		auto ci = cnf.add_clause(cl.lits(), cl.color());
 		if (ci != CRef::undef())
 		{
 			for (Lit a : cl)
@@ -235,7 +255,7 @@ int Elimination::compute_score(int v)
 			for (int j = 0; j < (int)occs[neg].size(); ++j)
 				if (auto &b = cnf.clauses[occs[neg][j]];
 				    b.color() == Color::blue)
-					if (!is_resolvent_tautological(a.lits(), b.lits()))
+					if (!is_resolvent_tautological(a, b))
 					{
 						++posCount[i];
 						++negCount[j];
@@ -322,29 +342,25 @@ void Elimination::eliminate(int v)
 			if (x == y.neg())
 				continue;
 			else if (x == y)
-				cnf.add_unary(x);
+				resolvents.add_clause(std::array{x}, Color::blue);
 			else
 				resolvents.add_clause(std::array{x, y}, Color::blue);
 		}
 
 	// add long-binary resolvents
 	for (Clause const &cl : occs_all(pos))
-		if (cl.color() == Color::blue || cl.size() <= config.green_cutoff)
-			for (Lit x : cnf.bins[neg])
-				if (resolvent(tmp, cl.lits(), {x, neg}))
-					resolvents.add_clause(tmp, cl.color());
+		for (Lit x : cnf.bins[neg])
+			if (resolvent(tmp, cl.lits(), {x, neg}))
+				resolvents.add_clause(tmp, cl.color());
 	for (Clause const &cl : occs_all(neg))
-		if (cl.color() == Color::blue || cl.size() <= config.green_cutoff)
-			for (Lit x : cnf.bins[pos])
-				if (resolvent(tmp, cl.lits(), {x, pos}))
-					resolvents.add_clause(tmp, cl.color());
+		for (Lit x : cnf.bins[pos])
+			if (resolvent(tmp, cl.lits(), {x, pos}))
+				resolvents.add_clause(tmp, cl.color());
 
 	// add long-long resolvents
 	for (Clause const &a : occs_all(pos))
 		for (Clause const &b : occs_all(neg))
-			if (resolvent(tmp, a.lits(), b.lits()) &&
-			    (min(a.color(), b.color()) == Color::blue ||
-			     (int)tmp.size() <= config.green_cutoff))
+			if (resolvent(tmp, a.lits(), b.lits()))
 				resolvents.add_clause(tmp, min(a.color(), b.color()));
 
 	// remove old long clauses from the problem
@@ -378,11 +394,9 @@ void Elimination::eliminate(int v)
 	// NOTE: Only start adding resolvents after all old clauses are removed.
 	// Simplest way to keep the subsumption-logic in add_clause consistent.
 	int64_t resolvent_count = 0;
-	for (Clause const &cl : resolvents.all())
-	{
-		if (add_clause(cl.lits(), cl.color()))
+	for (Clause &cl : resolvents.all())
+		if (add_clause(cl))
 			++resolvent_count;
-	}
 	nResolvents += resolvent_count;
 
 	log.debug("eliminated variable {}, adding {} resolvents", pos,
@@ -399,7 +413,7 @@ int Elimination::choose_var()
 	{
 		int v = dirty.pop();
 		score[v] = compute_score(v);
-		if (score[v] <= cutoff)
+		if (score[v] <= config.growth)
 			queue.push({score[v], v});
 	}
 
@@ -431,7 +445,7 @@ void Elimination::run()
 		// without being evident from normal testing.
 		// case in point: if a reducible resolvent is binary, that is then
 		// considered irreducible (like all binaries), affecting the score.
-		// assert(score[v] == compute_score(v));
+		assert(score[v] == compute_score(v));
 
 		auto pos = Lit(v, false);
 		auto neg = Lit(v, true);
@@ -468,12 +482,13 @@ void Elimination::run()
 		}
 	}
 
-	log.info("[g={}] found {} blocked clauses, removed {} vars and added "
-	         "{} resolvents",
-	         cutoff, nBCE, nEliminated, nResolvents);
+	log.info("[g={}] found {} blocked clauses, removed {} vars", config.growth,
+	         nBCE, nEliminated);
+	log.info("added {} resolvents (rejected {} via bin- and {} via long "
+	         "subsumption, {} via size). Removed {} lits via otf-ssr.",
+	         nResolvents, nBinRejected, nLongRejected, nSizeRejected,
+	         nBinShortened);
 }
-
-} // namespace
 
 int run_elimination(Cnf &sat, EliminationConfig const &config)
 {

@@ -6,6 +6,7 @@
 
 #include "fmt/format.h"
 #include "fmt/ranges.h"
+#include "util/bit_vector.h"
 #include "util/functional.h"
 #include "util/iterator.h"
 #include "util/memory.h"
@@ -19,6 +20,7 @@
 #include <vector>
 
 namespace dawn {
+class Clause;
 
 // A literal is a variable number + sign.
 // Also there are some special lits: one, zero, undef, elim
@@ -111,6 +113,42 @@ struct BinaryGraph
 			size += v.capacity() * sizeof(Lit);
 		return size;
 	}
+};
+
+// name is wrong. It does not cache anything. Maybe 'BinaryPropEngine'?
+class ImplCache
+{
+  public:
+	BinaryGraph const &g_;
+	util::vector<Lit> stack_;
+	util::bit_set seen_;
+
+  public:
+	explicit ImplCache(BinaryGraph const &g) : g_(g) {}
+
+	// add everything implied by 'a' (including 'a' itself)
+	void add(Lit a) noexcept;
+
+	// add everything implied by 'a', but not 'a' itself (unless there is a
+	// cycle)
+	void add_implied(Lit a) noexcept;
+
+	bool contains(Lit a) const noexcept;
+
+	// reset to empty state (keeping allocated memory, which is half the point
+	// of this class to begin with)
+	void clear() noexcept;
+
+	// true if binary-subsumed
+	bool is_subsumed(std::span<const Lit> cl);
+
+	// normalize a clause in-place
+	//   - re-colors to black if binary-subsumed
+	//   - removes literals via binary-SSR
+	void normalize(Clause &cl);
+
+	bool is_resolvent_tautological(std::span<const Lit> a,
+	                               std::span<const Lit> b, Lit pivot);
 };
 
 // - removes duplicates and Lit::zero()
@@ -249,7 +287,9 @@ class Clause
 	void clear_flag(Flag f) { flags_ &= ~(uint8_t)f; }
 	bool has_flag(Flag f) const { return (flags_ & (uint8_t)f) != 0; }
 
-	// remove a literal from this clause. returns false if not found
+	// remove a literal from this clause
+	//   * returns false if not found
+	//   * keeps relative order intact
 	bool remove_literal(Lit a)
 	{
 		for (int i = 0; i < size_; ++i)
