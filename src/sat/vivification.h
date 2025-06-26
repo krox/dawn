@@ -14,6 +14,10 @@ struct VivifyConfig
 	// also strengthen along ternary. This effectively includes replacing
 	// definitions
 	bool with_ternary = true;
+
+	// only vivify clauses without the '.vivified' flag, i.e., only those that
+	// have not been vivified before.
+	bool only_new = false;
 };
 
 // run vivification

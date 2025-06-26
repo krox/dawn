@@ -9,8 +9,6 @@
 //      get right (and the latter one is disabled for now)
 //    * candidates for more general vivification could be found by near-misses
 //      in subsumption
-//    * subtle BUG: need to re-color ternaries when tern-vivifying something
-//      more blue
 //    * subtle not-quite-bug: marking shortened clause black and only re-adding
 //      the shorter version much later is actually incorrect, because a black
 //      clause will be immediately ignored by the PropEngine.
@@ -38,12 +36,17 @@ struct Vivification
 	    : cnf_(cnf), p(cnf)
 	{
 		if (config.with_ternary)
-			for (Clause const &cl : cnf.clauses.all())
+			for (Clause &cl : cnf.clauses.all())
 				if (cl.size() == 3 && cl.color() != Color::black)
 				{
 					ternaries[make_pair(cl[0], cl[1])].push_back(cl[2]);
 					ternaries[make_pair(cl[0], cl[2])].push_back(cl[1]);
 					ternaries[make_pair(cl[1], cl[2])].push_back(cl[0]);
+
+					// mark ternaries blue. Otherwise, tern-lifting clauses
+					// would be invalid. TODO: only re-color if the
+					// ternary is actually used
+					cl.set_color(Color::blue);
 				}
 	}
 
@@ -215,9 +218,11 @@ bool run_vivification(Cnf &cnf, VivifyConfig const &config,
 		if (stoken.stop_requested())
 			break;
 
-		// TODO: rate limit vivification. As can be seen by the "old" vs "new"
-		// statistics, vivifying fresh learnt clauses is quite effective, but
-		// trying old ones again rarely results in anything.
+		// As can be seen by the "old" vs "new" statistics, vivifying fresh
+		// learnt clauses (both from CDCL and from resolution/BVE) is quite
+		// effective, but trying old ones again rarely results in anything.
+		if (config.only_new && cl.has_flag(Flag::vivified))
+			continue;
 
 		if (cl.has_flag(Flag::vivified))
 			nOld += 1;

@@ -60,27 +60,34 @@ void preprocess(Cnf &sat)
 	cleanup(sat);
 	run_subsumption(sat);
 	cleanup(sat);
-	print_stats(sat);
-
-	run_redshift(sat, {});
-	run_elimination(sat, {.growth = 0, .max_resolvents = 10'000});
+	run_vivification(sat, {}, {});
 	cleanup(sat);
 	run_subsumption(sat);
 	cleanup(sat);
 	print_stats(sat);
 
-	run_redshift(sat, {});
-	run_elimination(sat, {.growth = 8, .max_resolvents = 10'000});
-	cleanup(sat);
-	run_subsumption(sat);
-	cleanup(sat);
-	print_stats(sat);
+	for (int g = 0; g <= 16;)
+	{
+		// tradeoff: larger 'elimination_config.green_cutoff' produces a lot of
+		// reducible resolvents, which are costly (in particular for
+		// vivification), but they are actually useful: eventual problem size
+		// will be smaller with more resolvents.
+		run_redshift(sat, {});
+		bool change = run_elimination(sat, {.growth = g, .green_cutoff = 5});
+		cleanup(sat);
+		run_subsumption(sat);
+		cleanup(sat);
+		run_vivification(sat, {.only_new = true}, {});
+		cleanup(sat);
+		run_subsumption(sat);
+		cleanup(sat);
+		if (!change)
+		{
+			g += 8;
+			print_stats(sat);
+		}
+	}
 
-	run_redshift(sat, {});
-	run_elimination(sat, {.growth = 16, .max_resolvents = 10'000});
-	cleanup(sat);
-	run_subsumption(sat);
-	cleanup(sat);
 	print_stats(sat);
 }
 
