@@ -38,12 +38,11 @@ void run_solve_command(Options opt)
 	// read CNF from file or stdin
 	auto [originalClauses, varCount] = parseCnf(opt.cnfFile);
 	auto sat = Cnf(varCount, originalClauses); // clauses are copied here!
-
 	if (opt.seed == -1)
 		opt.seed = std::random_device()();
-	sat.rng.seed(opt.seed);
+	auto rng = util::xoshiro256(opt.seed);
 	if (opt.shuffle)
-		shuffle_variables(sat);
+		shuffle_variables(sat, rng);
 
 	std::signal(SIGINT, &interruptHandler);
 	if (opt.timeout > 0)

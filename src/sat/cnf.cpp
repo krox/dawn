@@ -545,13 +545,13 @@ bool is_normal_form(Cnf const &cnf)
 	return true;
 }
 
-void shuffle_variables(Cnf &sat)
+void shuffle_variables(Cnf &sat, util::xoshiro256 &rng)
 {
 	auto trans = std::vector<Lit>(sat.var_count());
 	for (int i : sat.all_vars())
 	{
-		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(sat.rng));
-		int j = std::uniform_int_distribution<int>(0, i)(sat.rng);
+		trans[i] = Lit(i, std::bernoulli_distribution(0.5)(rng));
+		int j = std::uniform_int_distribution<int>(0, i)(rng);
 		std::swap(trans[i], trans[j]);
 	}
 	sat.renumber(trans, sat.var_count());

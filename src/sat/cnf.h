@@ -22,8 +22,6 @@ class Cnf
 	Reconstruction recon_;
 
   public:
-	util::xoshiro256 rng;
-
 	bool contradiction = false;
 	std::vector<Lit> units;
 	BinaryGraph bins;
@@ -146,7 +144,7 @@ void cleanup(Cnf &);
 bool is_normal_form(Cnf const &);
 
 // randomly shuffle variable numbers and signs
-void shuffle_variables(Cnf &d);
+void shuffle_variables(Cnf &, util::xoshiro256 &rng);
 
 // print some stats about the binary implication graph
 void print_binary_stats(BinaryGraph const &g);
