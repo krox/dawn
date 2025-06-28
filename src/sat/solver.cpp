@@ -73,7 +73,7 @@ void preprocess(Cnf &sat)
 		// vivification), but they are actually useful: eventual problem size
 		// will be smaller with more resolvents.
 		run_redshift(sat, {});
-		bool change = run_elimination(sat, {.growth = g, .green_cutoff = 5});
+		bool change = run_elimination(sat, {.growth = g, .green_cutoff = 4});
 		cleanup(sat);
 		run_subsumption(sat);
 		cleanup(sat);

@@ -8,9 +8,8 @@
 namespace dawn {
 
 PropEngine::PropEngine(Cnf const &cnf)
-    : seen(cnf.var_count()), watches(cnf.var_count() * 2),
-      reason(cnf.var_count()), trailPos(cnf.var_count()),
-      assign(cnf.var_count())
+    : watches(cnf.var_count() * 2), reason(cnf.var_count()),
+      assign_level(cnf.var_count()), assign(cnf.var_count())
 {
 	// util::StopwatchGuard swg(sat.stats.swSearchInit); // TODO
 
@@ -54,7 +53,7 @@ void PropEngine::set(Lit x, Reason r)
 	assert(!assign[x] && !assign[x.neg()]);
 	assign.set(x);
 	reason[x.var()] = r;
-	trailPos[x.var()] = (int)trail_.size();
+	assign_level[x.var()] = (int)mark_.size();
 	trail_.push_back(x);
 }
 
@@ -202,14 +201,6 @@ Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color)
 	return Reason(cref);
 }
 
-int PropEngine::unassignedVariable() const
-{
-	for (int i = 0; i < var_count(); ++i)
-		if (!assign[Lit(i, false)] && !assign[Lit(i, true)])
-			return i;
-	return -1;
-}
-
 int PropEngine::level() const { return (int)mark_.size(); }
 
 void PropEngine::unroll(int l)
@@ -244,68 +235,73 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 	assert(level() > 0);
 	seen.clear();
 	learnt.resize(0);
+	int pending = 0; // number of pending resolutions
 
-	std::priority_queue<std::pair<int, Lit>> todo;
+	// NOTE: On the reason side, 'seen' marks variables that are already
+	//       present in the learnt clause, to avoid duplicates. On the conflict
+	//       side, it marks variables that will be or have been resolved.
 
-	for (Lit l : conflictClause)
-	{
-		// assert(assign[l.neg()]);
-		seen[l.var()] = true;
-		todo.emplace(trailPos[l.var()], l);
-	}
-	int lev = (int)mark_.size() - 1;
-	while (!todo.empty())
-	{
-		// next literal
-		Lit l = todo.top().second;
-		todo.pop();
-		// assert(assign[l.neg()]);
+	auto handle = [&](Lit l) {
+		assert(assign[l] && !assign[l.neg()]);
 
-		// remove duplicates from queue
-		while (!todo.empty() && todo.top().second == l)
-			todo.pop();
+		if (!seen.add(l.var()) || assign_level[l.var()] == 0)
+			return;
 
 		if (activity_heap)
 			activity_heap->bump_variable_activity(l.var());
+		if (assign_level[l.var()] == level())
+			pending += 1;
+		else
+			learnt.push_back(l.neg());
+	};
 
-		// next one is reason side
-		//   -> this one is reason side or UIP
-		//   -> add this one to learnt clause
-		if (todo.empty() || todo.top().first < mark_.back())
+	for (Lit l : conflictClause)
+		handle(l.neg());
+	assert(pending >= 2);
+
+	for (auto it = trail_.rbegin();; ++it)
+	{
+		if (!seen[it->var()])
+			continue;
+		Lit a = *it;
+		assert(assign_level[a.var()] == level());
+		assert(assign[a] && !assign[a.neg()]);
+
+		// found UIP -> stop
+		if (pending == 1)
 		{
-			if (trailPos[l.var()] >= mark_[0]) // skip level 0 assignments
-			{
-				learnt.push_back(l);
-				while (!todo.empty() && todo.top().first < mark_[lev])
-					lev--;
-			}
+			learnt.push_back(a.neg());
+			break;
 		}
-		else // otherwise resolve
+
+		// otherwise -> resolve
+		Reason r = reason[a.var()];
+		pending -= 1;
+
+		if (r.isBinary())
 		{
-			Reason r = reason[l.var()];
-			if (r.isBinary())
-			{
-				todo.emplace(trailPos[r.lit().var()], r.lit());
-				seen[r.lit().var()] = true;
-			}
-			else if (r.isLong())
-			{
-				const Clause &cl = clauses[r.cref()];
-				// assert(cl[0] == l.neg());
-				for (int i = 1; i < cl.size(); ++i)
-				{
-					todo.emplace(trailPos[cl[i].var()], cl[i]);
-					seen[cl[i].var()] = true;
-				}
-			}
-			else
-				assert(false);
+			handle(r.lit().neg());
 		}
+		else if (r.isLong())
+		{
+			const Clause &cl = clauses[r.cref()];
+			assert(cl[0] == a);
+			for (int i = 1; i < cl.size(); ++i)
+				handle(cl[i].neg());
+		}
+		else
+			assert(false);
 	}
+
 	if (activity_heap)
 		activity_heap->decay_variable_activity();
+
+	std::sort(learnt.begin(), learnt.end(), [&](Lit a, Lit b) {
+		return assign_level[a.var()] > assign_level[b.var()];
+	});
 	if (otf >= 1)
 		shorten_learnt(learnt, otf >= 2);
+
 	stats.nLitsLearnt += learnt.size();
 	stats.learn_events.push_back(
 	    {.depth = level(), .size = (int)learnt.size()});
@@ -316,11 +312,8 @@ int PropEngine::backtrack_level(std::span<const Lit> learnt) const
 	assert(!learnt.empty());
 	if (learnt.size() == 1)
 		return 0;
-	int i = level() - 1;
-	while (mark_[i] > trailPos[learnt[1].var()])
-		i -= 1;
-
-	return i + 1;
+	assert(assign_level[learnt[0].var()] > assign_level[learnt[1].var()]);
+	return assign_level[learnt[1].var()];
 }
 
 void PropEngine::shorten_learnt(std::vector<Lit> &learnt, bool recursive)
@@ -358,7 +351,7 @@ bool PropEngine::is_redundant(Lit lit, bool recursive)
 			    !(recursive && is_redundant(l, recursive)))
 				return false;
 
-		seen[lit.var()] = true; // shortcut other calls to isRedundant
+		seen.add(lit.var()); // shortcut other calls to is_redundant
 		return true;
 	}
 }

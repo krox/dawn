@@ -60,6 +60,9 @@ struct Reason
 // maintaining the watch lists). The actual CDCL algorithm (with heuristics for
 // branching, restarts, cleaning, etc.) is implemented in the Searcher class.
 // TODO:
+//   * blocking literal optimization and implicit ternary clauses
+//   * all-level UIP resolution (restricted to conserve LBD)
+//   * benchmark stats-tracking. Can be optimized with local counts in registers
 //   * merge this (again) with PropEngineLight
 class PropEngine
 {
@@ -70,7 +73,7 @@ class PropEngine
 	ClauseStorage clauses;
 
   private:
-	util::bit_vector seen; // temporary during conflict analysis
+	util::bit_set seen; // temporary during conflict analysis
 
 	// otf strengthening of learnt clause
 	//   * only valid to do right after analyze_conflict(...)
@@ -89,7 +92,7 @@ class PropEngine
 	watches_t watches;
 
 	std::vector<Reason> reason; // only valid for assigned vars
-	std::vector<int> trailPos;  // ditto
+	std::vector<int> assign_level;
 
 	std::vector<Lit> conflictClause;
 
@@ -100,15 +103,15 @@ class PropEngine
 	Assignment assign;
 	bool conflict = false;
 
-	/** constructor */
-	PropEngine(Cnf const &cnf);
+	// constructor copies and attaches all clauses
+	explicit PropEngine(Cnf const &cnf);
 
 	// assign a literal and do unit propagation. Returns view (into .trail_)
 	// containing all newly assigned literals, starting with x.
 	std::span<const Lit> branch(Lit x);              // starts a new level
 	std::span<const Lit> propagate(Lit x, Reason r); // stays on current level
 
-	/** read-only view (into trail_) of assignments */
+	// read-only view (into trail_) of assignments
 	std::span<const Lit> trail() const;      // all levels
 	std::span<const Lit> trail(int l) const; // level l
 
@@ -118,33 +121,26 @@ class PropEngine
 	Reason add_clause(Lit c0, Lit c1);
 	Reason add_clause(const std::vector<Lit> &cl, Color color);
 
-	int unassignedVariable() const; /** -1 if everything is assigned */
-
-	int level() const; /** current level */
+	int level() const;
 	int var_count() const { return assign.var_count(); }
 
-	/**
-	 * unroll assignments
-	 *   - after unrolling, level() == l
-	 *   - re-add freed vars to activity-heap (if activity_heap != null)
-	 */
+	// unroll assignments
+	//   - after unrolling, level() == l
+	//   - re-add freed vars to activity-heap (if activity_heap != null)
 	void unroll(int l);
 	void unroll(int l, ActivityHeap &activity_heap);
 
-	/**
-	 * analyze conflict up to UIP, outputs learnt clause, does NOT unroll
-	 *  - bumps activity of all involved variables (if activity_heap != null)
-	 *  - performs otf minimization (if enabled in configuration)
-	 *  - learnt clause is ordered by level, such that learnt[0] is the UIP
-	 *  - otf = 0 -> no strengthening, 1 -> basic, 2 -> recursive
-	 */
+	// analyze conflict up to UIP, outputs learnt clause, does NOT unroll
+	//  - bumps activity of all involved variables (if activity_heap != null)
+	//  - learnt clause is ordered by level, such that learnt[0] is the UIP
+	//  - otf = 0 -> no strengthening, 1 -> basic, 2 -> recursive
 	void analyze_conflict(std::vector<Lit> &learnt, ActivityHeap *activity_heap,
 	                      int otf);
 
 	// determine backtrack level ( = level of learnt[1])
 	int backtrack_level(std::span<const Lit> cl) const;
 
-	/** for debugging */
+	// for debugging
 	void printTrail() const;
 };
 
