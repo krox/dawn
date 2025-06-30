@@ -145,8 +145,11 @@ void Searcher::run_restart(Result &result, std::stop_token stoken)
 			Reason r = Reason::undef();
 			if (buf_.size() > 1)
 				r = p_.add_clause(buf_, color);
-			for (Lit x : p_.propagate(buf_[0], r))
-				polarity_[x.var()] = x.sign();
+
+			// policy: do not save polarity in case of conflict
+			if (p_.propagate(buf_[0], r) != -1)
+				for (Lit x : p_.trail(p_.level()))
+					polarity_[x.var()] = x.sign();
 		}
 
 		// maxConfl reached -> unroll and exit
@@ -170,8 +173,9 @@ void Searcher::run_restart(Result &result, std::stop_token stoken)
 		}
 		// TODO: question: should we set polarity in case of conflict?
 		//       (same applies when handling conflicts by adding new learnt)
-		for (Lit x : p_.branch(branchLit))
-			polarity_[x.var()] = x.sign();
+		if (p_.branch(branchLit) != -1)
+			for (Lit x : p_.trail(p_.level()))
+				polarity_[x.var()] = x.sign();
 	}
 }
 

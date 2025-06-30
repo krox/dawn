@@ -5,62 +5,47 @@
 #include <optional>
 #include <queue>
 
-namespace dawn {
+using namespace dawn;
 
-PropEngine::PropEngine(Cnf const &cnf)
-    : watches(cnf.var_count() * 2), reason(cnf.var_count()),
-      assign_level(cnf.var_count()), assign(cnf.var_count())
+bool dawn::PropEngine::is_redundant(Lit lit, bool recursive)
 {
-	// util::StopwatchGuard swg(sat.stats.swSearchInit); // TODO
+	assert(lit.proper());
 
-	// empty clause -> don't bother doing anything
-	if (cnf.contradiction)
+	Reason r = reason[lit.var()];
+
+	if (r.isUndef()) // descision variable -> cannot be removed
+		return false;
+
+	if (r.isBinary())
 	{
-		conflict = true;
-		return;
+		return seen[r.lit().var()] ||
+		       (recursive && is_redundant(r.lit(), recursive));
 	}
 
-	clauses = cnf.clauses;
-	bins = cnf.bins;
-
-	// attach long clauses
-	for (auto [i, c] : clauses.enumerate())
+	assert(r.isLong());
 	{
-		assert(c.size() >= 2);
-		watches[c[0]].push_back(i);
-		watches[c[1]].push_back(i);
-	}
+		Clause &cl = clauses[r.cref()];
+		for (Lit l : cl.lits())
+			if (l != lit && !seen[l.var()] &&
+			    !(recursive && is_redundant(l, recursive)))
+				return false;
 
-	// propagate unary clauses
-	for (auto l : cnf.units)
-	{
-		if (assign[l])
-			continue;
-		if (assign[l.neg()])
-		{
-			conflict = true;
-			return;
-		}
-		propagate(l, Reason::undef());
-		if (conflict)
-			return;
+		seen.add(lit.var()); // shortcut other calls to is_redundant
+		return true;
 	}
 }
 
-void PropEngine::set(Lit x, Reason r)
+void dawn::PropEngine::propagate_binary(Lit x, Reason r)
 {
 	assert(!conflict);
 	assert(!assign[x] && !assign[x.neg()]);
-	assign.set(x);
-	reason[x.var()] = r;
-	assign_level[x.var()] = (int)mark_.size();
-	trail_.push_back(x);
-}
 
-void PropEngine::propagateBinary(Lit x, Reason r)
-{
 	size_t pos = trail_.size();
-	set(x, r);
+
+	assign.set(x);
+	trail_.push_back(x);
+	assign_level[x.var()] = (int)mark_.size();
+	reason[x.var()] = r;
 
 	while (pos != trail_.size())
 	{
@@ -74,31 +59,77 @@ void PropEngine::propagateBinary(Lit x, Reason r)
 				continue;
 			}
 
-			if (assign[z.neg()]) // already assigned false -> conflict
+			else if (assign[z.neg()]) // already assigned false -> conflict
 			{
 				stats.nBinConfls += 1;
-				assert(conflictClause.empty());
-				conflictClause.push_back(y.neg());
-				conflictClause.push_back(z);
+				assert(conflict_clause.empty());
+				conflict_clause.push_back(y.neg());
+				conflict_clause.push_back(z);
 				conflict = true;
 				return;
 			}
 
-			stats.nBinProps += 1;
-			set(z, Reason(y.neg())); // else -> propagate
+			else // else -> propagate
+			{
+				assign.set(z);
+				trail_.push_back(z);
+				assign_level[z.var()] = (int)mark_.size();
+				reason[z.var()] = Reason(y.neg());
+				stats.nBinProps += 1;
+			}
 		}
 	}
 }
 
-std::span<const Lit> PropEngine::propagate(Lit x, Reason r)
+dawn::PropEngine::PropEngine(Cnf const &cnf)
+    : watches(cnf.var_count() * 2), reason(cnf.var_count()),
+      assign_level(cnf.var_count()), assign(cnf.var_count())
 {
-	size_t pos = trail_.size();
-	size_t startPos = pos;
-	propagateBinary(x, r);
-	if (conflict)
-		return std::span(trail_).subspan(startPos);
+	// empty clause -> don't bother doing anything
+	if (cnf.contradiction)
+	{
+		conflict = true;
+		return;
+	}
 
-	while (pos != trail_.size())
+	// copy clause data
+	clauses = cnf.clauses;
+	bins = cnf.bins;
+
+	// attach long clauses
+	for (auto [i, c] : clauses.enumerate())
+	{
+		assert(c.size() >= 2);
+		watches[c[0]].push_back(i);
+		watches[c[1]].push_back(i);
+	}
+
+	// propagate unary clauses
+	for (auto l : cnf.units)
+		if (propagate(l) == -1)
+			return;
+}
+
+int dawn::PropEngine::propagate(Lit x, Reason r)
+{
+	assert(!conflict);
+	if (assign[x])
+		return 0;
+	if (assign[x.neg()])
+	{
+		// mathematically, it would make sense to set 'conflictClause' to
+		// {x, x.neg()} here, but it is not used anywhere, so we dont.
+		conflict = true;
+		return -1;
+	}
+
+	int pos = (int)trail_.size();
+	int startPos = pos;
+	propagate_binary(x, r);
+	if (conflict)
+		return -1;
+
+	while (pos != (int)trail_.size())
 	{
 		Lit y = trail_[pos++];
 		auto &ws = watches[y.neg()];
@@ -150,10 +181,9 @@ std::span<const Lit> PropEngine::propagate(Lit x, Reason r)
 			{
 				stats.nLongConfls += 1;
 				conflict = true;
-				assert(conflictClause.empty());
-				for (Lit l : c.lits())
-					conflictClause.push_back(l);
-				return std::span(trail_).subspan(startPos);
+				assert(conflict_clause.empty());
+				conflict_clause.assign(c.begin(), c.end());
+				return -1;
 			}
 			else
 			{
@@ -161,77 +191,72 @@ std::span<const Lit> PropEngine::propagate(Lit x, Reason r)
 				// This is the point where we previously did LHBR. But we
 				// already do hyper binaries in top-level in-tree probing, so it
 				// is not worth the complexity here.
-				propagateBinary(c[0], Reason(ci));
+				propagate_binary(c[0], Reason(ci));
 				if (conflict)
-					return std::span(trail_).subspan(startPos);
+					return -1;
 			}
 
 		next_watch:;
 		}
 	}
-	return std::span(trail_).subspan(startPos);
+	return (int)trail_.size() - startPos;
 }
 
-std::span<const Lit> PropEngine::branch(Lit x)
+int dawn::PropEngine::propagate_neg(std::span<const Lit> xs)
 {
-	assert(!conflict);
-	assert(!assign[x] && !assign[x.neg()]);
-	mark_.push_back(trail_.size());
-	return propagate(x, Reason::undef());
+	int start_pos = (int)trail_.size();
+	for (Lit x : xs)
+		if (propagate(x.neg()) == -1)
+			return -1;
+	return (int)trail_.size() - start_pos;
 }
 
-Reason PropEngine::add_clause(Lit c0, Lit c1)
+int dawn::PropEngine::propagate_neg(std::span<const Lit> xs, Lit pivot)
 {
-	assert(c0.var() != c1.var());
-	bins[c0].push_back(c1);
-	bins[c1].push_back(c0);
-	return Reason(c1);
+	int start_pos = (int)trail_.size();
+	for (Lit x : xs)
+		if (x != pivot && propagate(x.neg()) == -1)
+			return -1;
+	if (propagate(pivot) == -1)
+		return -1;
+	return (int)trail_.size() - start_pos;
 }
 
-Reason PropEngine::add_clause(const std::vector<Lit> &cl, Color color)
+int PropEngine::branch(Lit x)
 {
-	assert(cl.size() >= 2);
-
-	if (cl.size() == 2)
-		return add_clause(cl[0], cl[1]);
-
-	CRef cref = clauses.add_clause(cl, color);
-	watches[cl[0]].push_back(cref);
-	watches[cl[1]].push_back(cref);
-	return Reason(cref);
+	mark();
+	return propagate(x);
 }
 
-int PropEngine::level() const { return (int)mark_.size(); }
-
-void PropEngine::unroll(int l)
+int PropEngine::probe(Lit x)
 {
-	assert(l < level());
-
-	conflict = false;
-	conflictClause.resize(0);
-
-	while ((int)trail_.size() > mark_[l])
-	{
-		Lit lit = trail_.back();
-		trail_.pop_back();
-		assign.unset(lit);
-	}
-	mark_.resize(l);
+	mark();
+	int res = propagate(x);
+	unroll(level() - 1);
+	return res;
 }
 
-void PropEngine::unroll(int l, ActivityHeap &activity_heap)
+int PropEngine::probe_neg(std::span<const Lit> xs)
 {
-	assert(l < level());
-	for (int i = mark_[l]; i < (int)trail_.size(); ++i)
-		activity_heap.push(trail_[i].var());
-	unroll(l);
+	mark();
+	int res = propagate_neg(xs);
+	unroll(level() - 1);
+	return res;
+}
+
+int PropEngine::probe_neg(std::span<const Lit> xs, Lit pivot)
+{
+	mark();
+	int res = propagate_neg(xs, pivot);
+	unroll(level() - 1);
+	return res;
 }
 
 void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
                                   ActivityHeap *activity_heap, int otf)
 {
 	assert(conflict);
-	assert(!conflictClause.empty());
+	assert(!conflict_clause.empty());
 	assert(level() > 0);
 	seen.clear();
 	learnt.resize(0);
@@ -255,7 +280,7 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 			learnt.push_back(l.neg());
 	};
 
-	for (Lit l : conflictClause)
+	for (Lit l : conflict_clause)
 		handle(l.neg());
 	assert(pending >= 2);
 
@@ -307,16 +332,7 @@ void PropEngine::analyze_conflict(std::vector<Lit> &learnt,
 	    {.depth = level(), .size = (int)learnt.size()});
 }
 
-int PropEngine::backtrack_level(std::span<const Lit> learnt) const
-{
-	assert(!learnt.empty());
-	if (learnt.size() == 1)
-		return 0;
-	assert(assign_level[learnt[0].var()] > assign_level[learnt[1].var()]);
-	return assign_level[learnt[1].var()];
-}
-
-void PropEngine::shorten_learnt(std::vector<Lit> &learnt, bool recursive)
+void dawn::PropEngine::shorten_learnt(std::vector<Lit> &learnt, bool recursive)
 {
 	int j = 1;
 	for (int i = 1; i < (int)learnt.size(); ++i)
@@ -327,36 +343,16 @@ void PropEngine::shorten_learnt(std::vector<Lit> &learnt, bool recursive)
 	learnt.resize(j);
 }
 
-// helper for OTF strengthening
-bool PropEngine::is_redundant(Lit lit, bool recursive)
+int dawn::PropEngine::backtrack_level(std::span<const Lit> learnt) const
 {
-	assert(lit.proper());
-
-	Reason r = reason[lit.var()];
-
-	if (r.isUndef()) // descision variable -> cannot be removed
-		return false;
-
-	if (r.isBinary())
-	{
-		return seen[r.lit().var()] ||
-		       (recursive && is_redundant(r.lit(), recursive));
-	}
-
-	assert(r.isLong());
-	{
-		Clause &cl = clauses[r.cref()];
-		for (Lit l : cl.lits())
-			if (l != lit && !seen[l.var()] &&
-			    !(recursive && is_redundant(l, recursive)))
-				return false;
-
-		seen.add(lit.var()); // shortcut other calls to is_redundant
-		return true;
-	}
+	assert(!learnt.empty());
+	if (learnt.size() == 1)
+		return 0;
+	assert(assign_level[learnt[0].var()] > assign_level[learnt[1].var()]);
+	return assign_level[learnt[1].var()];
 }
 
-void PropEngine::printTrail() const
+void dawn::PropEngine::print_trail() const
 {
 	for (int l = 0; l <= level(); ++l)
 	{
@@ -379,13 +375,26 @@ void PropEngine::printTrail() const
 	}
 }
 
-// simple RAII class that calls a function when it goes out of scope
-template <typename F> struct Guard
+Reason dawn::PropEngine::add_clause(Lit c0, Lit c1)
 {
-	F f;
-	Guard(F f) : f(f) {}
-	~Guard() { f(); }
-};
+	assert(c0.var() != c1.var());
+	bins[c0].push_back(c1);
+	bins[c1].push_back(c0);
+	return Reason(c1);
+}
+
+Reason dawn::PropEngine::add_clause(const std::vector<Lit> &cl, Color color)
+{
+	assert(cl.size() >= 2);
+
+	if (cl.size() == 2)
+		return add_clause(cl[0], cl[1]);
+
+	CRef cref = clauses.add_clause(cl, color);
+	watches[cl[0]].push_back(cref);
+	watches[cl[1]].push_back(cref);
+	return Reason(cref);
+}
 
 PropEngineLight::PropEngineLight(Cnf &cnf, bool attach_clauses)
     : cnf(cnf), watches(cnf.var_count() * 2), assign(cnf.var_count())
@@ -662,5 +671,3 @@ std::span<const Lit> PropEngineLight::trail(int l) const
 	else
 		return t.subspan(mark_[l - 1], mark_[l] - mark_[l - 1]);
 }
-
-} // namespace dawn
