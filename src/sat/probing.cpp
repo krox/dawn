@@ -3,111 +3,117 @@
 #include "sat/propengine.h"
 #include <climits>
 
-namespace dawn {
-int probeBinary(Cnf &cnf)
+using namespace dawn;
+
+int dawn::probe_binary(Cnf &cnf)
 {
-	/*
-	Idea: Propagate two literals a and b. If a conflict arises, we can learn
-	      the binary clause (-a,-b). Some optimizations arise:
-	1) If a conflict arises, dont just learn (-a,-b). Instead do conflict
-	   analysis and potentially learn an even stronger clause.
-	2) If no conflict arises when propagating b and b implies b', then no
-	   conflict can arise when propagating b' instead of b. No need to check.
-	3) To maximize the effect of (1) and (2), we probe literals in (approximate)
-	   topological order.
-	 */
-	// util::StopwatchGuard swg(sat.stats.swProbing); TODO
+	// basic structure:
+	//   for (Lit a)
+	//       for (Lit b)
+	//           if (probe(a, b) == conflict)
+	//               learn (-a,-b)
+	// some optimizations:
+	//   * If no conflict arises when propagating b and b implies b', then no
+	//     conflict can arise when propagating b' instead of b. This is
+	//     implemented using the 'seenB' array.
+	//   * If a implies a', everything that is not-conflicting with a is also
+	//     not-conflicting with a'. This is implemented by opportunistically
+	//     re-using the 'seenB' array.
+	//   * To maximize the effect of the above, both loops should be in
+	//     topological order.
+	//   * TODO: Dont 'just' learn (-a,-b) on conflict, but do actual conflict
+	//     analysis. Currently, we are paying for the the full capability of
+	//     'PropEngine' without using it.
+	//   * TODO: be more careful which combinations of 'a' and 'b' need probing,
+	//     depending on their position in the binary implication graph:
+	//     - both 'a' and 'b' are sinks or isolated points: Can only conflict if
+	//       they appear together in a ternary clause. This is handled in
+	//       vivification already, so we can skip it here.
+	//     - 'a' and 'b' belong to different weakly connected components: Only
+	//       probe if both are sources.
+	//   * TODO: randomize probing order a bit and implement a cutoff in order
+	//     to do a partial run on large CNFs.
+
 	auto log = util::Logger("bin-probing");
-
-	PropEngine p(cnf);
-	if (p.conflict)
-		return 0;
-
+	auto p = PropEngine(cnf);
 	auto top = TopOrder(cnf.bins);
+
+	// sanity check. Not strictly necessary, but running (expensive) bin-probing
+	// without (cheap) normalization first is a waste of time.
+	if (!top.valid || p.conflict || !cnf.units.empty())
+	{
+		log.warning("CNF not normalized, skipping bin-probing.");
+		return 0;
+	}
+
 	auto seenA = util::bit_vector(cnf.var_count() * 2);
 	auto seenB = util::bit_vector(cnf.var_count() * 2);
-	std::vector<Lit> buf;
 	int nTries = 0;
-	int nFails = 0;
-
-	auto backtrack = [&cnf, &p, &buf]() {
-		p.analyze_conflict(buf, nullptr, 2);
-		auto back = p.backtrack_level(buf);
-		p.unroll(back);
-		auto reason = p.add_clause(buf, Color::green);
-		cnf.add_clause(buf, Color::green);
-		p.propagate(buf[0], reason);
-		buf.resize(0);
-	};
+	int nUnitFails = 0;
+	int nBinFails = 0;
 
 	for (Lit a : top.lits)
 	{
+		// UNSAT found
+		assert(p.level() == 0);
+		if (p.conflict) [[unlikely]]
+		{
+			cnf.add_empty();
+			break;
+		}
+
 		seenB.clear();
-
-	use_this_a:
-
 		if (p.assign[a] || p.assign[a.neg()] || seenA[a])
 			continue;
+
+	use_this_a:
 		seenA[a] = true;
 		p.branch(a);
 		assert(p.level() == 1);
 
-		// failed literal -> analyze and learn unit
-		if (p.conflict)
-		{
-			// nFailsUnary += 1;
-			backtrack();
-
-			if (p.conflict) // still conflict -> UNSAT
-				break;
-			else // conflict resolved -> next literal
-				continue;
-		}
-
-		// propagating a worked fine -> probe all possible b
-		assert(p.level() == 1);
-
 		for (Lit b : top.lits)
 		{
+			// failed literal -> learn unit
+			if (p.conflict)
+			{
+				nUnitFails += 1;
+				p.unroll();
+				cnf.add_unary(a.neg());
+				p.propagate(a.neg());
+				goto next_a;
+			}
 			if (p.assign[b] || p.assign[b.neg()] || seenB[b])
 				continue;
+
+			// arbitrary symmetry breaking
 			if ((int)b > (int)a)
 				continue;
+
 			p.branch(b);
+			assert(p.level() == 2);
 			nTries += 1;
 
 			if (p.conflict)
 			{
-				nFails += 1;
-				while (p.conflict)
-					if (p.level() == 0) // level 0 conflict -> UNSAT
-						return 1;
-					else
-						backtrack();
+				nBinFails += 1;
+				p.unroll();
+				cnf.add_binary(a.neg(), b.neg());
+				p.add_clause({a.neg(), b.neg()}, Color::green);
+				p.propagate(b.neg());
+				continue;
+			}
 
-				if (p.level() == 0)
-					goto next_a;
-				else if (p.level() == 1)
-					continue;
-				else
-					assert(false);
-			}
-			else
-			{
-				// no conflict -> mark everything propagated as seen
-				assert(p.level() == 2);
-				for (Lit c : p.trail(2))
-					seenB[c] = true;
-				p.unroll(1);
-			}
+			// no conflict -> mark everything propagated as seen
+			assert(p.level() == 2);
+			for (Lit c : p.trail(2))
+				seenB[c] = true;
+			p.unroll();
 		}
-		p.unroll(0);
+		assert(p.level() == 1);
+		p.unroll();
 
-		if (nFails > 1000)
-			break;
-
-		// for this a, all b were probed. Try to get a weaker a next
-		// in order to reuse the 'seenB' array
+		// Done with this 'a'. Try to get a weaker 'a' next in order to reuse
+		// the 'seenB' array
 		for (Lit a2 : p.bins[a.neg()])
 			if (!(p.assign[a2] || p.assign[a2.neg()] || seenA[a2]))
 			{
@@ -118,19 +124,15 @@ int probeBinary(Cnf &cnf)
 	next_a:;
 	}
 
-	if (nFails == 0)
-		log.info("-");
-	else
-	{
-		log.info("found {} failing bins using {:.2f}M tries", nFails,
-		         nTries / 1e6);
-	}
+	log.info("found {} units and {} bins using {:.2f}M tries", nUnitFails,
+	         nBinFails, nTries / 1e6);
 
-	return nFails;
+	return nUnitFails + nBinFails;
 }
 
 // probe from a sink(!) a, going up the implication graph. Returns learnt
 // unit or Lit::undef() if nothing was found.
+namespace {
 Lit probe(Lit a, PropEngineLight &p, util::bit_vector &done)
 {
 	assert(a.proper());
@@ -157,8 +159,9 @@ Lit probe(Lit a, PropEngineLight &p, util::bit_vector &done)
 	p.unroll();
 	return Lit::undef();
 }
+} // namespace
 
-bool run_probing(Cnf &cnf)
+bool dawn::run_probing(Cnf &cnf)
 {
 	if (cnf.contradiction)
 		return false;
@@ -183,5 +186,3 @@ bool run_probing(Cnf &cnf)
 	assert(p.level() == 0);
 	return nUnits || p.nHbr;
 }
-
-} // namespace dawn

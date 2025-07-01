@@ -13,6 +13,6 @@ bool run_probing(Cnf &cnf);
 
 // Probe for binaries.
 // Quite expensive and probably not woth it for most problems.
-int probeBinary(Cnf &cnf);
+int probe_binary(Cnf &cnf);
 
 } // namespace dawn

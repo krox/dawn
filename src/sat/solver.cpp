@@ -28,7 +28,7 @@ void inprocess(Cnf &sat, SolverConfig const &config, std::stop_token stoken)
 
 	if (config.bin_probing)
 	{
-		probeBinary(sat);
+		probe_binary(sat);
 		cleanup(sat);
 	}
 
@@ -86,6 +86,16 @@ void preprocess(Cnf &sat)
 			g += 8;
 			print_stats(sat);
 		}
+	}
+
+	if (sat.var_count() < 3000)
+	{
+		probe_binary(sat);
+		cleanup(sat);
+		run_vivification(sat, {}, {});
+		cleanup(sat);
+		run_subsumption(sat);
+		cleanup(sat);
 	}
 
 	print_stats(sat);

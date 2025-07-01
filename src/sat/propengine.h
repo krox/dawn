@@ -180,10 +180,15 @@ inline void PropEngine::mark()
 	mark_.push_back(trail_.size());
 }
 
-inline void PropEngine::unroll() { unroll(level() - 1); }
+inline void PropEngine::unroll()
+{
+	assert(level() > 0);
+	unroll(level() - 1);
+}
 
 inline void PropEngine::unroll(int l)
 {
+	assert(l >= 0);
 	assert(l < level());
 
 	conflict = false;
